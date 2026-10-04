@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>卫戍协议 · 主机控制台</title>
+<style>
+  :root { color-scheme: dark; --bg: #0c0f0e; --panel: #141816; --line: #2f3a35; --mint: #4ed8af; --text: #dfe6e2; --dim: #8a9a92; --warn: #f6a329; --red: #e85a4a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 system-ui, "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--line); }
+  h1 { margin: 0; font-size: 18px; color: var(--mint); }
+  h2 { margin: 0; font-size: 16px; }
+  main { padding: 16px 20px; display: grid; gap: 16px; }
+  .room { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .meta { color: var(--dim); }
+  .tag { padding: 1px 8px; border-radius: 10px; border: 1px solid var(--line); font-size: 12px; }
+  .tag.phase { border-color: var(--mint); color: var(--mint); }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+  th { color: var(--dim); font-weight: normal; }
+  button, input, select { font: inherit; color: var(--text); background: #1e2421; border: 1px solid var(--line); border-radius: 4px; padding: 3px 8px; }
+  button { cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--mint); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { border-color: var(--mint); color: var(--mint); }
+  button.danger { border-color: var(--red); color: var(--red); }
+  :focus-visible { outline: 2px solid var(--mint); outline-offset: 1px; }
+  input.num { width: 72px; }
+  .grant { width: 200px; }
+  #status { margin-left: auto; color: var(--dim); }
+  #msg { position: fixed; right: 20px; bottom: 20px; max-width: 420px; padding: 10px 14px; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); display: none; }
+  #msg.err { border-color: var(--red); }
+  .off { color: var(--dim); }
+  .empty { color: var(--dim); padding: 40px; text-align: center; }
+  tr.detail > td { white-space: normal; background: #101311; padding: 10px 12px 14px; }
+  .panes { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+  .panes h3 { margin: 0 0 4px; font-size: 13px; color: var(--mint); font-weight: normal; }
+  .panes table { margin-top: 0; }
+  .panes td, .panes th { padding: 3px 6px; }
+  .panes ul { margin: 4px 0 8px; padding-left: 18px; }
+  .scroll { max-height: 280px; overflow: auto; }
+  .on { color: var(--mint); }
+  .note { color: var(--warn); font-size: 12px; margin: 4px 0 0; }
+  input.small { width: 64px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>主机控制台</h1>
+  <span class="meta">只能在这台电脑上打开 · 修改直接生效、不扣金币；只有「加层」「补发机变卡」「装备」会触发游戏效果</span>
+  <span id="status" aria-live="polite"></span>
+</header>
+<main id="rooms"></main>
+<datalist id="chess-list"></datalist>
+<datalist id="item-list"></datalist>
+<datalist id="equip-list"></datalist>
+<datalist id="card-list"></datalist>
+<div id="msg" role="status" aria-live="polite"></div>
+<script>
+const TOKEN = '__TOKEN__';
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const api = (p, body) => fetch(p, { method: body ? 'POST' : 'GET', headers: { 'X-Admin-Token': TOKEN, 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) })
+  .then((r) => r.json());
+
+let catalogRoom = null;
+const names = { chess: new Map(), item: new Map(), equip: new Map(), card: new Map() };
+const open = new Set(); // players whose 详情 row is expanded
+
+function say(text, err = false) {
+  const el = $('#msg');
+  el.textContent = text;
+  el.className = err ? 'err' : '';
+  el.style.display = 'block';
+  clearTimeout(say.t);
+  say.t = setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
+
+async function act(room, action, playerId, value, label) {
+  const r = await api('/api/action', { room, action, playerId, value }).catch(() => ({ error: '连接服务器失败' }));
+  if (r.ok) say(`${label || action}：完成${r.round ? `（第 ${r.round} 回合）` : ''}`);
+  else say(`${label || action}失败：${r.error}${r.detail ? `（${r.detail}）` : ''}`, true);
+  refresh();
+}
+
+async function loadCatalog(room) {
+  if (catalogRoom === room) return;
+  catalogRoom = room;
+  const c = await api(`/api/catalog?room=${encodeURIComponent(room)}`);
+  const fill = (list, kind, sel) => {
+    names[kind].clear();
+    $(sel).innerHTML = list.map((x) => {
+      const label = `${x.name}（${x.tier}费）`;
+      names[kind].set(label, x.id);
+      let opts = `<option value="${esc(label)}"></option>`;
+      if (x.goldenId) { const g = `${x.name}·精锐（${x.tier}费）`; names[kind].set(g, x.goldenId); opts += `<option value="${esc(g)}"></option>`; }
+      return opts;
+    }).join('');
+  };
+  fill(c.chess, 'chess', '#chess-list');
+  fill(c.items, 'item', '#item-list');
+  fill(c.items.filter((x) => x.equip), 'equip', '#equip-list');
+  names.card.clear();
+  $('#card-list').innerHTML = c.cards.map((x) => {
+    const label = `${x.name}${x.kind === 'bounty' ? '（悬赏）' : x.team ? '（全队）' : ''}`;
+    names.card.set(label, x.id);
+    return `<option value="${esc(label)}"></option>`;
+  }).join('');
+}
+
+// data attributes of a button that acts on one player
+const on = (code, p, action, label) => `data-room="${code}" data-player="${esc(p.id)}" data-click="${action}" data-label="${label}"`;
+
+function detailRow(code, p, cols) {
+  const at = (label) => `data-room="${code}" data-player="${esc(p.id)}" data-label="${label}"`;
+  const bondRows = (list) => list.map((b) => `<tr>
+      <td class="${b.active ? 'on' : ''}">${esc(b.name)}</td>
+      <td>${b.count} / ${esc(b.thresholds.join('·'))}</td>
+      <td>${b.layers}
+        <input class="small" type="number" min="1" placeholder="+层" aria-label="${esc(p.name)} ${esc(b.name)} 增加层数" data-act="bondAdd" data-bond="${b.id}" ${at(`${esc(b.name)} 加层`)} data-clear>
+        <input class="small" type="number" min="0" max="999" placeholder="设为" aria-label="${esc(p.name)} ${esc(b.name)} 设定层数" data-act="bondSet" data-bond="${b.id}" ${at(`${esc(b.name)} 设层`)} data-clear></td>
+      <td><input class="small" type="number" value="${b.bonus}" aria-label="${esc(p.name)} ${esc(b.name)} 人数加成" data-act="bondBonus" data-bond="${b.id}" ${at(`${esc(b.name)} 人数加成`)}></td>
+    </tr>`).join('');
+  const used = p.bonds.filter((b) => b.count || b.layers || b.bonus || b.active);
+  const others = p.bonds.filter((b) => !used.includes(b));
+  const pieceRows = p.pieces.map((x) => `<tr>
+      <td>${esc(x.where)}</td>
+      <td>${esc(x.name)}${x.golden ? ' <span class="tag on">精锐</span>' : ''}${x.count > 1 ? ` ×${x.count}` : ''}${x.items.length ? `<br><span class="meta">${x.items.map((i) => esc(i.name)).join('、')}</span>` : ''}</td>
+      <td class="row">
+        ${x.canPromote ? `<button ${on(code, p, 'piecePromote', '升为精锐')} data-value="${x.uid}">升精锐</button>` : ''}
+        ${x.kind === 'chess' ? `<input class="grant" list="equip-list" placeholder="装备…" aria-label="给 ${esc(x.name)} 装备" data-equip="${x.uid}" ${at('装备')}>` : ''}
+        <button class="danger" ${on(code, p, 'pieceRemove', '移除')} data-value="${x.uid}" data-confirm="移除 ${esc(x.name)}？不退金币。">移除</button>
+      </td></tr>`).join('');
+  const effects = [
+    ...p.effects.map((e) => `<li>${esc(e.name)}${e.counter != null ? ` <span class="meta">(${esc(e.counter)})</span>` : ''}
+      <button ${on(code, p, 'effectRemove', '删除效果')} data-value="${esc(e.id)}" aria-label="删除效果 ${esc(e.name)}">删除</button>
+      ${e.desc ? `<br><span class="meta">${esc(e.desc)}</span>` : ''}</li>`),
+    ...p.bounties.map((b) => `<li>悬赏：${esc(b.name)} <span class="meta">剩 ${b.roundsLeft} 场</span>
+      <button ${on(code, p, 'bountyRemove', '删除悬赏')} data-value="${esc(b.id)}" aria-label="删除悬赏 ${esc(b.name)}">删除</button></li>`),
+  ].join('');
+  const enemies = p.enemies.map((e) => `<li>${esc(e.name)} ×${e.count}${e.elite ? ' <span class="tag">精英</span>' : ''}${e.boss ? ' <span class="tag">领袖</span>' : ''}${e.fly ? ' <span class="meta">飞行</span>' : ''}${e.bounty ? ' <span class="meta">悬赏</span>' : ''}</li>`).join('');
+  return `<tr class="detail"><td colspan="${cols}"><div class="panes">
+    <div><h3>盟约</h3>
+      <p class="meta">加层走游戏逻辑（会触发获得层数的效果），设层直接改、不触发效果。层数只在盟约激活时生效，人数加成可以强行激活。</p>
+      <div class="scroll"><table><thead><tr><th scope="col">盟约</th><th scope="col">人数/门槛</th><th scope="col">层数</th><th scope="col">人数加成</th></tr></thead>
+      <tbody>${bondRows(used) || '<tr><td colspan="4" class="meta">还没有盟约</td></tr>'}</tbody></table>
+      ${others.length ? `<details><summary class="meta">其他盟约（${others.length}）</summary><table><tbody>${bondRows(others)}</tbody></table></details>` : ''}</div></div>
+    <div><h3>效果与机变卡</h3><ul>${effects || '<li class="meta">没有效果</li>'}</ul>
+      <input class="grant" style="width:240px" list="card-list" placeholder="补发机变卡…" aria-label="${esc(p.name)} 补发机变卡" data-grant="card" ${at('补发机变卡')}>
+      <p class="note">标「全队」的卡会同时作用到所有存活队友。</p></div>
+    <div><h3>棋盘、手牌、整备区</h3><div class="scroll"><table><tbody>${pieceRows || '<tr><td class="meta">空</td></tr>'}</tbody></table></div>
+      <p class="meta">移除不退金币，卡池拷贝归还，装备回到手牌。装备不受阶段限制。</p></div>
+    <div><h3>下一场的敌人</h3><ul>${enemies || '<li class="meta">暂无</li>'}</ul></div>
+  </div></td></tr>`;
+}
+
+function playerRow(code, p) {
+  const who = `${esc(p.name)}${p.bot ? ' <span class="tag">AI</span>' : ''}${p.connected ? '' : ' <span class="tag off">离线</span>'}${p.alive ? '' : ' <span class="tag off">淘汰</span>'}`;
+  const field = (action, value, label) => `<input class="num" type="number" value="${value}" aria-label="${esc(p.name)} ${label}" data-act="${action}" data-player="${esc(p.id)}" data-room="${code}" data-label="${label}">`;
+  return `<tr>
+    <td>${who}</td>
+    <td>${field('lp', p.lp, 'LP')}</td>
+    <td>${p.funds} <input class="num" type="number" placeholder="±金币" aria-label="${esc(p.name)} 增减金币" data-act="funds" data-player="${esc(p.id)}" data-room="${code}" data-label="金币" data-clear></td>
+    <td>${field('level', p.level, '商店等级')}</td>
+    <td>${p.freeRefreshes} <button data-click="refresh" data-player="${esc(p.id)}" data-room="${code}" data-label="免费刷新" aria-label="${esc(p.name)} 免费刷新 +1">+1</button></td>
+    <td>${p.board} / ${p.hand}</td>
+    <td>${p.ready ? '已就绪' : ''}${p.autoplay ? ' <span class="tag on">托管中</span>' : ''}
+      ${p.bot ? '' : `<button ${on(code, p, 'autoplay', p.autoplay ? '取消托管' : '开启托管')} data-value="${p.autoplay ? 0 : 1}">${p.autoplay ? '取消托管' : '托管'}</button>`}</td>
+    <td class="row">
+      <input class="grant" list="chess-list" placeholder="发放干员…" aria-label="${esc(p.name)} 发放干员" data-grant="chess" data-player="${esc(p.id)}" data-room="${code}">
+      <input class="grant" list="item-list" placeholder="发放道具…" aria-label="${esc(p.name)} 发放道具" data-grant="item" data-player="${esc(p.id)}" data-room="${code}">
+      <button data-toggle="${esc(p.id)}" aria-expanded="${open.has(p.id)}">${open.has(p.id) ? '收起' : '详情'}</button>
+    </td>
+  </tr>${open.has(p.id) ? detailRow(code, p, 8) : ''}`;
+}
+
+function roomCard(r) {
+  const m = r.match;
+  const seats = r.seats.map((s) => `${esc(s.name)}${s.bot ? '(AI)' : ''}${s.connected ? '' : '(离线)'}`).join('、');
+  let body = `<p class="meta">${seats || '空房间'} · 未开局</p>`;
+  if (m) {
+    const rounds = m.rewindRounds;
+    const canRewind = rounds.length > 0 && !m.ended;
+    body = `
+      <div class="row" style="margin-top:8px">
+        <span class="tag phase">${esc(m.phaseName)}</span>
+        <span>第 ${m.round} 回合</span>
+        ${m.left != null ? `<span class="meta">剩余 ${m.left} 秒</span>` : ''}
+        ${m.paused ? '<span class="tag">已暂停</span>' : ''}
+        ${m.errors ? `<span class="tag" style="color:var(--warn)">错误 ${m.errors}</span>` : ''}
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label>回到第 <select id="rw-${r.code}" aria-label="回档到第几回合" ${canRewind ? '' : 'disabled'}>
+          ${rounds.map((n) => `<option value="${n}" ${n === rounds[rounds.length - 1] ? 'selected' : ''}>${n}</option>`).join('')}</select> 回合休整期</label>
+        <button class="primary" data-click="rewind" data-from="#rw-${r.code}" data-room="${r.code}" data-label="回档" data-confirm="回到第 {v} 回合休整期开始？之后的进度和之后回合的存档都会丢失。" ${canRewind ? '' : 'disabled'}>回档</button>
+        <button data-click="endPrep" data-room="${r.code}" data-label="结束休整期" ${m.phase === 'PREP' ? '' : 'disabled'}>结束休整期</button>
+        ${m.solo ? `<button data-click="pause" data-value="${m.paused ? 0 : 1}" data-room="${r.code}" data-label="${m.paused ? '继续' : '暂停'}">${m.paused ? '继续战斗' : '暂停战斗'}</button>` : ''}
+        <button class="danger" data-click="endMatch" data-room="${r.code}" data-label="结束对局" data-confirm="直接结束这局（判负）？">结束对局</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button data-click="reroll" data-room="${r.code}" data-label="重新随机敌人" data-confirm="重新随机本回合的敌人？之后的随机结果会跟着改变（回档可以恢复）。" ${m.canReroll ? '' : 'disabled'}>重新随机敌人</button>
+        <label>计时倍率 <input class="small" type="number" step="0.1" min="0.1" max="10" value="${m.timerScale}" aria-label="计时倍率" data-act="timerScale" data-room="${r.code}" data-label="计时倍率"></label>
+        <span class="meta">只影响之后设定的倒计时</span>
+      </div>
+      ${m.fields.length ? `<div class="row" style="margin-top:8px">${m.fields.map((f) => `<span class="tag">${esc({ normal: '作战', unite: '联防', boss: '领袖', hidden: '隐秘核心' }[f.kind] || f.kind)} · ${f.players.map(esc).join('、')}</span>
+        <button data-click="battleWin" data-field="${esc(f.id)}" data-room="${r.code}" data-label="判胜" data-confirm="直接判这场胜？">判胜</button>
+        ${f.kind === 'normal'
+          ? `<input class="small" type="number" min="1" placeholder="漏怪数" aria-label="判负：漏怪数（回车）" data-act="battleLose" data-field="${esc(f.id)}" data-room="${r.code}" data-label="判负" data-clear>`
+          : `<button class="danger" data-click="battleLose" data-field="${esc(f.id)}" data-room="${r.code}" data-label="判负" data-confirm="直接判这场负？${f.kind === 'unite' ? '漏怪的玩家按自己的漏怪数扣血。' : '同盟生命归零，对局结束。'}">判负</button>`}`).join('')}
+        <span class="meta">普通战场判负：输入漏怪数后回车，按漏怪数扣血（每回合最多 10）</span></div>` : ''}
+      <table>
+        <thead><tr><th scope="col">玩家</th><th scope="col">LP</th><th scope="col">金币</th><th scope="col">商店等级</th><th scope="col">免费刷新</th><th scope="col">作战区/手牌</th><th scope="col">状态</th><th scope="col">发放</th></tr></thead>
+        <tbody>${m.players.map((p) => playerRow(r.code, p)).join('')}</tbody>
+      </table>`;
+  }
+  return `<section class="room" aria-labelledby="room-${r.code}">
+    <div class="row">
+      <h2 id="room-${r.code}">房间 ${r.code}</h2>
+      <span class="meta">${r.mode === 'solo' ? '独立模拟' : '同盟'} · ${esc(r.difficulty)}</span>
+      <button class="danger" style="margin-left:auto" data-click="closeRoom" data-room="${r.code}" data-label="关闭房间" data-confirm="关闭房间 ${r.code}？里面的玩家会被送回大厅。">关闭房间</button>
+    </div>
+    ${body}
+  </section>`;
+}
+
+let lastJson = '';
+async function refresh() {
+  // never re-render under the user's cursor: typing into a field would lose its value
+  if (document.activeElement && document.activeElement.matches('input, select')) return;
+  let data;
+  try { data = await api('/api/rooms'); } catch { $('#status').textContent = '无法连接服务器'; return; }
+  if (data.error) { $('#status').textContent = data.error; return; }
+  $('#status').textContent = `更新于 ${new Date().toLocaleTimeString()}`;
+  const json = JSON.stringify(data.rooms);
+  if (json === lastJson) return;
+  lastJson = json;
+  $('#rooms').innerHTML = data.rooms.length ? data.rooms.map(roomCard).join('') : '<p class="empty">还没有房间。玩家建房后会出现在这里。</p>';
+  const live = data.rooms.find((r) => r.match);
+  if (live) loadCatalog(live.code);
+}
+
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('button[data-toggle]');
+  if (t) {
+    const id = t.dataset.toggle;
+    if (open.has(id)) open.delete(id); else open.add(id);
+    lastJson = '';
+    refresh();
+    return;
+  }
+  const b = e.target.closest('button[data-click]');
+  if (!b || b.disabled) return;
+  const v = b.dataset.from ? $(b.dataset.from).value : b.dataset.value;
+  if (b.dataset.confirm && !confirm(b.dataset.confirm.replace('{v}', v))) return;
+  act(b.dataset.room, b.dataset.click, b.dataset.player, valueOf(b, v), b.dataset.label);
+});
+/** The action's value: { bond, n } / { field, n } when the control names a bond / a field, else the plain value. */
+function valueOf(el, v) {
+  if (el.dataset.bond) return { bond: el.dataset.bond, n: v };
+  if (el.dataset.field) return { field: el.dataset.field, n: v };
+  return v;
+}
+document.addEventListener('keydown', (e) => {
+  const el = e.target;
+  if (e.key !== 'Enter' || !el.matches('input')) return;
+  if (el.dataset.act && el.value !== '') {
+    act(el.dataset.room, el.dataset.act, el.dataset.player, valueOf(el, el.value), el.dataset.label);
+    if ('clear' in el.dataset) el.value = '';
+    el.blur();
+  } else if (el.dataset.equip) {
+    const id = names.equip.get(el.value) || el.value.trim();
+    if (!id) return;
+    act(el.dataset.room, 'pieceEquip', el.dataset.player, { target: Number(el.dataset.equip), item: id }, '装备');
+    el.value = '';
+    el.blur();
+  } else if (el.dataset.grant) {
+    loadCatalog(el.dataset.room).then(() => {
+      const id = names[el.dataset.grant].get(el.value) || el.value.trim();
+      if (!id) return;
+      act(el.dataset.room, el.dataset.grant, el.dataset.player, id, { chess: '发放干员', item: '发放道具', card: '补发机变卡' }[el.dataset.grant]);
+      el.value = '';
+      el.blur();
+    });
+  }
+});
+refresh();
+setInterval(refresh, 1500);
+</script>
+</body>
+</html>

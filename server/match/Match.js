@@ -125,6 +125,7 @@ import { DataSource } from '../sim/simdata.js';
 import { createRng, deriveSeed } from '../sim/rng.js';
 import { GameData } from './gamedata.js';
 import { RealScheduler } from './scheduler.js';
+import { capturePrep } from './rewind.js';
 import { SharedPool, drawDisabledBonds } from './pool.js';
 import { PlayerState } from './PlayerState.js';
 import { buildDeployMap, boardOrder, pieceDir } from './board.js';
@@ -362,6 +363,8 @@ export class Match {
     this.hiddenReached = false;
     this.outcome = null;
     this._turnToken = 0;
+    /** round → state at the start of that round's PREP (rewind.js capturePrep) */
+    this.prepSnapshots = new Map();
   }
 
   // ===================================================================================================
@@ -1582,6 +1585,10 @@ export class Match {
   // PREP
 
   enterPrep() {
+    // the local console's 回到休整期开始 (server/match/rewind.js); taken before onPrepStart so a rewind replays it
+    const snap = capturePrep(this);
+    if (snap) this.prepSnapshots.set(this.round, snap);
+    else this.prepSnapshots.delete(this.round);
     this.phase = PHASE.PREP;
     this.sp = null;
     const alive = this.alivePlayers();

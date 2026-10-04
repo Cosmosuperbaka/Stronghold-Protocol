@@ -12,6 +12,14 @@
 | `start-windows.ps1` | 同上的 PowerShell 版，找不到 Node.js 时可以用 winget 帮你装。右键「使用 PowerShell 运行」 |
 | `start.sh` | 同上的 macOS / Linux 版 |
 
+## ★ 主机控制台
+
+服务器启动时会同时开一个本机控制台，地址在启动日志的 `Console:` 那一行（默认 `http://127.0.0.1:3100`，即游戏端口 + 100）。只监听 127.0.0.1，局域网和公网隧道都访问不到。
+
+可以做的事：回到任一回合的休整期开始、改 LP / 金币 / 商店等级、加免费刷新、发放干员和道具、改盟约层数和人数加成、托管、管理效果和机变卡、编辑棋盘、预览和重新随机敌人、判定战斗胜负、结束休整期、暂停（独立模拟）、结束对局、关闭房间。修改直接生效、不扣金币；完整列表见 [docs/LOCAL-CHANGELOG.md](../docs/LOCAL-CHANGELOG.md)。
+
+环境变量：`SP_ADMIN_PORT` 改端口，`SP_ADMIN=0` 关闭控制台。代码在 `server/admin.js`、`server/admin.html`、`server/match/rewind.js`。
+
 ## 后台常驻（开机自启）
 
 | 脚本 | 作用 |

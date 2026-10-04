@@ -41,6 +41,8 @@ export function createRng(seed = 1) {
   };
   /** current internal state (for debugging / hashing) */
   rng.state = () => s;
+  /** restore a value from state() (server/match/rewind.js) */
+  rng.setState = (v) => { s = Number(v) >>> 0; };
   return rng;
 }
 

@@ -44,6 +44,7 @@ import { Lobby } from './lobby.js';
 import { getData, loadData } from './data.js';
 import { PROTOCOL_VERSION, APP_VERSION } from '../shared/constants.js';
 import { MEDIA_PREFIX, AUDIO_EXTS } from '../shared/media.js';
+import { startAdmin } from './admin.js';
 
 /** Repository root. */
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -769,7 +770,18 @@ async function main() {
   if (srv.host === '0.0.0.0' || srv.host === '::') {
     for (const u of lanUrls(srv.port)) console.log(`  LAN:     ${u}`);
   }
-  console.log('  Internet: cloudflared tunnel --url ' + `http://localhost:${srv.port}` + '\n');
+  console.log('  Internet: cloudflared tunnel --url ' + `http://localhost:${srv.port}`);
+  // the host's local console (server/admin.js): 127.0.0.1 only, never part of what the LAN / tunnel can reach
+  let admin = null;
+  if (!/^(0|false|no|off)$/i.test(process.env.SP_ADMIN || '')) {
+    try {
+      admin = await startAdmin({ lobby: srv.lobby, port: Number(process.env.SP_ADMIN_PORT) || srv.port + 100 });
+      console.log(`  Console: ${admin.url}  (本机控制台)`);
+    } catch (e) {
+      console.warn(`  Console: 未启动（${e.code || e.message}）`);
+    }
+  }
+  console.log('');
 
   let stopping = false;
   const stop = (signal) => {
@@ -777,6 +789,7 @@ async function main() {
     stopping = true;
     console.log(`\n[${signal}] shutting down…`);
     setTimeout(() => process.exit(0), 5000).unref();
+    if (admin) admin.close();
     srv.close().then(() => process.exit(0), () => process.exit(1));
   };
   process.on('SIGINT', () => stop('SIGINT'));
