@@ -1,5 +1,17 @@
 # 卫戍协议：盟约 · Stronghold Protocol: Alliance
 
+> [!NOTE]
+> **这是一个私有修改版。** 原仓库：[sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol)，游戏本体、规则与数值都来自原仓库，以下其余内容也都是原仓库的 README。本版本在 `local-tools` 分支上开发，定期合并原仓库 `master`，当前同步到原仓库 **v0.1.4**。
+>
+> 本版本在原仓库之上加了：
+> - **本机主机控制台**（服务器启动时自动开，默认 `http://127.0.0.1:3100`，只监听本机并需要启动时生成的 token；`SP_ADMIN_PORT` 改端口，`SP_ADMIN=0` 关闭）：
+>   - 回档：每个休整期开始自动存档，可回到任一回合的休整期开始，重打结果与原局一致。
+>   - 对局：结束休整期、暂停 / 继续战斗、结束对局、关闭房间、重抽本回合敌人、对战场判胜 / 判负、计时倍率。
+>   - 玩家：改 LP / 金币 / 商店等级 / 免费刷新，发放干员和道具，盟约加层 / 设层 / 人数加成，托管开关，增删效果与悬赏、补发机变卡，棋盘上升精锐 / 装备 / 移除，预览下一场敌人。
+> - **开服脚本**：`scripts/start-tunnel.bat` 一键开服并开 cloudflared 公网隧道；`scripts/stop-server.bat` 释放游戏端口（仅 Windows）。
+>
+> 对原有代码的改动只有几处挂接：`server/match/Match.js`（`enterPrep()` 开头存档）、`server/index.js`（启动控制台）、`server/sim/rng.js`（加 `setState()`），不改游戏规则。完整清单见 [docs/LOCAL-CHANGELOG.md](docs/LOCAL-CHANGELOG.md)，实现细节见 [docs/LOCAL-DEV.md](docs/LOCAL-DEV.md)。
+
 《明日方舟》季节性自走棋塔防玩法「卫戍协议：盟约」的**非官方同人复刻**：浏览器即开即玩，单人或 1–4 人联机合作。
 
 ![version](https://img.shields.io/badge/version-0.1.4-2ea44f)
