@@ -64,6 +64,8 @@
   .units { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 16px; }
   .units ol { margin: 2px 0 0; padding-left: 20px; }
   .good { color: var(--mint); }
+  .dmg-bar { display: block; height: 10px; border-radius: 0 4px 4px 0; background: var(--c); }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .bad { color: var(--red); }
 </style>
 </head>
@@ -441,6 +443,50 @@ function drawRounds(host, history, nameOf, state) {
   host.append(bar, t);
 }
 
+/**
+ * One round's operators ranked by damage — every player's together, or one player's. A bar per row in the player's
+ * series color (the player column names it too); `share` = the operator's part of its player's operator damage that
+ * round. state { round: null = the latest, player: '' = everyone, all: false = top 10 }.
+ */
+function drawUnitRounds(host, history, nameOf, state) {
+  host.textContent = '';
+  if (!history.length) { host.innerHTML = '<p class="meta">第一回合结算后开始记录。</p>'; return; }
+  const latest = history[history.length - 1].round;
+  const h = history.find((x) => x.round === state.round) || history[history.length - 1];
+  const colorOf = new Map(h.players.map((p, i) => [p.playerId, SERIES[i] || INK.label]));
+  const rows = [];
+  for (const p of h.players) {
+    if (state.player && p.playerId !== state.player) continue;
+    const units = p.units || [];
+    const sum = units.reduce((n, u) => n + u.dmg, 0);
+    for (const u of units) rows.push({ ...u, playerId: p.playerId, share: sum > 0 ? u.dmg / sum : 0 });
+  }
+  rows.sort((a, b) => b.dmg - a.dmg || b.kills - a.kills);
+  const shown = state.all ? rows : rows.slice(0, 10);
+  const max = rows.length ? rows[0].dmg : 0;
+  const bar = document.createElement('div');
+  bar.className = 'row';
+  bar.innerHTML = `<label>查看 <select data-k="round" aria-label="查看第几回合">${history.map((x) => `<option value="${x.round}" ${x.round === h.round ? 'selected' : ''}>第 ${x.round} 回合${x.round === latest ? '（最新）' : ''}</option>`).join('')}</select></label>
+    <label>玩家 <select data-k="player" aria-label="只看哪个玩家"><option value="">全部</option>${h.players.map((p) => `<option value="${esc(p.playerId)}" ${p.playerId === state.player ? 'selected' : ''}>${esc(nameOf(p.playerId))}</option>`).join('')}</select></label>
+    ${rows.length > 10 ? `<button aria-pressed="${!!state.all}">${state.all ? '只看前 10' : `看全部 ${rows.length} 个`}</button>` : ''}
+    ${h.enemy ? `<span class="meta">敌人：${esc(h.enemy.typeName)} · ${esc(h.enemy.special)}</span>` : ''}`;
+  bar.querySelector('[data-k="round"]').addEventListener('change', (e) => {
+    const r = Number(e.target.value);
+    state.round = r === latest ? null : r;
+    drawUnitRounds(host, history, nameOf, state);
+  });
+  bar.querySelector('[data-k="player"]').addEventListener('change', (e) => { state.player = e.target.value; drawUnitRounds(host, history, nameOf, state); });
+  bar.querySelector('button')?.addEventListener('click', () => { state.all = !state.all; drawUnitRounds(host, history, nameOf, state); });
+  const t = document.createElement('div');
+  t.className = 'xscroll';
+  t.innerHTML = rows.length ? `<table><thead><tr><th scope="col" class="n">#</th><th scope="col">干员</th><th scope="col">玩家</th><th scope="col" class="n">伤害</th><th scope="col" style="min-width:160px"><span class="sr-only">伤害条</span></th><th scope="col" class="n">击杀</th><th scope="col" class="n">占本人</th></tr></thead>
+    <tbody>${shown.map((u, i) => `<tr><td class="n">${i + 1}</td><th scope="row">${esc(u.name)}</th><td>${esc(nameOf(u.playerId))}</td><td class="n">${full.format(u.dmg)}</td>
+      <td><span class="dmg-bar" style="--c:${colorOf.get(u.playerId)};width:${max > 0 ? Math.max(1, (u.dmg / max) * 100) : 0}%"></span></td>
+      <td class="n">${u.kills}</td><td class="n">${pct(u.share)}</td></tr>`).join('')}</tbody></table>`
+    : '<p class="meta">这回合没有干员伤害记录（比如没有干员上场）。</p>';
+  host.append(bar, t);
+}
+
 /** One composition as a line: special｜普 normal｜精 elite. */
 const comboText = (c) => `${c.special}｜普 ${c.normalName || '—'}｜精 ${c.eliteName || '—'}${c.fly ? '（飞行）' : ''}`;
 const pct = (x) => `${(x * 100).toFixed(x >= 0.1 ? 0 : 1)}%`;
@@ -503,12 +549,13 @@ function statsPanel(r) {
         <div class="row" data-part="ended"></div>
         <div><h3>每回合曲线</h3><div data-part="chart"></div></div>
         <div><h3>每回合详情</h3><div data-part="rounds"></div></div>
+        <div><h3>每回合干员伤害排行</h3><div data-part="unitRounds"></div><p class="meta">伤害是实际扣掉的敌人血量（不算溢出），只算各自战场；召唤物不单列。</p></div>
         <div><h3>累计数据</h3><div data-part="totals"></div><p class="meta">花费 = 实际花掉的金币；获得金币含利息、悬赏和控制台加的。</p></div>
-        <div><h3>干员伤害排行（前 5）</h3><div data-part="units"></div><p class="meta">只算各自战场里的伤害；联防里的伤害计入累计数据，但不分干员。</p></div>
+        <div><h3>本局干员伤害排行（累计前 5）</h3><div data-part="units"></div><p class="meta">只算各自战场里的伤害；联防里的伤害计入累计数据，但不分干员。</p></div>
       </div></details>
       <details class="stats" data-plan><summary>敌人日程（剧透：游戏里对玩家隐藏）</summary><div class="stats-body" data-part="plan"></div></details>
       <details class="stats"><summary>控制台操作日志</summary><div class="stats-body" data-part="log"></div></details>`;
-    p = { el, seen: {}, chart: { metric: 'lp', table: false }, rounds: { round: null } };
+    p = { el, seen: {}, chart: { metric: 'lp', table: false }, rounds: { round: null }, unitRounds: { round: null, player: '', all: false } };
     panels.set(r.code, p);
   }
   // the running match, else the room's last ended one (kept until its next match starts)
@@ -533,9 +580,10 @@ function statsPanel(r) {
     });
     // the round picker starts over at the latest round when the match shown changes (live ↔ ended)
     const key = ended ? r.lastMatch.savedAt : 'live';
-    if (p.matchKey !== key) { p.matchKey = key; p.rounds.round = null; }
+    if (p.matchKey !== key) { p.matchKey = key; p.rounds.round = null; p.unitRounds = { round: null, player: '', all: false }; }
     part('chart', [m.history, [...names]], (host) => drawChart(host, m.history, nameOf, p.chart));
     part('rounds', [m.history, [...names]], (host) => drawRounds(host, m.history, nameOf, p.rounds));
+    part('unitRounds', [m.history, [...names]], (host) => drawUnitRounds(host, m.history, nameOf, p.unitRounds));
     part('totals', m.players.map((x) => [x.name, x.stats]), (host) => { host.innerHTML = totalsTable(m.players); });
     part('units', [m.history.length, [...names]], (host) => { host.innerHTML = unitsRanking(m.history, nameOf); });
   }
@@ -583,11 +631,13 @@ async function showRecord(id) {
           <td style="white-space:normal;min-width:160px">${(p.bonds || []).map((b) => `<span class="${b.active ? 'on' : 'meta'}">${esc(b.name)}${b.layers ? ` ${b.layers} 层` : ''}</span>`).join('、')}</td></tr>`).join('')}</tbody></table></div></div>
       <div><h3>每回合曲线</h3><div data-part="chart"></div></div>
       <div><h3>每回合详情</h3><div data-part="rounds"></div></div>
+      <div><h3>每回合干员伤害排行</h3><div data-part="unitRounds"></div></div>
       <div><h3>累计数据</h3>${totalsTable(players)}</div>
-      <div><h3>干员伤害排行（前 5）</h3>${unitsRanking(history, nameOf)}</div>
+      <div><h3>本局干员伤害排行（累计前 5）</h3>${unitsRanking(history, nameOf)}</div>
     </div></section>`;
   drawChart(host.querySelector('[data-part="chart"]'), history, nameOf, { metric: 'lp', table: false });
   drawRounds(host.querySelector('[data-part="rounds"]'), history, nameOf, { round: null });
+  drawUnitRounds(host.querySelector('[data-part="unitRounds"]'), history, nameOf, { round: null, player: '', all: false });
   host.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 

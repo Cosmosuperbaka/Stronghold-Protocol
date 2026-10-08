@@ -150,6 +150,7 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 - **累计数据**：直接读 `ps.stats`（`statsOf()`），实时。`gold` 是花掉的金币，`fundsGained` 含利息、悬赏和控制台加的。
 - **操作日志**：`handleAction` 每次执行后写进 `room.adminLog`（最多 100 条，失败的也记，`closeRoom` 不记），跨对局保留到房间关闭。
 - **对局记录**：`startAdmin` 包装了 `lobby.onMatchEnd`（`onEnd` 闭包按属性名调用它，所以实例上的包装会生效；这样不用改上游的 `lobby.js`），在原函数清掉 `room.match` 之前写 `logs/results/<时间>-<房间>.json`：`{ savedAt, room, mode, difficulty, result, history }`。`result` 是 `buildResult` 的结算数据，阵容、道具、盟约、分队补上了名字，`stats` 合并了 `statsOf()`。写文件失败只记日志，不影响对局。同一份数据精简后存在 `room.adminLastMatch`，房间卡片据此显示「上一局统计」，下一局开始后换回本局。`startAdmin({ resultsDir })` 可以改目录（测试用临时目录）；`SP_ADMIN=0` 时不存记录。
+- **每回合干员伤害排行**：前端从 `history[].players[].units` 直接算（`drawUnitRounds`），不另存数据。「占本人」的分母是该玩家这回合所有干员伤害之和，不含联防。
 - **页面**：统计面板在 1.5 秒一次的重绘之外单独维护（`statsPanel`）：重绘后把原节点移回房间卡片，各部分只在自己的数据变化时重画，所以悬停提示、下拉框和展开状态不会被轮询打断。曲线一次画一个指标（不做双 Y 轴），可切换成表格；颜色按座位固定（`#3987e5 #d95926 #199e70 #c98500`，对 `#141816` 和详情底色 `#101311` 都跑过 dataviz 校验）。
 
 ### 敌人日程（enemyPicks.js）
