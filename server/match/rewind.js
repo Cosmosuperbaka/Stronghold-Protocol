@@ -1,5 +1,5 @@
 // server/match/rewind.js — rewind a match to the start of any earlier round's 休整期 (PREP), for the local console
-// (server/admin.js).
+// (server/admin.js). (i18n-ignore-file: its messages go to the Chinese-only console, never to players)
 //
 // capturePrep(m) runs at the top of Match.enterPrep (stored in m.prepSnapshots by round): one structuredClone of every player's state, the shared pool, the
 // match's round-level state and the six rng streams. rewindToPrep(m, round) stops whatever is in flight (battles, bot jobs,
@@ -13,10 +13,14 @@
 //   _turnToken, ps._botPrepToken   an old bot job / draft timer never passes its validity check
 // Connection state (connected, left, autoplay) and the locked loadout stay as they are now.
 
+import { DiyStock } from './player/diy.js';
+
 const PS_SKIP = new Set(['m', 'gd', 'playerId', 'seat', 'name', 'isBot', 'connected', 'left', 'autoplay', 'lastEmoteAt',
   'loadout', '_deployMap', '_deployField', '_legalityStale', '_lastPriv', '_botPrepToken']);
 const MATCH_KEYS = ['round', 'wave', 'bossWaves', 'lastResults', 'draft', 'teamLp', 'hiddenLayerSum', 'hiddenReached', 'overtimeApplied'];
 const RNGS = ['rngSetup', 'rngShop', 'rngWaves', 'rngDraft', 'rngBots', 'rngMeta'];
+/** PlayerState fields holding class instances: structuredClone drops the prototype, so they are rebuilt on restore */
+const PS_CLASSES = { diyStock: DiyStock };
 
 /** Snapshot for rewindToPrep, or null when the state cannot be cloned (logged; the match itself is never affected). */
 export function capturePrep(m) {
@@ -77,6 +81,7 @@ export function rewindToPrep(m, round) {
       if (!o) continue;
       // lazily created fields (bot caches) that did not exist yet at the snapshot
       for (const k of Object.keys(ps)) if (!PS_SKIP.has(k) && typeof ps[k] !== 'function' && !(k in o)) delete ps[k];
+      for (const [k, C] of Object.entries(PS_CLASSES)) if (o[k]) o[k] = Object.assign(new C(), o[k]);
       Object.assign(ps, o);
       ps.invalidateDeployMap();
       ps._lastPriv = null;

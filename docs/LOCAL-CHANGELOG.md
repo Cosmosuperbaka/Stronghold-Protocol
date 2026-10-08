@@ -2,6 +2,11 @@
 
 只记录本分支在上游之上的改动。上游自己的更新见 [CHANGELOG.md](../CHANGELOG.md)，实现细节见 [LOCAL-DEV.md](LOCAL-DEV.md)。
 
+## 2026-10-08 — 合并上游 v0.2.1
+
+- 上游把 `Match` 的方法拆进了 `server/match/match/*.js`，启动流程移到了 `server/http/boot.js`。回档的存档点改挂在 `match/prep.js` 的 `enterPrep()`，控制台改在 `boot.js` 的 `runMain()` 里启动，用法不变。
+- 回档会正确恢复上游新加的自选干员库存（`ps.diyStock`，类实例，克隆后要按原类重建）。
+
 ## 2026-10-04 — 主机控制台
 
 服务器启动时同时开一个本机控制台（默认 `http://127.0.0.1:3100`，游戏端口 + 100）。只监听 127.0.0.1，需要每次启动随机生成的 token，并校验 Host 头；局域网和公网隧道都访问不到。`SP_ADMIN_PORT` 改端口，`SP_ADMIN=0` 关闭。

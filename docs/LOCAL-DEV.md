@@ -22,14 +22,15 @@
 | `server/match/rewind.js` | 回到任一回合的休整期开始（快照 + 恢复） |
 | `server/admin.js` / `admin.html` | 本机主机控制台（HTTP API + 单页界面） |
 | `server/sim/rng.js` | 加了 `rng.setState()`，回档用 |
-| `server/match/Match.js` | `enterPrep()` 开头调用 `capturePrep()`；构造函数里加了 `prepSnapshots`（`Map<回合, 快照>`） |
-| `server/index.js` | `main()` 里启动控制台，打印 `Console:` 地址 |
+| `server/match/Match.js` | 构造函数里加了 `prepSnapshots`（`Map<回合, 快照>`） |
+| `server/match/match/prep.js` | `enterPrep()` 开头调用 `capturePrep()` |
+| `server/http/boot.js` | `runMain()` 里打印横幅后启动控制台，打印 `Console:` 地址，退出时关闭 |
 | `test/match/rewind.test.js`、`test/admin.test.js` | 对应的测试 |
 | `docs/LOCAL-CHANGELOG.md` | 本分支的更新记录（上游的 `CHANGELOG.md` 不改，避免合并上游时冲突） |
 
 ## 3. 对局引擎速览
 
-核心在 `server/match/`：`Match.js`（约 3000 行，状态机、计时器、广播）和 `PlayerState.js`（每个玩家的经济、棋盘、手牌、羁绊）。`Match.js` 文件头写了平台和对局之间的接口契约，改之前先读一遍。
+核心在 `server/match/`：`Match.js`（构造函数和接口契约，方法分散在 `match/*.js`：`prep.js`、`combat.js`、`settle.js`……）和 `PlayerState.js`（每个玩家的经济、棋盘、手牌、羁绊，方法在 `player/*.js`）。`Match.js` 文件头写了平台和对局之间的接口契约，改之前先读一遍。这个拆分从上游 v0.2.0 开始，下面提到的方法名不变，只是定义挪到了子文件里。
 
 ### 阶段流转
 
@@ -83,6 +84,7 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 - 给 `PlayerState` 加普通字段：**自动**进快照，不用改什么。如果是缓存或不该回滚的东西，加进 `PS_SKIP`。
 - 给 `Match` 加一个回合内会变的字段：要加进 `MATCH_KEYS`。如果是类实例，像 `bossPool` 那样放进 `refs`。
 - 函数类型的自有属性会被跳过（`audit.js` 和测试会在实例上包装方法，这些不是状态）。
+- 给 `PlayerState` 加的字段如果是类实例（比如 `diyStock: DiyStock`），`structuredClone` 会丢掉原型，要加进 `rewind.js` 的 `PS_CLASSES`，恢复时按原类重建。
 - 跑 `node --test test/match/rewind.test.js`。第一个用例「回档后重打 ≡ 直接打完」会抓出漏掉的状态：我验证过，故意不恢复卡池或 rng，它都会失败。
 
 ### 限制
@@ -140,7 +142,7 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 ## 7. 踩过的坑
 
-- **`server/index.js` 里有一段模板字符串 `DATA_SHIM_JS`**，内容里有 `import { getSimData } from './sim/simdata.js';` 这一行。按文本定位插入 import 时容易插进字符串里（我就犯过一次，表现为 `startAdmin is not defined`）。真正的 import 区在文件顶部。
+- **`server/http/static.js`（v0.2.0 前在 `server/index.js`）里有一段模板字符串 `DATA_SHIM_JS`**，内容里有 `import { getSimData } from './sim/simdata.js';` 这一行。按文本定位插入 import 时容易插进字符串里（我就犯过一次，表现为 `startAdmin is not defined`）。真正的 import 区在文件顶部。
 - **`structuredClone` 克隆不了函数**：`audit.js` 会把 `PlayerState` 的方法包装后挂到实例上，所以快照要跳过函数属性。
 - **端口 3000 被旧进程占着**：先跑 `scripts/stop-server.bat`。预览/测试用别的端口（`.claude/launch.json` 里的 `stronghold-dev` 用 3005）。
-- **合并上游后**要重新 `npm run setup`，上游会新增素材清单，否则素材测试会多出一批失败。
+- **合并上游后**要重新 `npm run setup`，上游会新增素材清单，否则素材测试会多出一批失败。setup 和 `npm install` 会改写 `data/assets.json`、`package-lock.json`，合并时用上游的版本（`git checkout -- data/assets.json package-lock.json`）。

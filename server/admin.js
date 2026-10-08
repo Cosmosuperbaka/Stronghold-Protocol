@@ -7,7 +7,9 @@
 // reach it), every /api request carries the per-process token embedded in the page, and the Host header must be the
 // console's own localhost address (another site open in the host's browser cannot drive it, no DNS rebinding).
 //
-//   SP_ADMIN_PORT  default PORT + 100 (3100); SP_ADMIN=0 turns the console off (server/index.js main).
+//   SP_ADMIN_PORT  default PORT + 100 (3100); SP_ADMIN=0 turns the console off (server/http/boot.js runMain).
+//
+// (i18n-ignore-file: a Chinese-only tool for the host of this private branch, never shown to players)
 
 import http from 'node:http';
 import fs from 'node:fs';
