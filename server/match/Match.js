@@ -382,6 +382,10 @@ export class Match {
     this._turnToken = 0;
     /** round → state at the start of that round's PREP (rewind.js capturePrep, called by match/prep.js enterPrep) */
     this.prepSnapshots = new Map();
+    /** per settled round: every player's LP, funds, totals and battle (history.js recordRound, the local console) */
+    this.history = [];
+    /** round → the local console's enemy composition for it (enemyPicks.js; read through waveSource) */
+    this.adminPicks = {};
   }
 }
 

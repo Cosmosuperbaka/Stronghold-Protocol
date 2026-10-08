@@ -6,6 +6,7 @@
 import { PHASE, layerGainRoom } from '../../../shared/constants.js';
 import { uniteSurvivors } from '../unite.js';
 import { buildResult } from '../results.js';
+import { recordRound } from '../history.js';
 import { FLOW_TICKER_PRIORITY, DELAYS } from './common.js';
 import { msg } from '../../../shared/i18n.js';
 
@@ -80,6 +81,8 @@ export class MatchSettle {
         this.tickerText(msg('{name}博士的目标生命值已耗尽', { name: ps.name }), FLOW_TICKER_PRIORITY);
       }
     }
+    // local console: the round's LP / funds / battle record (history.js)
+    try { recordRound(this); } catch (e) { this.reportError('recordRound', e); }
     this.fields = [];
     this.watchers.clear();
     this.markPublic();
@@ -127,6 +130,8 @@ export class MatchSettle {
     this.deadline = 0;
     for (const f of this.fields) f.live = false;
     this.outcome = { victory: !!victory, hiddenReached: this.hiddenReached, hiddenCleared: !!hiddenCleared, reason };
+    // local console: a round that ended without a SETTLE (Final Assault / Hidden Core) — a no-op after settle()
+    try { recordRound(this); } catch (e) { this.reportError('recordRound', e); }
     let result;
     try {
       result = buildResult(this, this.outcome);

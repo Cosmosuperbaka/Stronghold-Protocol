@@ -1,7 +1,11 @@
 // server/admin.js — the host's local console (server/admin.html): rooms, matches and players at a glance, plus host
 // actions — 回到第 N 回合休整期 (./match/rewind.js), funds, LP, shop level, free refreshes, operator / item grants, bond
-// layers and count bonuses, 托管, effects and 机变 cards, board edits, rerolling the coming enemies, forcing a battle's
-// result, the timer scale, ending the prep or the match, closing a room.
+// layers and count bonuses, 托管, effects and 机变 cards, board edits, the enemy schedule (any composition for the current round before combat or any later
+// round, ./match/enemyPicks.js), forcing a battle's
+// result, the timer scale, ending the prep or the match, closing a room. Statistics: the per-round record
+// (./match/history.js), every player's running totals, the console's own action log (room.adminLog), and each finished
+// match saved as logs/results/<time>-<room>.json (startAdmin wraps lobby.onMatchEnd) for the 对局记录 page. Settings:
+// the 休整期 timer for every room and match (./match/hostSettings.js), kept in logs/admin-settings.json.
 //
 // Reachable from this computer only: it listens on 127.0.0.1 (the LAN and a cloudflared tunnel to the game port never
 // reach it), every /api request carries the per-process token embedded in the page, and the Host header must be the
@@ -20,14 +24,19 @@ import { PHASE, PHASE_NAMES, BOND_LAYER_CAP, GEO } from '../shared/constants.js'
 import { rewindToPrep } from './match/rewind.js';
 import { boardOrder } from './match/board.js';
 import { applyCard, tacticCard } from './match/choices.js';
-import { buildNormalWave, buildBossWave, pickRoundEntry } from './match/waves.js';
+import { buildNormalWave, buildBossWave } from './match/waves.js';
+import { planView, setPick, waveSource } from './match/enemyPicks.js';
 import { syntheticResult } from './match/fields.js';
+import { GameData } from './match/gamedata.js';
+import { getPrep, setPrep, normalizePrep } from './match/hostSettings.js';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const OK = { ok: true };
 const int = (v) => (v !== '' && v != null && Number.isFinite(Number(v)) ? Math.trunc(Number(v)) : null);
 const obj = (v) => (v && typeof v === 'object' ? v : {});
 const BEFORE_COMBAT = new Set([PHASE.ROUND_START, PHASE.SP_DRAFT, PHASE.PREP]);
+const LOG_KEPT = 100;
+const RECORD_ID = /^[\w-]+\.json$/;
 
 /** The 机变 cards a grant can name: tactic cards with an effect (terrain only for the match's stage), bounty cards. */
 function cardList(m) {
@@ -78,14 +87,28 @@ function matchView(m) {
     phase: m.phase, phaseName: PHASE_NAMES[m.phase] || m.phase, round: m.round, ended: m.ended, paused: m.paused, solo: m.isSolo,
     left: m.deadline ? Math.max(0, Math.round((m.deadline - m.sched.now()) / 1000)) : null,
     rewindRounds: [...m.prepSnapshots.keys()].sort((a, b) => a - b), errors: m.errorCount,
-    timerScale: m.timerScale, canReroll: BEFORE_COMBAT.has(m.phase) && !!(m.wave || m.bossWaves),
+    timerScale: m.timerScale, enemyPlan: planView(m, BEFORE_COMBAT.has(m.phase)),
     fields: m.fields.filter((f) => f.cc && !f.done).map((f) => ({ id: f.fieldId, kind: f.kind, players: f.players.map((pid) => m.players.get(pid)?.name || pid) })),
     players: m.order.map((ps) => ({
       id: ps.playerId, name: ps.name, bot: ps.isBot, connected: ps.connected && !ps.left, alive: ps.alive, ready: ps.ready,
       lp: ps.lp, funds: ps.funds, level: ps.shop.level, freeRefreshes: ps.shop.freeRefreshes || 0,
       board: ps.board.size, hand: ps.hand.filter(Boolean).length, autoplay: !!ps.autoplay,
+      stats: statsOf(ps),
       ...playerDetail(m, ps),
     })),
+    history: m.history || [],
+  };
+}
+
+/** A player's running totals (PlayerState stats; `gold` = funds spent). */
+function statsOf(ps) {
+  const s = ps.stats;
+  let layers = 0;
+  try { layers = ps.activatedLayers(); } catch { /* informational */ }
+  return {
+    dmgDealt: Math.round(s.dmgDealt), kills: s.kills, leaks: s.leaks, perfectRounds: s.perfectRounds, lpLost: s.lpLost,
+    fundsGained: s.fundsGained, gold: s.gold, buys: s.buys, sells: s.sells, refreshes: s.refreshes, merges: s.merges,
+    itemsEquipped: s.itemsEquipped, healing: Math.round(s.healing || 0), bossDamage: Math.round(s.bossDamage), activatedLayers: layers,
   };
 }
 
@@ -95,6 +118,9 @@ export function roomsView(lobby) {
     code: r.code, mode: r.mode, difficulty: r.difficulty,
     seats: r.seats.filter(Boolean).map((s) => ({ name: s.name, bot: s.isBot, connected: s.connected && !s.left })),
     match: r.match && r.match.order ? matchView(r.match) : null,
+    // the room's last ended match, while no new one runs: its statistics stay on the room card
+    lastMatch: r.match ? null : r.adminLastMatch || null,
+    log: r.adminLog || [],
   }));
 }
 
@@ -309,25 +335,22 @@ const MATCH_ACTIONS = {
     return OK;
   },
   pause: (m, v) => m.setPause(null, v === true || v === '1' || v === 1),
-  // ROUND_START / 机变 / PREP: a new enemy entry of the round's faction type (the match's schedule fixed the round's
-  // pick at setup, so rebuilding alone would repeat it). Draws from rngWaves; a rewind restores the old composition.
-  reroll: (m) => {
-    if (!BEFORE_COMBAT.has(m.phase)) return { error: '只能在战斗开始前重新随机' };
-    const r = m.round;
-    const old = m.wave ? m.wave.pick : m.bossWaves && m.bossWaves[0] ? m.bossWaves[0].wave.pick : null;
-    if (!old) return { error: '本回合没有可随机的敌人' };
-    const pick = pickRoundEntry(m.gd, m.rngWaves, old.type, r);
-    if (!pick) return { error: '没有可选的敌人' };
-    const picks = [];
-    picks[r] = pick; // roundPick reads { picks } (waves.js)
-    if (m.wave) m.wave = buildNormalWave(m.gd, m.rngWaves, { picks }, r);
-    else {
-      // as _planBossWaves, with the new pick
-      const bossId = r === m.gd.hiddenRound && r !== m.gd.bossRound ? m.hiddenBossId : m.bossId;
-      m.bossWaves = m.bossWaves.map((w) => ({ ...w, wave: buildBossWave(m.gd, m.rngWaves, { picks }, r, { bossId, solo: m.isSolo || w.players.length === 1 }) }));
+  // value { round, id }: round's composition (an enemyPicks combo id; '' = back to the match's own pick). A later round
+  // takes it when it starts; the current round's wave is rebuilt now, while its combat has not started (the wave
+  // builders draw nothing from rngWaves for a scheduled pick). A rewind restores the overrides of its prep.
+  enemyPick: (m, v) => {
+    const res = setPick(m, obj(v).round, obj(v).id, BEFORE_COMBAT.has(m.phase));
+    if (!res.ok) return res;
+    if (res.current) {
+      const r = m.round;
+      if (r === m.gd.bossRound || r === m.gd.hiddenRound) {
+        // as _planBossWaves, on the fields' own pairing
+        const bossId = r === m.gd.hiddenRound && r !== m.gd.bossRound ? m.hiddenBossId : m.bossId;
+        m.bossWaves = (m.bossWaves || []).map((w) => ({ ...w, wave: buildBossWave(m.gd, m.rngWaves, waveSource(m), r, { bossId, solo: m.isSolo || w.players.length === 1 }) }));
+      } else m.wave = buildNormalWave(m.gd, m.rngWaves, waveSource(m), r);
+      for (const ps of m.order) ps.dirty(); // m.private.nextEnemies
+      m.markPublic();
     }
-    for (const ps of m.order) ps.dirty(); // m.private.nextEnemies
-    m.markPublic();
     return OK;
   },
   battleWin: (m, v) => forceField(m, v, true),
@@ -345,11 +368,25 @@ const MATCH_ACTIONS = {
   },
 };
 
-/** POST /api/action { room, action, playerId?, value? } → { ok } | { error, detail? } */
+/** POST /api/action { room, action, playerId?, value? } → { ok } | { error, detail? }; kept in the room's action log. */
 export function handleAction(lobby, body) {
   const { room: code, action, playerId, value } = body || {};
   const room = lobby.rooms.get(String(code));
   if (!room) return { error: '房间不存在' };
+  // the player's name as it was when the action ran (before the action: a closed room has no log to keep)
+  const player = room.match && room.match.players && room.match.players.get(String(playerId));
+  const res = runAction(lobby, room, action, playerId, value);
+  if (action !== 'closeRoom') {
+    let v = value == null || value === '' ? '' : typeof value === 'string' ? value : JSON.stringify(value);
+    if (v.length > 120) v = v.slice(0, 117) + '…';
+    const log = room.adminLog || (room.adminLog = []);
+    log.push({ at: Date.now(), round: room.match ? room.match.round : null, action: String(action), player: player ? player.name : null, value: v, ok: !!res.ok, error: res.ok ? null : res.error });
+    if (log.length > LOG_KEPT) log.splice(0, log.length - LOG_KEPT);
+  }
+  return res;
+}
+
+function runAction(lobby, room, action, playerId, value) {
   if (action === 'closeRoom') {
     lobby.disposeRoom(room, '控制台关闭');
     return OK;
@@ -370,6 +407,117 @@ export function handleAction(lobby, body) {
   return res || { error: '执行出错（见服务器日志）' };
 }
 
+// ---- 对局记录: logs/results/<time>-<room>.json, one per finished match
+
+/** The saved record: the m.result summary with the names the console shows (no game data on the page), plus history. */
+export function resultRecord(room, m, summary, now = new Date()) {
+  const gd = m.gd;
+  const players = (summary.players || []).map((p) => {
+    const ps = m.players.get(p.playerId);
+    const pgd = (ps && ps.gd) || gd;
+    return {
+      ...p,
+      // the console's full totals (buys, sells, funds gained, healing are not in the result frame)
+      stats: ps ? { ...p.stats, ...statsOf(ps) } : p.stats,
+      band: p.bandId && gd.band(p.bandId) ? gd.band(p.bandId).name || p.bandId : null,
+      lineup: (p.lineup || []).map((u) => ({ ...u, name: pgd.chess(u.id)?.name || u.id, items: (u.items || []).map((id) => pgd.item(id)?.name || id) })),
+      bonds: (p.bonds || []).map((b) => ({ ...b, name: gd.bond(b.bondId)?.name || b.bondId })),
+    };
+  });
+  return {
+    savedAt: now.getTime(), room: room.code, mode: room.mode, difficulty: room.difficulty,
+    result: { ...summary, players },
+    history: m.history || [],
+  };
+}
+
+const pad = (n) => String(n).padStart(2, '0');
+/** Write a resultRecord, @returns its id (the file name). */
+function saveRecord(dir, room, rec, log) {
+  const now = new Date(rec.savedAt);
+  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const code = String(room.code).replace(/[^\w]/g, '');
+  fs.mkdirSync(dir, { recursive: true });
+  let id = `${stamp}-${code}.json`;
+  for (let i = 2; fs.existsSync(path.join(dir, id)); i++) id = `${stamp}-${code}-${i}.json`;
+  fs.writeFileSync(path.join(dir, id), JSON.stringify(rec));
+  log.info(`[admin] ${room.code} result saved: ${id}`);
+  return id;
+}
+
+/** The ended match the room card keeps showing until the room's next match (room.adminLastMatch). */
+function lastMatchView(rec, id) {
+  const r = rec.result;
+  return {
+    id, savedAt: rec.savedAt, victory: !!r.victory, hiddenCleared: !!r.hiddenCleared, reason: r.reason, roundsPassed: r.roundsPassed,
+    players: (r.players || []).map((p) => ({ id: p.playerId, name: p.name, stats: p.stats })),
+    history: rec.history,
+  };
+}
+
+/** GET /api/results — newest first, the list's columns only. */
+export function listRecords(dir) {
+  let files = [];
+  try { files = fs.readdirSync(dir).filter((f) => RECORD_ID.test(f)); } catch { return []; }
+  const out = [];
+  for (const id of files) {
+    try {
+      const rec = JSON.parse(fs.readFileSync(path.join(dir, id), 'utf8'));
+      const r = rec.result || {};
+      out.push({
+        id, savedAt: rec.savedAt, room: rec.room, mode: rec.mode, difficulty: rec.difficulty, victory: !!r.victory,
+        hiddenCleared: !!r.hiddenCleared, reason: r.reason, roundsPassed: r.roundsPassed, rounds: (rec.history || []).length, durationMs: r.durationMs,
+        players: (r.players || []).map((p) => ({ name: p.name, bot: !!p.isBot, alive: !!p.alive })),
+      });
+    } catch { /* a broken file is skipped */ }
+  }
+  return out.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0) || b.id.localeCompare(a.id));
+}
+
+/** GET /api/result?id= → the record, or null (the id names a file of `dir` only). */
+export function readRecord(dir, id) {
+  if (typeof id !== 'string' || !RECORD_ID.test(id)) return null;
+  try { return JSON.parse(fs.readFileSync(path.join(dir, id), 'utf8')); } catch { return null; }
+}
+
+// ---- settings: logs/admin-settings.json { prep }, loaded at start, written on every change
+
+/** The data's prep seconds per round of every timed (同盟) mode, for the settings page's defaults and preview. */
+export function prepDefaults(data) {
+  const modes = data && data.config && data.config.modes && typeof data.config.modes === 'object' ? data.config.modes : {};
+  const out = [];
+  for (const [id, mode] of Object.entries(modes)) {
+    if (!mode || mode.inScope === false) continue;
+    const gd = new GameData(data, id);
+    if (gd.isSolo) continue;
+    const last = Math.max(gd.bossRound || 0, gd.hiddenRound || 0);
+    const rounds = Array.from({ length: last }, (_, i) => gd.prepTime(i + 1));
+    if (rounds.some((s) => s > 0)) out.push({ modeId: id, name: mode.name || id, difficulty: mode.difficulty || '', rounds });
+  }
+  return out;
+}
+
+function loadSettings(file, log) {
+  let raw;
+  try { raw = fs.readFileSync(file, 'utf8'); } catch { return; } // none yet: the data's timers
+  try {
+    const r = setPrep(JSON.parse(raw).prep);
+    if (r.error) log.error(`[admin] ${file}: prep ignored (${r.error})`);
+  } catch (e) { log.error(`[admin] ${file} is not valid JSON, ignored`, e); }
+}
+
+/** POST /api/settings { prep }: validated, written (tmp + rename), then applied. */
+function saveSettings(file, body) {
+  const r = normalizePrep(body && body.prep);
+  if (r.error) return r;
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify({ prep: r.prep }, null, 2));
+  fs.renameSync(tmp, file);
+  setPrep(r.prep);
+  return { ok: true, prep: getPrep() };
+}
+
 function readJson(req, limit = 8192) {
   return new Promise((resolve) => {
     let s = '';
@@ -381,7 +529,9 @@ function readJson(req, limit = 8192) {
 }
 
 /** @returns {Promise<{ url: string, port: number, token: string, close: () => Promise<void> }>} */
-export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log = console }) {
+export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log = console, resultsDir = path.join(DIR, '..', 'logs', 'results'),
+  settingsFile = path.join(DIR, '..', 'logs', 'admin-settings.json') }) {
+  loadSettings(settingsFile, log);
   const token = randomBytes(16).toString('hex');
   const page = fs.readFileSync(path.join(DIR, 'admin.html'), 'utf8').replace('__TOKEN__', token);
   const tokenBuf = Buffer.from(token);
@@ -404,6 +554,20 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
       if (!authed(req)) return send(403, { error: 'bad token' });
       if (req.method === 'GET' && url.pathname === '/api/rooms') return send(200, { rooms: roomsView(lobby) });
       if (req.method === 'GET' && url.pathname === '/api/catalog') return send(200, catalogView(lobby, url.searchParams.get('room')));
+      if (req.method === 'GET' && url.pathname === '/api/results') return send(200, { records: listRecords(resultsDir) });
+      if (req.method === 'GET' && url.pathname === '/api/settings') return send(200, { prep: getPrep(), file: settingsFile, defaults: prepDefaults(lobby.safeData()) });
+      if (req.method === 'POST' && url.pathname === '/api/settings') {
+        const body = await readJson(req);
+        if (!body) return send(400, { error: '请求格式错误' });
+        let r;
+        try { r = saveSettings(settingsFile, body); } catch (e) { log.error('[admin] saving the settings failed', e); r = { error: `写入 ${settingsFile} 失败` }; }
+        log.info(`[admin] settings prep ${JSON.stringify(body.prep)} → ${r.ok ? 'ok' : r.error}`);
+        return send(200, r);
+      }
+      if (req.method === 'GET' && url.pathname === '/api/result') {
+        const rec = readRecord(resultsDir, url.searchParams.get('id'));
+        return rec ? send(200, rec) : send(404, { error: '记录不存在' });
+      }
       if (req.method === 'POST' && url.pathname === '/api/action') {
         const body = await readJson(req);
         if (!body) return send(400, { error: '请求格式错误' });
@@ -421,6 +585,28 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
     server.once('error', reject);
     server.listen(port, host, () => { server.off('error', reject); resolve(); });
   });
+  // every finished match is saved before the lobby lets it go (the match's onEnd calls lobby.onMatchEnd by name; a
+  // wrapper here keeps server/lobby.js as upstream has it). The same checks as onMatchEnd: a stale onEnd saves nothing.
+  const hadOwn = Object.hasOwn(lobby, 'onMatchEnd');
+  const onMatchEnd = lobby.onMatchEnd;
+  lobby.onMatchEnd = function (room, ctx, summary) {
+    if (ctx && !ctx.ended && ctx.live && room.matchCtx === ctx && !room.disposed && ctx.match && summary) {
+      let rec = null;
+      let id = null;
+      try {
+        rec = resultRecord(room, ctx.match, summary);
+        id = saveRecord(resultsDir, room, rec, log);
+      } catch (e) { log.error('[admin] saving the result failed', e); }
+      room.adminLastMatch = rec ? lastMatchView(rec, id) : null;
+    }
+    return onMatchEnd.call(this, room, ctx, summary);
+  };
   const actual = server.address().port;
-  return { url: `http://${host}:${actual}`, port: actual, token, close: () => new Promise((r) => server.close(() => r())) };
+  return {
+    url: `http://${host}:${actual}`, port: actual, token, resultsDir,
+    close: () => new Promise((r) => {
+      if (hadOwn) lobby.onMatchEnd = onMatchEnd; else delete lobby.onMatchEnd;
+      server.close(() => r());
+    }),
+  };
 }

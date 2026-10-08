@@ -6,6 +6,7 @@
 
 import { PHASE, ERR } from '../../../shared/constants.js';
 import { buildNormalWave, buildBossWave } from '../waves.js';
+import { waveSource } from '../enemyPicks.js';
 import { pairPlayers } from '../finalAssault.js';
 import { botPickBand } from '../bot.js';
 import { OK, fail, DELAYS, BAND_TURN_SECONDS } from './common.js';
@@ -242,7 +243,8 @@ export class MatchPhases {
     if (isBoss) {
       this._planBossWaves();
     } else {
-      this.wave = buildNormalWave(this.gd, this.rngWaves, this.factions, r);
+      // waveSource: the match's schedule with the local console's overrides (enemyPicks.js)
+      this.wave = buildNormalWave(this.gd, this.rngWaves, waveSource(this), r);
     }
     for (const ps of alive) ps.startRound(r);
     for (const ps of alive) this.dispatch(ps, 'onRoundStart', { round: r });
@@ -265,7 +267,7 @@ export class MatchPhases {
     const bossId = r === this.gd.hiddenRound && r !== this.gd.bossRound ? this.hiddenBossId : this.bossId;
     this.bossWaves = pairPlayers(this.alivePlayers()).map((g) => ({
       players: g.map((p) => p.playerId),
-      wave: buildBossWave(this.gd, this.rngWaves, this.factions, r, { bossId, solo: this.isSolo || g.length === 1 }),
+      wave: buildBossWave(this.gd, this.rngWaves, waveSource(this), r, { bossId, solo: this.isSolo || g.length === 1 }),
     }));
   }
 

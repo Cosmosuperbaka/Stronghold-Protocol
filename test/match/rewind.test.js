@@ -10,7 +10,7 @@ import { makeMatch, checkInvariants } from './harness.js';
 function fingerprint(m) {
   const ids = (arr) => arr.map((p) => (p ? `${p.id}${p.items && p.items.length ? '+' + p.items.map((i) => i.id).join('+') : ''}` : '-'));
   return JSON.stringify({
-    phase: m.phase, round: m.round, outcome: m.outcome, pool: [...m.pool.entries].map(([k, e]) => `${k}:${e.left}`),
+    phase: m.phase, round: m.round, outcome: m.outcome, history: m.history, pool: [...m.pool.entries].map(([k, e]) => `${k}:${e.left}`),
     players: m.order.map((ps) => ({
       lp: ps.lp, alive: ps.alive, funds: ps.funds, level: ps.shop.level, shop: ps.shop.slots.map((s) => s && s.id),
       board: ids([...ps.board.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([k, p]) => ({ ...p, id: `${k}=${p.id}` }))),
@@ -52,11 +52,13 @@ test('back from R6 to R3: later snapshots are dropped and the replay ends like t
   b.drive(() => b.m.phase === PHASE.PREP && b.m.round === 3);
   const atPrep3 = fingerprint(b.m);
   b.drive(() => b.m.phase === PHASE.PREP && b.m.round === 6);
+  assert.deepEqual(b.m.history.map((h) => h.round), [1, 2, 3, 4, 5]);
   assert.ok([3, 4, 5, 6].every((r) => b.m.prepSnapshots.has(r)), 'one snapshot per round');
   assert.match(rewindToPrep(b.m, 9).error, /第 9 回合/);
   assert.deepEqual(rewindToPrep(b.m, 3), { ok: true, round: 3 });
   assert.equal(fingerprint(b.m), atPrep3);
   assert.ok(b.m.prepSnapshots.has(3) && ![4, 5, 6].some((r) => b.m.prepSnapshots.has(r)), 'R4–R6 snapshots dropped');
+  assert.deepEqual(b.m.history.map((h) => h.round), [1, 2], 'the console record is back at R3 too (history.js)');
   checkInvariants(b.m);
   assert.ok(b.drive(() => b.ended != null));
   assert.equal(fingerprint(b.m), straight);

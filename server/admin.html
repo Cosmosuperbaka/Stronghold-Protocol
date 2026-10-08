@@ -44,15 +44,39 @@
   .on { color: var(--mint); }
   .note { color: var(--warn); font-size: 12px; margin: 4px 0 0; }
   input.small { width: 64px; }
+  nav { display: flex; gap: 4px; }
+  nav button[aria-pressed="true"] { border-color: var(--mint); color: var(--mint); }
+  details.stats { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
+  details.stats > summary { cursor: pointer; color: var(--mint); }
+  .stats-body { display: grid; gap: 14px; margin-top: 8px; }
+  .stats-body h3 { margin: 0 0 4px; font-size: 13px; color: var(--mint); font-weight: normal; }
+  .stats-body table { margin-top: 0; }
+  .stats-body td, .stats-body th { padding: 3px 8px; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .xscroll { overflow-x: auto; }
+  .chart-wrap { position: relative; max-width: 760px; }
+  .chart-wrap svg { display: block; width: 100%; height: auto; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 4px 0; font-size: 12px; }
+  .legend span::before, .tip .k { content: ""; display: inline-block; width: 12px; height: 2px; vertical-align: middle; margin-right: 6px; background: var(--c); }
+  .tip { position: absolute; pointer-events: none; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 6px 10px; font-size: 12px; white-space: nowrap; display: none; z-index: 2; }
+  .tip b { font-weight: normal; color: var(--dim); display: block; margin-bottom: 2px; }
+  .tip .v { display: inline-block; min-width: 56px; text-align: right; margin-right: 8px; font-variant-numeric: tabular-nums; }
+  .units { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 16px; }
+  .units ol { margin: 2px 0 0; padding-left: 20px; }
+  .good { color: var(--mint); }
+  .bad { color: var(--red); }
 </style>
 </head>
 <body>
 <header>
   <h1>主机控制台</h1>
+  <nav aria-label="页面"><button data-tab="rooms" aria-pressed="true">房间</button><button data-tab="records" aria-pressed="false">对局记录</button><button data-tab="settings" aria-pressed="false">设置</button></nav>
   <span class="meta">只能在这台电脑上打开 · 修改直接生效、不扣金币；只有「加层」「补发机变卡」「装备」会触发游戏效果</span>
   <span id="status" aria-live="polite"></span>
 </header>
 <main id="rooms"></main>
+<main id="records" hidden></main>
+<main id="settings" hidden></main>
 <datalist id="chess-list"></datalist>
 <datalist id="item-list"></datalist>
 <datalist id="equip-list"></datalist>
@@ -67,6 +91,7 @@ const api = (p, body) => fetch(p, { method: body ? 'POST' : 'GET', headers: { 'X
 
 let catalogRoom = null;
 const names = { chess: new Map(), item: new Map(), equip: new Map(), card: new Map() };
+const idNames = new Map(); // operator / item / card id → its catalog label (the action log)
 const open = new Set(); // players whose 详情 row is expanded
 
 function say(text, err = false) {
@@ -94,6 +119,7 @@ async function loadCatalog(room) {
     $(sel).innerHTML = list.map((x) => {
       const label = `${x.name}（${x.tier}费）`;
       names[kind].set(label, x.id);
+      idNames.set(x.id, label);
       let opts = `<option value="${esc(label)}"></option>`;
       if (x.goldenId) { const g = `${x.name}·精锐（${x.tier}费）`; names[kind].set(g, x.goldenId); opts += `<option value="${esc(g)}"></option>`; }
       return opts;
@@ -106,6 +132,7 @@ async function loadCatalog(room) {
   $('#card-list').innerHTML = c.cards.map((x) => {
     const label = `${x.name}${x.kind === 'bounty' ? '（悬赏）' : x.team ? '（全队）' : ''}`;
     names.card.set(label, x.id);
+    idNames.set(x.id, label);
     return `<option value="${esc(label)}"></option>`;
   }).join('');
 }
@@ -200,7 +227,6 @@ function roomCard(r) {
         <button class="danger" data-click="endMatch" data-room="${r.code}" data-label="结束对局" data-confirm="直接结束这局（判负）？">结束对局</button>
       </div>
       <div class="row" style="margin-top:8px">
-        <button data-click="reroll" data-room="${r.code}" data-label="重新随机敌人" data-confirm="重新随机本回合的敌人？之后的随机结果会跟着改变（回档可以恢复）。" ${m.canReroll ? '' : 'disabled'}>重新随机敌人</button>
         <label>计时倍率 <input class="small" type="number" step="0.1" min="0.1" max="10" value="${m.timerScale}" aria-label="计时倍率" data-act="timerScale" data-room="${r.code}" data-label="计时倍率"></label>
         <span class="meta">只影响之后设定的倒计时</span>
       </div>
@@ -215,6 +241,7 @@ function roomCard(r) {
         <tbody>${m.players.map((p) => playerRow(r.code, p)).join('')}</tbody>
       </table>`;
   }
+  body += `<div data-stats="${r.code}"></div>`;
   return `<section class="room" aria-labelledby="room-${r.code}">
     <div class="row">
       <h2 id="room-${r.code}">房间 ${r.code}</h2>
@@ -225,10 +252,431 @@ function roomCard(r) {
   </section>`;
 }
 
+// ---- statistics (shared by the rooms page and the 对局记录 page)
+// series colors follow the seat order, never the rank (validated against the panel surfaces, docs/HANDOFF.md 4.8)
+const SERIES = ['#3987e5', '#d95926', '#199e70', '#c98500'];
+const INK = { grid: '#2c2c2a', axis: '#383835', label: '#898781', text: '#dfe6e2', surface: '#101311' };
+const METRICS = [['lp', 'LP'], ['funds', '剩余金币'], ['spent', '累计花费'], ['dmg', '累计伤害'], ['roundDmg', '本回合伤害'], ['level', '商店等级']];
+const TOTALS = [['dmgDealt', '伤害'], ['kills', '击杀'], ['leaks', '漏怪'], ['perfectRounds', '无伤回合'], ['lpLost', '损失 LP'], ['fundsGained', '获得金币'],
+  ['gold', '花费'], ['buys', '购买'], ['sells', '出售'], ['refreshes', '刷新'], ['merges', '晋升'], ['itemsEquipped', '配装'], ['healing', '治疗'],
+  ['bossDamage', '领袖伤害'], ['activatedLayers', '盟约层数']];
+const ACTION_NAMES = { rewind: '回档', endPrep: '结束休整期', pause: '暂停/继续', enemyPick: '指定敌人', battleWin: '判胜', battleLose: '判负',
+  timerScale: '计时倍率', endMatch: '结束对局', funds: '金币', lp: 'LP', level: '商店等级', refresh: '免费刷新', chess: '发放干员', item: '发放道具',
+  bondAdd: '加层', bondSet: '设层', bondBonus: '人数加成', autoplay: '托管', effectRemove: '删除效果', bountyRemove: '删除悬赏', card: '补发机变卡',
+  pieceRemove: '移除棋子', piecePromote: '升精锐', pieceEquip: '装备' };
+const compact = new Intl.NumberFormat('zh-CN', { notation: 'compact', maximumFractionDigits: 1 });
+const full = new Intl.NumberFormat('zh-CN');
+const fmt = (n) => (Math.abs(n) >= 1e4 ? compact.format(n) : full.format(n));
+const clock = (ms) => new Date(ms).toLocaleTimeString('zh-CN', { hour12: false });
+const dur = (ms) => { const s = Math.round((ms || 0) / 1000); return `${Math.floor(s / 60)} 分 ${s % 60} 秒`; };
+const outcomeText = (r) => (r.victory ? (r.hiddenCleared ? '胜利 · 隐秘核心' : '胜利') : r.reason === 'admin' ? '控制台结束' : '失败');
+
+/** The players of a history, in seat order (the entry order), with their series color and name. */
+function seriesOf(history, nameOf) {
+  const last = history[history.length - 1];
+  return last ? last.players.map((p, i) => ({ id: p.playerId, name: nameOf(p.playerId), color: SERIES[i] || INK.label })) : [];
+}
+
+/** Points of one player for a metric: every round alive, plus the round it was eliminated in. */
+function pointsOf(history, id, key) {
+  const out = [];
+  let wasAlive = true;
+  for (const h of history) {
+    const p = h.players.find((x) => x.playerId === id);
+    if (!p) continue;
+    if (p.alive || wasAlive) out.push({ round: h.round, v: Number(p[key]) || 0 });
+    wasAlive = p.alive;
+  }
+  return out;
+}
+
+function niceScale(max) {
+  if (!(max > 0)) return { top: 1, step: 1 };
+  const raw = max / 4;
+  const pow = 10 ** Math.floor(Math.log10(raw));
+  const step = Math.max(1, [1, 2, 5, 10].map((k) => k * pow).find((x) => x >= raw));
+  return { top: Math.ceil(max / step) * step, step };
+}
+
+/**
+ * A line chart of one metric by round, one line per player, drawn into `host`: legend, end labels, a crosshair with
+ * one tooltip listing every player at that round, and a table view. `state` { metric, table } survives re-renders.
+ */
+function drawChart(host, history, nameOf, state) {
+  host.textContent = '';
+  if (!history.length) { host.innerHTML = '<p class="meta">第一回合结算后开始记录。</p>'; return; }
+  const series = seriesOf(history, nameOf);
+  const [key, label] = METRICS.find((x) => x[0] === state.metric) || METRICS[0];
+  const bar = document.createElement('div');
+  bar.className = 'row';
+  bar.innerHTML = `<label>指标 <select aria-label="曲线指标">${METRICS.map(([k, l]) => `<option value="${k}" ${k === key ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <button aria-pressed="${!!state.table}">${state.table ? '看曲线' : '看表格'}</button>`;
+  bar.querySelector('select').addEventListener('change', (e) => { state.metric = e.target.value; drawChart(host, history, nameOf, state); });
+  bar.querySelector('button').addEventListener('click', () => { state.table = !state.table; drawChart(host, history, nameOf, state); });
+  host.append(bar);
+  const rounds = history.map((h) => h.round);
+  if (state.table) {
+    const t = document.createElement('div');
+    t.className = 'xscroll';
+    t.innerHTML = `<table><caption class="meta" style="text-align:left">${esc(label)}（每回合结算后）</caption>
+      <thead><tr><th scope="col">回合</th>${series.map((s) => `<th scope="col" class="n">${esc(s.name)}</th>`).join('')}</tr></thead>
+      <tbody>${rounds.map((r) => `<tr><th scope="row">${r}</th>${series.map((s) => { const p = pointsOf(history, s.id, key).find((x) => x.round === r); return `<td class="n">${p ? full.format(p.v) : '—'}</td>`; }).join('')}</tr>`).join('')}</tbody></table>`;
+    host.append(t);
+    return;
+  }
+  const lines = series.map((s) => ({ ...s, pts: pointsOf(history, s.id, key) }));
+  const W = 720, H = 260, L = 52, R = 96, T = 12, B = 30;
+  const x0 = rounds[0], x1 = rounds[rounds.length - 1];
+  const X = (r) => (x1 === x0 ? L + (W - L - R) / 2 : L + ((r - x0) / (x1 - x0)) * (W - L - R));
+  const { top, step } = niceScale(Math.max(0, ...lines.flatMap((l) => l.pts.map((p) => p.v))));
+  const Y = (v) => T + (1 - v / top) * (H - T - B);
+  let svg = '';
+  for (let v = 0; v <= top + 1e-9; v += step) {
+    svg += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="${v === 0 ? INK.axis : INK.grid}" stroke-width="1"/>`;
+    svg += `<text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" fill="${INK.label}" font-size="11">${fmt(v)}</text>`;
+  }
+  const every = Math.ceil(rounds.length / 15);
+  rounds.forEach((r, i) => { if (i % every === 0 || i === rounds.length - 1) svg += `<text x="${X(r)}" y="${H - B + 18}" text-anchor="middle" fill="${INK.label}" font-size="11">${r}</text>`; });
+  svg += `<text x="${W - R}" y="${H - 2}" text-anchor="end" fill="${INK.label}" font-size="11">回合</text>`;
+  for (const l of lines) {
+    if (!l.pts.length) continue;
+    svg += `<polyline fill="none" stroke="${l.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${l.pts.map((p) => `${X(p.round)},${Y(p.v)}`).join(' ')}"/>`;
+    for (const p of l.pts) svg += `<circle cx="${X(p.round)}" cy="${Y(p.v)}" r="4" fill="${l.color}" stroke="${INK.surface}" stroke-width="2"/>`;
+  }
+  // end labels in text ink, nudged apart; the line end beside each carries the color
+  const ends = lines.filter((l) => l.pts.length).map((l) => { const p = l.pts[l.pts.length - 1]; return { l, x: X(p.round), y: Y(p.v) }; }).sort((a, b) => a.y - b.y);
+  for (let i = 1; i < ends.length; i++) ends[i].y = Math.max(ends[i].y, ends[i - 1].y + 13);
+  const over = ends.length ? ends[ends.length - 1].y - (H - B) : 0;
+  if (over > 0) for (const e of ends) e.y -= over;
+  for (const e of ends) svg += `<text x="${e.x + 8}" y="${e.y + 4}" fill="${INK.text}" font-size="12">${esc(e.l.name)}</text>`;
+  svg += `<line class="cross" x1="0" x2="0" y1="${T}" y2="${H - B}" stroke="${INK.label}" stroke-width="1" visibility="hidden"/>`;
+  svg += `<rect class="hit" x="${L - 10}" y="0" width="${W - L - R + 20}" height="${H}" fill="transparent"/>`;
+
+  const legend = document.createElement('div');
+  legend.className = 'legend';
+  for (const l of lines) { const sp = document.createElement('span'); sp.style.setProperty('--c', l.color); sp.textContent = l.name; legend.append(sp); }
+  const wrap = document.createElement('div');
+  wrap.className = 'chart-wrap';
+  wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}曲线，第 ${x0}–${x1} 回合，切换到表格可读出数值"><title>${esc(label)}</title>${svg}</svg><div class="tip" role="presentation"></div>`;
+  host.append(legend, wrap);
+
+  const svgEl = wrap.querySelector('svg'), cross = wrap.querySelector('.cross'), tip = wrap.querySelector('.tip');
+  wrap.querySelector('.hit').addEventListener('mousemove', (e) => {
+    const box = svgEl.getBoundingClientRect();
+    const k = box.width / W;
+    const vx = (e.clientX - box.left) / k;
+    let r = rounds[0];
+    for (const x of rounds) if (Math.abs(X(x) - vx) < Math.abs(X(r) - vx)) r = x;
+    cross.setAttribute('x1', X(r)); cross.setAttribute('x2', X(r)); cross.setAttribute('visibility', 'visible');
+    tip.textContent = '';
+    const head = document.createElement('b');
+    head.textContent = `第 ${r} 回合 · ${label}`;
+    tip.append(head);
+    const rows = lines.map((l) => ({ l, p: l.pts.find((p) => p.round === r) })).filter((x) => x.p).sort((a, b) => b.p.v - a.p.v);
+    for (const { l, p } of rows) {
+      const line = document.createElement('div');
+      const sw = document.createElement('span'); sw.className = 'k'; sw.style.setProperty('--c', l.color);
+      const v = document.createElement('span'); v.className = 'v'; v.textContent = full.format(p.v);
+      const n = document.createElement('span'); n.textContent = l.name;
+      line.append(sw, v, n);
+      tip.append(line);
+    }
+    tip.style.display = 'block';
+    const px = X(r) * k;
+    tip.style.left = `${px + 12 + tip.offsetWidth > box.width ? px - 12 - tip.offsetWidth : px + 12}px`;
+    tip.style.top = '8px';
+  });
+  wrap.querySelector('.hit').addEventListener('mouseleave', () => { cross.setAttribute('visibility', 'hidden'); tip.style.display = 'none'; });
+}
+
+/** Running totals, one row per player. players: [{ name, stats }] */
+function totalsTable(players) {
+  return `<div class="xscroll"><table><thead><tr><th scope="col">玩家</th>${TOTALS.map(([, l]) => `<th scope="col" class="n">${l}</th>`).join('')}</tr></thead>
+    <tbody>${players.map((p) => `<tr><th scope="row">${esc(p.name)}</th>${TOTALS.map(([k]) => `<td class="n">${p.stats && p.stats[k] != null ? fmt(p.stats[k]) : '—'}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+
+/** Each player's five operators with the most damage over the recorded rounds. */
+function unitsRanking(history, nameOf) {
+  const series = seriesOf(history, nameOf);
+  if (!series.length) return '<p class="meta">暂无</p>';
+  return `<div class="units">${series.map((s) => {
+    const by = new Map();
+    for (const h of history) {
+      const p = h.players.find((x) => x.playerId === s.id);
+      for (const u of (p && p.units) || []) {
+        const e = by.get(u.defId) || { name: u.name, dmg: 0, kills: 0, rounds: 0 };
+        e.dmg += u.dmg; e.kills += u.kills; e.rounds++;
+        by.set(u.defId, e);
+      }
+    }
+    const top = [...by.values()].sort((a, b) => b.dmg - a.dmg).slice(0, 5);
+    return `<div><span class="legend"><span style="--c:${s.color}">${esc(s.name)}</span></span>
+      ${top.length ? `<ol>${top.map((u) => `<li>${esc(u.name)} <span class="meta">${fmt(u.dmg)} 伤害 · ${u.kills} 击杀 · ${u.rounds} 场</span></li>`).join('')}</ol>` : '<p class="meta">没有伤害记录</p>'}</div>`;
+  }).join('')}</div>`;
+}
+
+/** Any recorded round, one row per player; state.round null = follow the latest round. */
+function drawRounds(host, history, nameOf, state) {
+  host.textContent = '';
+  if (!history.length) { host.innerHTML = '<p class="meta">第一回合结算后开始记录。</p>'; return; }
+  const latest = history[history.length - 1].round;
+  const h = history.find((x) => x.round === state.round) || history[history.length - 1];
+  const bar = document.createElement('div');
+  bar.className = 'row';
+  bar.innerHTML = `<label>查看 <select aria-label="查看第几回合">${history.map((x) => `<option value="${x.round}" ${x.round === h.round ? 'selected' : ''}>第 ${x.round} 回合${x.round === latest ? '（最新）' : ''}</option>`).join('')}</select></label>
+    <span class="meta">数值是该回合结算后的状态</span>
+    ${h.enemy ? `<span>敌人：${esc(h.enemy.typeName)} · ${esc(h.enemy.special)}｜普 ${esc(h.enemy.normal || '—')}｜精 ${esc(h.enemy.elite || '—')}${h.enemy.fly ? '（飞行）' : ''}${h.enemy.overridden ? ' <span class="tag on">控制台指定</span>' : ''}</span>` : ''}`;
+  bar.querySelector('select').addEventListener('change', (e) => {
+    const r = Number(e.target.value);
+    state.round = r === latest ? null : r;
+    drawRounds(host, history, nameOf, state);
+  });
+  const t = document.createElement('div');
+  t.className = 'xscroll';
+  t.innerHTML = `<table><thead><tr><th scope="col">玩家</th><th scope="col" class="n">LP</th><th scope="col" class="n">扣血</th><th scope="col" class="n">漏怪</th><th scope="col" class="n">击杀</th><th scope="col" class="n">伤害</th><th scope="col">无伤</th><th scope="col" class="n">剩余金币</th><th scope="col" class="n">商店等级</th><th scope="col">干员伤害</th></tr></thead>
+    <tbody>${h.players.map((p) => `<tr><th scope="row">${esc(nameOf(p.playerId))}${p.alive ? '' : ' <span class="tag off">淘汰</span>'}</th><td class="n">${p.lp}</td>
+      <td class="n ${p.loss > 0 ? 'bad' : ''}">${p.loss > 0 ? `−${p.loss}` : 0}</td><td class="n">${p.leaks}</td><td class="n">${p.kills}</td><td class="n">${fmt(p.roundDmg)}</td>
+      <td>${p.perfect ? '<span class="good">是</span>' : ''}</td><td class="n">${p.funds}</td><td class="n">${p.level}</td>
+      <td style="white-space:normal;min-width:240px">${(p.units || []).map((u) => `${esc(u.name)} <span class="meta">${fmt(u.dmg)}</span>`).join('、') || '<span class="meta">—</span>'}</td></tr>`).join('')}</tbody></table>`;
+  host.append(bar, t);
+}
+
+/** One composition as a line: special｜普 normal｜精 elite. */
+const comboText = (c) => `${c.special}｜普 ${c.normalName || '—'}｜精 ${c.eliteName || '—'}${c.fly ? '（飞行）' : ''}`;
+const pct = (x) => `${(x * 100).toFixed(x >= 0.1 ? 0 : 1)}%`;
+
+/**
+ * The enemy schedule: per round its type, the composition it has now, and a picker over EVERY composition of the round's
+ * half, grouped by type — the round's own type first (with the official chance of each), then this match's other
+ * types, then the types this match did not draw and the mode's disabled ones (selectable, marked impossible).
+ */
+function planTable(code, plan) {
+  const byId = new Map([...plan.lists.first, ...plan.lists.second].map((c) => [c.id, c]));
+  const rows = plan.rounds.map((r) => {
+    const list = plan.lists[r.half];
+    const cur = byId.get(r.current);
+    const orig = byId.get(r.original);
+    const possible = Object.values(r.chance).filter((x) => x > 0).length;
+    const groups = new Map();
+    for (const c of list) {
+      const g = !c.allowed ? 'off' : c.type === r.type ? 'own' : c.inMatch ? 'match' : 'other';
+      const key = g === 'off' ? 'off' : `${g}|${c.type}`; // the mode's disabled ones: one group
+      if (!groups.has(key)) groups.set(key, { g, c, items: [] });
+      groups.get(key).items.push(c);
+    }
+    const order = { own: 0, match: 1, other: 2, off: 3 };
+    const label = { own: '本回合类型', match: '本局类型，本回合不会出', other: '本局没有这个类型', off: '本模式禁用' };
+    const opts = [...groups.values()].sort((a, b) => order[a.g] - order[b.g]).map(({ g, c, items }) => `<optgroup label="${g === 'off' ? '' : `${esc(c.typeName)}`}（${label[g]}）">${items.map((x) => {
+      const ch = r.chance[x.id];
+      return `<option value="${esc(x.id)}" ${x.id === r.current ? 'selected' : ''}>${g === 'off' ? `${esc(x.typeName)} · ` : ''}${esc(comboText(x))}${ch ? ` · ${pct(ch)}` : g === 'own' ? '' : ' · 不可能'}${x.id === r.original ? ' · 原定' : ''}</option>`;
+    }).join('')}</optgroup>`).join('');
+    return `<tr><th scope="row">${r.round}${r.kind === 'boss' ? ' <span class="tag">领袖</span>' : r.kind === 'hidden' ? ' <span class="tag">隐秘核心</span>' : ''}</th>
+      <td>${esc(r.typeName || '—')}</td>
+      <td style="white-space:normal;min-width:260px">${cur ? esc(comboText(cur)) : '<span class="meta">—</span>'}${r.overridden ? ` <span class="tag on">已指定</span><br><span class="meta">原定：${orig ? esc(comboText(orig)) : '—'}</span>` : ''}</td>
+      <td style="white-space:normal;min-width:200px">${r.roster.map((e) => `${esc(e.name)}${e.boss ? '<span class="meta">（领袖）</span>' : ''} ×${e.count}`).join('、') || '<span class="meta">—</span>'}</td>
+      <td class="n">${possible}</td>
+      <td><select data-pick="${r.round}" data-current="${esc(r.current || '')}" data-room="${code}" aria-label="第 ${r.round} 回合的敌人组合" ${r.editable ? '' : 'disabled'} style="max-width:420px">${opts}</select>
+        ${r.overridden && r.editable ? `<button data-click="enemyPick" data-room="${code}" data-pick-clear="${r.round}" data-label="第 ${r.round} 回合恢复原定">恢复原定</button>` : ''}</td></tr>`;
+  }).join('');
+  return `<p class="meta">开局时就定好了每回合的类型（本局 3 类 + 特异）和组合，游戏里不给玩家看。下拉框里是该回合（前半 1–${plan.rounds.filter((r) => r.half === 'first').length} 回合 / 后半）所有组合；百分比是按本局日程官方抽到它的概率，「不可能」的也能指定。
+    本回合的只能在战斗开始前改，之后的回合随时可以改，那一回合开始时生效。「实际出怪」按该回合的出怪模板算：第 1–3 回合的模板没有特殊位，地面组合不出飞行位、飞行组合不出地面位，领袖回合只出精英护卫，所以组合里的怪不一定都会出现。回档会恢复当时的指定。</p>
+    <div class="xscroll"><table><thead><tr><th scope="col">回合</th><th scope="col">类型</th><th scope="col">组合</th><th scope="col">实际出怪（不含悬赏）</th><th scope="col" class="n">本回合可能的组合数</th><th scope="col">改为</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function logTable(log) {
+  if (!log.length) return '<p class="meta">还没有操作。</p>';
+  return `<div class="scroll"><table><thead><tr><th scope="col">时间</th><th scope="col">回合</th><th scope="col">操作</th><th scope="col">玩家</th><th scope="col">参数</th><th scope="col">结果</th></tr></thead>
+    <tbody>${log.slice().reverse().map((e) => `<tr><td>${clock(e.at)}</td><td>${e.round ?? ''}</td><td>${esc(ACTION_NAMES[e.action] || e.action)}</td><td>${esc(e.player || '')}</td>
+      <td>${esc(idNames.get(e.value) || e.value)}</td><td class="${e.ok ? 'good' : 'bad'}">${e.ok ? '完成' : esc(e.error || '失败')}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+/**
+ * One room's statistics, kept out of the 1.5 s re-render: the node moves back into the fresh room card and each part
+ * is redrawn only when its own data changed (a hover tooltip or an open select survives the poll).
+ */
+const panels = new Map();
+function statsPanel(r) {
+  let p = panels.get(r.code);
+  if (!p) {
+    const el = document.createElement('div');
+    el.innerHTML = `<details class="stats" data-match open><summary>本局统计</summary><div class="stats-body">
+        <div class="row" data-part="ended"></div>
+        <div><h3>每回合曲线</h3><div data-part="chart"></div></div>
+        <div><h3>每回合详情</h3><div data-part="rounds"></div></div>
+        <div><h3>累计数据</h3><div data-part="totals"></div><p class="meta">花费 = 实际花掉的金币；获得金币含利息、悬赏和控制台加的。</p></div>
+        <div><h3>干员伤害排行（前 5）</h3><div data-part="units"></div><p class="meta">只算各自战场里的伤害；联防里的伤害计入累计数据，但不分干员。</p></div>
+      </div></details>
+      <details class="stats" data-plan><summary>敌人日程（剧透：游戏里对玩家隐藏）</summary><div class="stats-body" data-part="plan"></div></details>
+      <details class="stats"><summary>控制台操作日志</summary><div class="stats-body" data-part="log"></div></details>`;
+    p = { el, seen: {}, chart: { metric: 'lp', table: false }, rounds: { round: null } };
+    panels.set(r.code, p);
+  }
+  // the running match, else the room's last ended one (kept until its next match starts)
+  const m = r.match || r.lastMatch;
+  const ended = !r.match && !!r.lastMatch;
+  const names = new Map(m ? m.players.map((x) => [x.id, x.name]) : []);
+  const nameOf = (id) => names.get(id) || id;
+  const part = (k, data, draw) => {
+    const json = JSON.stringify(data);
+    if (p.seen[k] === json) return;
+    p.seen[k] = json;
+    draw(p.el.querySelector(`[data-part="${k}"]`));
+  };
+  p.el.querySelector('details[data-match]').hidden = !m;
+  if (m) {
+    part('ended', [ended, ended && r.lastMatch.savedAt], (host) => {
+      p.el.querySelector('details[data-match] > summary').textContent = ended ? '上一局统计' : '本局统计';
+      host.hidden = !ended;
+      host.innerHTML = ended ? `<span class="${r.lastMatch.victory ? 'good' : 'bad'}">${outcomeText(r.lastMatch)}</span>
+        <span class="meta">${clock(r.lastMatch.savedAt)} 结束 · 通过 ${r.lastMatch.roundsPassed ?? 0} 回合 · 下一局开始前一直显示</span>
+        ${r.lastMatch.id ? `<button data-open-record="${esc(r.lastMatch.id)}">查看完整记录</button>` : '<span class="bad">记录没能保存（见服务器日志）</span>'}` : '';
+    });
+    // the round picker starts over at the latest round when the match shown changes (live ↔ ended)
+    const key = ended ? r.lastMatch.savedAt : 'live';
+    if (p.matchKey !== key) { p.matchKey = key; p.rounds.round = null; }
+    part('chart', [m.history, [...names]], (host) => drawChart(host, m.history, nameOf, p.chart));
+    part('rounds', [m.history, [...names]], (host) => drawRounds(host, m.history, nameOf, p.rounds));
+    part('totals', m.players.map((x) => [x.name, x.stats]), (host) => { host.innerHTML = totalsTable(m.players); });
+    part('units', [m.history.length, [...names]], (host) => { host.innerHTML = unitsRanking(m.history, nameOf); });
+  }
+  p.el.querySelector('details[data-plan]').hidden = !(r.match && r.match.enemyPlan);
+  if (r.match && r.match.enemyPlan) part('plan', r.match.enemyPlan, (host) => { host.innerHTML = planTable(r.code, r.match.enemyPlan); });
+  part('log', [r.log, idNames.size], (host) => { host.innerHTML = logTable(r.log); });
+  return p.el;
+}
+
+// ---- 对局记录
+async function showRecords() {
+  const host = $('#records');
+  const data = await api('/api/results').catch(() => ({ records: [] }));
+  const list = data.records || [];
+  host.innerHTML = `<section class="room"><div class="row"><h2>对局记录</h2><span class="meta">对局结束时自动保存在 logs/results/，只在这台电脑上可见</span>
+      <button style="margin-left:auto" data-records-reload>刷新</button></div>
+    ${list.length ? `<div class="xscroll"><table><thead><tr><th scope="col">结束时间</th><th scope="col">房间</th><th scope="col">模式</th><th scope="col">结果</th><th scope="col" class="n">通过回合</th><th scope="col" class="n">时长</th><th scope="col">玩家</th><th scope="col"><span class="meta">操作</span></th></tr></thead>
+      <tbody>${list.map((x) => `<tr><td>${new Date(x.savedAt).toLocaleString('zh-CN', { hour12: false })}</td><td>${esc(x.room)}</td>
+        <td>${x.mode === 'solo' ? '独立模拟' : '同盟'} · ${esc(x.difficulty)}</td>
+        <td class="${x.victory ? 'good' : 'bad'}">${outcomeText(x)}</td>
+        <td class="n">${x.roundsPassed ?? ''}</td><td class="n">${dur(x.durationMs)}</td>
+        <td>${x.players.map((p) => `${esc(p.name)}${p.bot ? '<span class="meta">(AI)</span>' : ''}`).join('、')}</td>
+        <td><button data-record="${esc(x.id)}">查看</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">还没有记录。对局结束后会出现在这里。</p>'}
+  </section><div id="record"></div>`;
+}
+
+async function showRecord(id) {
+  const host = $('#record');
+  const rec = await api(`/api/result?id=${encodeURIComponent(id)}`).catch(() => null);
+  if (!rec || rec.error) { host.innerHTML = `<p class="empty">${esc((rec && rec.error) || '读取失败')}</p>`; return; }
+  const res = rec.result || {};
+  const players = res.players || [];
+  const names = new Map(players.map((p) => [p.playerId, p.name]));
+  const nameOf = (pid) => names.get(pid) || pid;
+  const history = rec.history || [];
+  host.innerHTML = `<section class="room">
+    <div class="row"><h2>${new Date(rec.savedAt).toLocaleString('zh-CN', { hour12: false })} · 房间 ${esc(rec.room)}</h2>
+      <span class="${res.victory ? 'good' : 'bad'}">${outcomeText(res)}</span>
+      <span class="meta">${rec.mode === 'solo' ? '独立模拟' : '同盟'} · ${esc(rec.difficulty)} · 通过 ${res.roundsPassed ?? 0} 回合 · ${dur(res.durationMs)} · 种子 ${esc(res.seed)}</span></div>
+    <div class="stats-body">
+      <div><h3>玩家</h3><div class="xscroll"><table><thead><tr><th scope="col">玩家</th><th scope="col">评语</th><th scope="col" class="n">通过回合</th><th scope="col" class="n">LP</th><th scope="col">分队</th><th scope="col">终局阵容</th><th scope="col">盟约</th></tr></thead>
+        <tbody>${players.map((p) => `<tr><th scope="row">${esc(p.name)}${p.isBot ? ' <span class="tag">AI</span>' : ''}${p.alive ? '' : ` <span class="tag off">第 ${p.eliminatedRound ?? '?'} 回合淘汰</span>`}</th>
+          <td>${p.title ? esc(p.title.name || p.title.id) : ''}</td><td class="n">${p.roundsPassed}</td><td class="n">${p.lp}</td><td>${esc(p.band || '')}</td>
+          <td style="white-space:normal;min-width:260px">${(p.lineup || []).map((u) => `${esc(u.name)}${u.golden ? '<span class="on">·精锐</span>' : ''}${u.items && u.items.length ? `<span class="meta">（${u.items.map(esc).join('、')}）</span>` : ''}`).join('、') || '<span class="meta">空</span>'}</td>
+          <td style="white-space:normal;min-width:160px">${(p.bonds || []).map((b) => `<span class="${b.active ? 'on' : 'meta'}">${esc(b.name)}${b.layers ? ` ${b.layers} 层` : ''}</span>`).join('、')}</td></tr>`).join('')}</tbody></table></div></div>
+      <div><h3>每回合曲线</h3><div data-part="chart"></div></div>
+      <div><h3>每回合详情</h3><div data-part="rounds"></div></div>
+      <div><h3>累计数据</h3>${totalsTable(players)}</div>
+      <div><h3>干员伤害排行（前 5）</h3>${unitsRanking(history, nameOf)}</div>
+    </div></section>`;
+  drawChart(host.querySelector('[data-part="chart"]'), history, nameOf, { metric: 'lp', table: false });
+  drawRounds(host.querySelector('[data-part="rounds"]'), history, nameOf, { round: null });
+  host.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+
+// ---- 设置: the 休整期 timer for every room and match (server/match/hostSettings.js, logs/admin-settings.json)
+const PREP_MODES = [['default', '按游戏数据（默认）'], ['scale', '按倍率'], ['fixed', '每回合相同'], ['perRound', '按回合指定'], ['untimed', '不限时']];
+let settingsData = null;
+
+/** As hostSettings.prepSecondsFor. */
+function prepFor(round, base, p) {
+  if (!(base > 0)) return null;
+  if (p.mode === 'scale') return Math.max(1, Math.round(base * p.scale));
+  if (p.mode === 'fixed') return p.seconds;
+  if (p.mode === 'perRound') return Object.hasOwn(p.rounds, round) ? p.rounds[round] : base;
+  if (p.mode === 'untimed') return null;
+  return base;
+}
+
+/** The form's setting (unvalidated: the server checks it). */
+function prepForm() {
+  const f = $('#prep-form');
+  const mode = f.querySelector('input[name="prep-mode"]:checked').value;
+  const rounds = {};
+  for (const el of f.querySelectorAll('input[data-prep-round]')) if (el.value !== '') rounds[el.dataset.prepRound] = Number(el.value);
+  return { mode, scale: Number(f.querySelector('#prep-scale').value), seconds: Number(f.querySelector('#prep-seconds').value), rounds };
+}
+
+/** Modes with the same default timers share a column. */
+function prepGroups(defaults) {
+  const groups = [];
+  for (const d of defaults) {
+    const g = groups.find((x) => x.rounds.join() === d.rounds.join());
+    if (g) g.names.push(d.name); else groups.push({ names: [d.name], rounds: d.rounds });
+  }
+  return groups;
+}
+
+function drawPrepPreview() {
+  const p = prepForm();
+  const groups = prepGroups(settingsData.defaults);
+  const n = Math.max(0, ...groups.map((g) => g.rounds.length));
+  const cell = (s) => (s == null ? '<span class="meta">不限时</span>' : `${s} 秒`);
+  $('#prep-preview').innerHTML = `<table><caption class="meta" style="text-align:left">默认 → 按上面的设置（未保存的修改也会显示在这里）</caption>
+    <thead><tr><th scope="col">回合</th>${groups.map((g) => `<th scope="col">${esc([...new Set(g.names)].join('、'))}</th>`).join('')}</tr></thead>
+    <tbody>${Array.from({ length: n }, (_, i) => i + 1).map((r) => `<tr><th scope="row">${r}</th>${groups.map((g) => {
+      const base = g.rounds[r - 1];
+      if (base == null) return '<td class="meta">—</td>';
+      const now = prepFor(r, base, p);
+      return `<td>${cell(base)}${now !== base ? ` → <span class="on">${cell(now)}</span>` : ''}</td>`;
+    }).join('')}</tr>`).join('')}</tbody></table>`;
+}
+
+async function showSettings() {
+  const host = $('#settings');
+  const d = await api('/api/settings').catch(() => null);
+  if (!d || d.error) { host.innerHTML = `<p class="empty">${esc((d && d.error) || '读取设置失败')}</p>`; return; }
+  settingsData = d;
+  const p = d.prep;
+  const n = Math.max(0, ...d.defaults.map((x) => x.rounds.length));
+  const base = (r) => { const v = d.defaults.map((x) => x.rounds[r - 1]).filter((s) => s > 0); return v.length ? Math.max(...v) : ''; };
+  host.innerHTML = `<section class="room"><h2>休整期时长</h2>
+    <p class="meta">所有房间、所有对局都用这一份，保存在 ${esc(d.file)}，重启服务器也保留。只对有计时的同盟对局生效：独立模拟和只有一个真人的同盟房间本来就不限时。
+      进行中的对局从下一个休整期开始生效；房间的「计时倍率」会在这之上再乘一次。不限时的休整期等所有人就绪后结束，也可以在房间里点「结束休整期」。</p>
+    <form id="prep-form" class="stats-body" onsubmit="return false">
+      <fieldset style="border:1px solid var(--line);border-radius:6px"><legend>方式</legend>
+        ${PREP_MODES.map(([k, l]) => `<label style="display:block;margin:4px 0"><input type="radio" name="prep-mode" value="${k}" ${p.mode === k ? 'checked' : ''}> ${l}
+          ${k === 'scale' ? ` × <input id="prep-scale" class="small" type="number" step="0.1" min="0.1" max="10" value="${p.scale ?? 1.5}" aria-label="倍率">` : ''}
+          ${k === 'fixed' ? ` <input id="prep-seconds" class="small" type="number" step="1" min="5" max="3600" value="${p.seconds ?? 120}" aria-label="每回合秒数"> 秒` : ''}</label>`).join('')}
+      </fieldset>
+      <div data-prep-rounds ${p.mode === 'perRound' ? '' : 'hidden'}><h3>按回合指定（秒，空 = 用默认）</h3><div class="row">
+        ${Array.from({ length: n }, (_, i) => i + 1).map((r) => `<label>第 ${r} 回合 <input class="small" type="number" step="1" min="5" max="3600" data-prep-round="${r}" placeholder="${base(r)}" value="${p.mode === 'perRound' && p.rounds[r] != null ? p.rounds[r] : ''}"></label>`).join('')}
+      </div></div>
+      <div class="row"><button class="primary" data-prep-save>保存</button><button data-prep-reset>撤销修改</button><span class="meta" id="prep-saved"></span></div>
+      <div class="xscroll" id="prep-preview"></div>
+    </form></section>`;
+  drawPrepPreview();
+}
+
+document.addEventListener('input', (e) => {
+  if (!e.target.closest('#prep-form')) return;
+  $('#prep-form [data-prep-rounds]').hidden = prepForm().mode !== 'perRound';
+  $('#prep-saved').textContent = '有未保存的修改';
+  drawPrepPreview();
+});
 let lastJson = '';
 async function refresh() {
   // never re-render under the user's cursor: typing into a field would lose its value
   if (document.activeElement && document.activeElement.matches('input, select')) return;
+  if ($('#rooms').hidden) return;
   let data;
   try { data = await api('/api/rooms'); } catch { $('#status').textContent = '无法连接服务器'; return; }
   if (data.error) { $('#status').textContent = data.error; return; }
@@ -237,11 +685,29 @@ async function refresh() {
   if (json === lastJson) return;
   lastJson = json;
   $('#rooms').innerHTML = data.rooms.length ? data.rooms.map(roomCard).join('') : '<p class="empty">还没有房间。玩家建房后会出现在这里。</p>';
+  // the statistics panels survive the re-render (statsPanel)
+  for (const r of data.rooms) $(`[data-stats="${r.code}"]`)?.replaceWith(statsPanel(r));
+  for (const code of panels.keys()) if (!data.rooms.some((r) => r.code === code)) panels.delete(code);
   const live = data.rooms.find((r) => r.match);
   if (live) loadCatalog(live.code);
 }
 
 document.addEventListener('click', (e) => {
+  const tab = e.target.closest('button[data-tab]');
+  if (tab) { setTab(tab.dataset.tab); return; }
+  const openRec = e.target.closest('button[data-open-record]');
+  if (openRec) { setTab('records').then(() => showRecord(openRec.dataset.openRecord)); return; }
+  if (e.target.closest('button[data-records-reload]')) { showRecords(); return; }
+  if (e.target.closest('button[data-prep-reset]')) { showSettings(); return; }
+  if (e.target.closest('button[data-prep-save]')) {
+    api('/api/settings', { prep: prepForm() }).catch(() => ({ error: '连接服务器失败' })).then((r) => {
+      if (r.ok) { say('休整期设置：已保存'); showSettings().then(() => { $('#prep-saved').textContent = '已保存'; }); }
+      else say(`休整期设置失败：${r.error}`, true);
+    });
+    return;
+  }
+  const rec = e.target.closest('button[data-record]');
+  if (rec) { showRecord(rec.dataset.record); return; }
   const t = e.target.closest('button[data-toggle]');
   if (t) {
     const id = t.dataset.toggle;
@@ -256,8 +722,25 @@ document.addEventListener('click', (e) => {
   if (b.dataset.confirm && !confirm(b.dataset.confirm.replace('{v}', v))) return;
   act(b.dataset.room, b.dataset.click, b.dataset.player, valueOf(b, v), b.dataset.label);
 });
+async function setTab(name) {
+  for (const b of document.querySelectorAll('button[data-tab]')) b.setAttribute('aria-pressed', String(b.dataset.tab === name));
+  for (const id of ['rooms', 'records', 'settings']) $(`#${id}`).hidden = name !== id;
+  if (name === 'records') await showRecords();
+  else if (name === 'settings') await showSettings();
+  else { lastJson = ''; refresh(); }
+}
+document.addEventListener('change', (e) => {
+  const el = e.target;
+  if (!el.matches('select[data-pick]')) return;
+  const round = Number(el.dataset.pick);
+  const text = el.selectedOptions[0] ? el.selectedOptions[0].textContent : '';
+  el.blur();
+  if (!confirm(`第 ${round} 回合的敌人改为：${text}？`)) { el.value = el.dataset.current; return; }
+  act(el.dataset.room, 'enemyPick', null, { round, id: el.value }, `第 ${round} 回合敌人`);
+});
 /** The action's value: { bond, n } / { field, n } when the control names a bond / a field, else the plain value. */
 function valueOf(el, v) {
+  if (el.dataset.pickClear) return { round: Number(el.dataset.pickClear), id: '' };
   if (el.dataset.bond) return { bond: el.dataset.bond, n: v };
   if (el.dataset.field) return { field: el.dataset.field, n: v };
   return v;

@@ -47,6 +47,7 @@ import { mergeTile, pieceDir, canPlace, placeClass } from './board.js';
 import { pairPlayers, bossPoolHp, hiddenEligible } from './finalAssault.js';
 import { helperOrder } from './unite.js';
 import { BAND_TURN_SECONDS } from './Match.js';
+import { prepSeconds } from './hostSettings.js';
 
 /**
  * @param {import('./Match.js').Match} m
@@ -364,7 +365,7 @@ export function attachAudit(m, { invariants = true, limit = 200 } = {}) {
     runInvariants();
     check('prep', () => {
       if (m.phase !== PHASE.PREP) return;
-      if (m.soloUntimed) { if (m.deadline) fail('untimed prep is timed'); } else if (!m._prepEndQueued) expectDeadline(gd.prepTime(m.round), 'PREP');
+      if (m.soloUntimed) { if (m.deadline) fail('untimed prep is timed'); } else if (!m._prepEndQueued) expectDeadline(prepSeconds(m, gd.prepTime(m.round)), 'PREP');
     });
     return res;
   });

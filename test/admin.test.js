@@ -2,14 +2,19 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { startServer } from '../server/index.js';
-import { startAdmin, handleAction, roomsView } from '../server/admin.js';
+import { startAdmin, handleAction, roomsView, resultRecord } from '../server/admin.js';
 import { TestClient } from './helpers/wsClient.js';
 import { makeMatch, checkInvariants } from './match/harness.js';
+import { getPrep, setPrep, resetHostSettings, prepSecondsFor } from '../server/match/hostSettings.js';
 
 let srv = null;
 let admin = null;
-after(async () => { if (admin) await admin.close(); if (srv) await srv.close(); });
+const resultsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-results-'));
+after(async () => { if (admin) await admin.close(); if (srv) await srv.close(); fs.rmSync(resultsDir, { recursive: true, force: true }); });
 
 /** Raw request (fetch cannot forge a Host header). */
 function req(port, path, { method = 'GET', headers = {}, body } = {}) {
@@ -27,7 +32,7 @@ function req(port, path, { method = 'GET', headers = {}, body } = {}) {
 
 test('console: localhost only, token required, actions change the running match', async () => {
   srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
-  admin = await startAdmin({ lobby: srv.lobby, port: 0, log: { info() {}, error() {} } });
+  admin = await startAdmin({ lobby: srv.lobby, port: 0, log: { info() {}, error() {} }, resultsDir, settingsFile: path.join(resultsDir, 'settings.json') });
   const P = admin.port;
   const auth = { 'x-admin-token': admin.token };
 
@@ -73,8 +78,31 @@ test('console: localhost only, token required, actions change the running match'
   assert.ok(m.players.get(pid).allChess().some((p) => p.id === cat.chess[0].id));
   assert.match((await post({ room: code, action: 'chess', playerId: pid, value: 'chess_nope' })).error, /没有/);
 
+  // the action log: every action on the room, failures included, with the player's name
+  const log = (await req(P, '/api/rooms', { headers: auth })).json.rooms[0].log;
+  assert.deepEqual(log.slice(0, 3).map((e) => [e.action, e.player, e.value, e.ok]), [['rewind', null, '', false], ['funds', 'Host', '25', true], ['lp', 'Host', '7', true]]);
+  assert.ok(log.some((e) => e.action === 'nope' && !e.ok && /未知/.test(e.error)));
+
   assert.deepEqual(handleAction(srv.lobby, { room: code, action: 'endMatch' }), { ok: true });
   await c.waitFor('m.result');
+  // the finished match is saved (startAdmin wraps lobby.onMatchEnd) and readable from the console only
+  const { records } = (await req(P, '/api/results', { headers: auth })).json;
+  assert.equal(records.length, 1);
+  assert.equal(records[0].room, code);
+  assert.equal(records[0].reason, 'admin');
+  assert.deepEqual(records[0].players.map((p) => p.name), ['Host']);
+  const rec = (await req(P, `/api/result?id=${encodeURIComponent(records[0].id)}`, { headers: auth })).json;
+  assert.equal(rec.result.players[0].name, 'Host');
+  assert.ok(Array.isArray(rec.history));
+  assert.equal((await req(P, `/api/result?id=${encodeURIComponent('../package.json')}`, { headers: auth })).status, 404);
+  assert.equal((await req(P, `/api/results`)).status, 403);
+  assert.equal(srv.lobby.rooms.get(code).adminLog.at(-1).action, 'endMatch');
+  // the room card keeps the ended match's statistics until the next match
+  const back = (await req(P, '/api/rooms', { headers: auth })).json.rooms[0];
+  assert.equal(back.match, null);
+  assert.equal(back.lastMatch.id, records[0].id);
+  assert.deepEqual(back.lastMatch.players.map((p) => p.name), ['Host']);
+  assert.ok(Array.isArray(back.lastMatch.history) && typeof back.lastMatch.players[0].stats.buys === 'number');
   await c.close();
 });
 
@@ -163,7 +191,7 @@ test('console: 托管, 机变 cards, effects and bounties', () => {
   m.dispose();
 });
 
-test('console: board edits whatever the phase, and the enemy reroll before combat only', () => {
+test("console: board edits whatever the phase, and the current round's enemies before combat only", () => {
   const h = harness({ seed: 13 });
   const m = h.m;
   const gd = m.gd;
@@ -195,15 +223,18 @@ test('console: board edits whatever the phase, and the enemy reroll before comba
   assert.ok([...ps.hand, ...ps.temp].some((p) => p && p.id === equipId), 'its item went to the hand');
   assert.match(h.act('pieceRemove', 999999).error, /不存在/);
 
-  const rng = m.rngWaves.state();
-  assert.equal(h.matchView().canReroll, true);
-  assert.deepEqual(h.act('reroll'), { ok: true });
-  assert.notEqual(m.rngWaves.state(), rng, 'a new draw');
-  assert.ok(m.wave && m.wave.spawns.length > 0);
+  // the current round's enemies: any composition before combat, rebuilt at once; none once the combat started
+  const plan = h.matchView().enemyPlan;
+  const row = plan.rounds.find((r) => r.round === m.round);
+  assert.equal(row.editable, true);
+  const other = plan.lists[row.half].find((c) => c.id !== row.current && c.allowed);
+  assert.deepEqual(h.act('enemyPick', { round: m.round, id: other.id }), { ok: true });
+  assert.equal(m.wave.pick.key, other.key);
+  assert.ok(m.wave.spawns.length > 0);
   checkInvariants(m);
   h.drive(() => m.phase === 'COMBAT');
-  assert.equal(h.matchView().canReroll, false);
-  assert.match(h.act('reroll').error, /战斗开始前/);
+  assert.equal(h.matchView().enemyPlan.rounds.find((r) => r.round === m.round).editable, false);
+  assert.match(h.act('enemyPick', { round: m.round, id: other.id }).error, /战斗已经开始/);
   assert.equal(m.errorCount, 0, JSON.stringify(m.errors));
   m.dispose();
 });
@@ -253,4 +284,153 @@ test('console (0.2.0): a 自选编队 piece is listed under its picked operator'
   assert.deepEqual(ps.diyStock.snapshot(), { chess_char_5_diy1_a: 8 }, 'its copy went back to the player\'s own stock');
   checkInvariants(m);
   m.dispose();
+});
+
+test('console statistics: the per-round record, running totals and the saved result record', () => {
+  const h = harness({ seed: 13 });
+  const m = h.m;
+  h.drive(() => m.phase === 'PREP' && m.round === 4, { ready: false });
+  const view = h.matchView();
+  assert.deepEqual(view.history.map((e) => e.round), [1, 2, 3], 'one entry per settled round');
+  const ps = m.players.get('ai_0');
+  const last = view.history[2].players.find((p) => p.playerId === 'ai_0');
+  assert.equal(last.lp, ps.lp);
+  assert.equal(last.spent, ps.stats.gold);
+  assert.equal(last.dmg, Math.round(ps.stats.dmgDealt));
+  assert.equal(view.history.reduce((n, e) => n + e.players.find((p) => p.playerId === 'ai_0').loss, 0), ps.stats.lpLost, 'the per-round losses add up');
+  assert.ok(last.units.every((u, i, a) => typeof u.name === 'string' && u.dmg > 0 && (i === 0 || a[i - 1].dmg >= u.dmg)), 'units, most damage first');
+  const stats = h.view('ai_0').stats;
+  assert.equal(stats.kills, ps.stats.kills);
+  assert.equal(stats.dmgDealt, Math.round(ps.stats.dmgDealt));
+
+  // the record the console saves at the end: names resolved, history attached
+  assert.ok(h.drive(() => h.ended != null));
+  const room = { code: 'TEST', mode: 'coop', difficulty: 'NORMAL' };
+  const rec = resultRecord(room, m, (({ t, ...s }) => s)(m.lastResultMsg));
+  assert.equal(rec.history.at(-1).round, m.round, 'the last round is recorded even without a SETTLE');
+  for (const p of rec.result.players) {
+    assert.ok(p.lineup.every((u) => typeof u.name === 'string' && !u.name.startsWith('chess_')), 'lineup names');
+    assert.ok(p.bonds.every((b) => typeof b.name === 'string'));
+    assert.equal(typeof p.stats.buys, 'number', 'the console totals ride along');
+  }
+  assert.equal(m.errorCount, 0, JSON.stringify(m.errors));
+  m.dispose();
+});
+
+test('console: the enemy schedule — every composition per round, the possible ones marked, later rounds overridable, rewind restores', () => {
+  const h = harness({ seed: 14 });
+  const m = h.m;
+  h.drive(() => m.phase === 'PREP' && m.round === 2, { ready: false });
+  const { lists, rounds } = h.matchView().enemyPlan;
+  const sched = m.factions.schedule;
+  assert.equal(rounds.length, Math.max(m.gd.bossRound, m.gd.hiddenRound || 0));
+  for (const r of rounds) {
+    const list = lists[r.half];
+    assert.equal(r.half, r.round <= 7 ? 'first' : 'second');
+    assert.equal(r.original, `${sched.picks[r.round].key}|${sched.picks[r.round].normal || ''}|${sched.picks[r.round].elite || ''}`);
+    assert.ok(list.some((c) => c.id === r.original), `R${r.round}: the drawn composition is in the list`);
+    assert.ok(r.chance[r.original] > 0, `R${r.round}: and has a chance`);
+    const sum = Object.values(r.chance).reduce((a, b) => a + b, 0);
+    assert.ok(Math.abs(sum - 1) < 1e-9, `R${r.round}: chances add up to 1`);
+    // only the round's own type, allowed by the mode, has a chance; impossible compositions are still listed
+    for (const id of Object.keys(r.chance)) { const c = list.find((x) => x.id === id); assert.ok(c.allowed && c.inMatch); }
+    assert.ok(list.length > Object.keys(r.chance).length);
+    assert.equal(r.editable, r.round >= 2);
+  }
+  assert.ok(lists.first.some((c) => !c.inMatch) && lists.second.some((c) => !c.allowed), 'other types and disabled entries are listed too');
+  // what each round really spawns: the template decides (R1–R3 have no special slot, a leader round only escorts)
+  assert.ok(rounds.every((r) => r.roster.length > 0 && r.roster.every((e) => e.count > 0)));
+  for (const r of rounds.filter((x) => x.round <= 3)) {
+    const c = lists.first.find((x) => x.id === r.current);
+    if (c.special !== c.normalName && c.special !== c.eliteName) assert.ok(!r.roster.some((e) => e.name === c.special), `R${r.round}: no special slot`);
+  }
+  assert.ok(rounds.find((r) => r.kind === 'boss').roster.some((e) => e.boss), 'the leader is listed');
+
+  // a later round: an impossible composition is fine, it applies when the round starts and the history names it
+  const target = lists.second.find((c) => c.allowed && !c.inMatch);
+  assert.deepEqual(h.act('enemyPick', { round: 9, id: target.id }), { ok: true });
+  assert.equal(h.matchView().enemyPlan.rounds.find((r) => r.round === 9).overridden, true);
+  assert.match(h.act('enemyPick', { round: 1, id: target.id }).error, /过去/);
+  assert.match(h.act('enemyPick', { round: 9, id: 'nope|x|y' }).error, /没有这个组合/);
+  assert.match(h.act('enemyPick', { round: 3, id: target.id }).error, /前半/, "a second-half composition is not a first-half round's");
+  h.drive(() => m.phase === 'PREP' && m.round === 4, { ready: false });
+  h.drive(() => m.phase === 'PREP' && m.round === 9);
+  assert.equal(m.wave.pick.key, target.key);
+  assert.equal(`${m.wave.pick.key}|${m.wave.pick.normal || ''}|${m.wave.pick.elite || ''}`, target.id, 'the whole composition');
+  h.drive(() => m.phase === 'PREP' && m.round === 10);
+  assert.equal(m.history.find((e) => e.round === 9).enemy.special, target.special);
+  assert.equal(m.history.find((e) => e.round === 9).enemy.overridden, true);
+
+  // clearing goes back to the match's own pick; a rewind to before the override brings the round back too
+  assert.deepEqual(h.act('enemyPick', { round: 12, id: target.id }), { ok: true });
+  assert.deepEqual(h.act('rewind', 4), { ok: true, round: 4 });
+  assert.deepEqual(Object.keys(m.adminPicks), ['9'], "the R12 override came after R4's prep, so it is gone");
+  assert.deepEqual(h.act('enemyPick', { round: 9, id: '' }), { ok: true });
+  assert.deepEqual(m.adminPicks, {});
+  h.drive(() => m.phase === 'PREP' && m.round === 9);
+  assert.equal(m.wave.pick.key, sched.picks[9].key);
+  assert.equal(m.errorCount, 0, JSON.stringify(m.errors));
+  m.dispose();
+});
+
+test('console settings: the 休整期 timer of every timed match, kept in a file across restarts', async () => {
+  try {
+    // the rules
+    assert.equal(prepSecondsFor(4, 95, { mode: 'default' }), 95);
+    assert.equal(prepSecondsFor(4, 95, { mode: 'scale', scale: 1.5 }), 143);
+    assert.equal(prepSecondsFor(4, 95, { mode: 'fixed', seconds: 30 }), 30);
+    assert.equal(prepSecondsFor(4, 95, { mode: 'perRound', rounds: { 4: 200 } }), 200);
+    assert.equal(prepSecondsFor(5, 95, { mode: 'perRound', rounds: { 4: 200 } }), 95);
+    assert.equal(prepSecondsFor(4, 95, { mode: 'untimed' }), null);
+    assert.equal(prepSecondsFor(4, null, { mode: 'fixed', seconds: 30 }), null, 'an untimed prep stays untimed');
+    assert.match(setPrep({ mode: 'fixed', seconds: 2 }).error, /5–3600/);
+    assert.match(setPrep({ mode: 'scale', scale: 20 }).error, /0.1–10/);
+    assert.match(setPrep({ mode: 'perRound', rounds: { 3: 1 } }).error, /第 3 回合/);
+    assert.match(setPrep({ mode: 'nope' }).error, /未知/);
+    assert.deepEqual(getPrep(), { mode: 'default' });
+
+    // a timed match (two humans): the setting reaches it at the next prep, the console's timer scale on top
+    const h = makeMatch({ mode: 'coop', humans: 2, bots: 0, seed: 15 }).start().autoHumans();
+    const m = h.m;
+    const left = () => m.deadline - m.sched.now();
+    h.drive(() => m.phase === 'PREP' && m.round === 1, { ready: false });
+    assert.equal(left(), m.gd.prepTime(1) * 1000);
+    assert.deepEqual(setPrep({ mode: 'fixed', seconds: 30 }), { ok: true });
+    assert.equal(left(), m.gd.prepTime(1) * 1000, 'the running prep keeps its deadline');
+    h.drive(() => m.phase === 'PREP' && m.round === 2, { ready: false });
+    assert.equal(left(), 30000);
+    setPrep({ mode: 'scale', scale: 2 });
+    m.timerScale = 0.5;
+    h.drive(() => m.phase === 'PREP' && m.round === 3, { ready: false });
+    assert.equal(left(), m.gd.prepTime(3) * 2 * 1000 * 0.5);
+    m.timerScale = 1;
+    setPrep({ mode: 'untimed' });
+    h.drive(() => m.phase === 'PREP' && m.round === 4, { ready: false });
+    assert.equal(m.deadline, 0, 'no countdown');
+    assert.equal(m.errorCount, 0, JSON.stringify(m.errors));
+    m.dispose();
+
+    // the console: GET / POST /api/settings, the file, and a restart reading it back
+    const file = path.join(resultsDir, 'settings2.json');
+    const lobby = { rooms: new Map(), onMatchEnd() {}, safeData: () => srv.lobby.safeData() };
+    let a = await startAdmin({ lobby, port: 0, log: { info() {}, error() {} }, resultsDir, settingsFile: file });
+    const auth = { 'x-admin-token': a.token, 'content-type': 'application/json' };
+    resetHostSettings();
+    const got = (await req(a.port, '/api/settings', { headers: auth })).json;
+    assert.deepEqual(got.prep, { mode: 'default' });
+    assert.ok(got.defaults.length >= 1 && got.defaults.every((d) => d.rounds.length >= 13 && d.rounds[0] > 0), 'the timed modes and their timers');
+    const post = (prep) => req(a.port, '/api/settings', { method: 'POST', headers: auth, body: { prep } }).then((r) => r.json);
+    assert.match((await post({ mode: 'fixed', seconds: 1 })).error, /5–3600/);
+    assert.equal(fs.existsSync(file), false, 'nothing written for a bad setting');
+    assert.deepEqual(await post({ mode: 'perRound', rounds: { 2: 40, 9: '' } }), { ok: true, prep: { mode: 'perRound', rounds: { 2: 40 } } });
+    assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).prep, { mode: 'perRound', rounds: { 2: 40 } });
+    assert.equal((await req(a.port, '/api/settings', { method: 'POST', body: { prep: { mode: 'default' } } })).status, 403, 'token required');
+    await a.close();
+    resetHostSettings();
+    a = await startAdmin({ lobby, port: 0, log: { info() {}, error() {} }, resultsDir, settingsFile: file });
+    assert.deepEqual(getPrep(), { mode: 'perRound', rounds: { 2: 40 } }, 'read back at start');
+    await a.close();
+  } finally {
+    resetHostSettings();
+  }
 });
