@@ -5,7 +5,7 @@
 ## 1. 当前状态
 
 - 远程 `origin` 是私有库 `zhewang448/Stronghold-Protocol`，`upstream` 是原作者仓库。上游已合并到 v0.2.1（`a122fde`）。
-- 第三期在 `local-tools-v0.2.1` 分支上，已推到 `origin/local-tools-v0.2.1`。`local-tools` 停在合并 v0.2.1 那一步（`492293f`），还没有快进到第三期。
+- 第三期（含每回合干员伤害排行）都在 `local-tools` 上，已推到 `origin/local-tools`。合并 v0.2.1 时开的临时分支 `local-tools-v0.2.1` 已快进合入并删除（本地和远端）。
 - 用户的规则：只有明确说了才提交；提交信息不加 Claude 署名；不直接推 `master`。
 - 已验证（第三期）：`test/admin.test.js`（9 项）、`test/match/rewind.test.js`（4 项）通过；`test/match/` 全部加 i18n、文档、lobby 相关测试共 737 项，735 通过、0 失败、2 跳过。**没跑全量** `node --test`。浏览器里实测过曲线和悬停、每回合详情、上一局统计、对局记录页、敌人日程的指定、设置页的保存和预览。
 - 端口 3000 上通常是用户正在开服的进程，**不要动它**。测试用 `.claude/launch.json` 里的 `stronghold-dev`（3005，控制台在 3105）。控制台演示可以不开游戏服：用 `test/match/harness.js` 跑一局，再对一个假 lobby（`{ rooms, onMatchEnd() {}, safeData }`）调 `startAdmin({ port: 3106, resultsDir, settingsFile })`，把这两个路径指到临时目录，别写进仓库的 `logs/`。

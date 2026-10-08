@@ -10,7 +10,7 @@
 | `upstream` | `sganggs/Stronghold-Protocol` | 拉官方更新 |
 
 - 工作分支 `local-tools`，私有仓库的默认分支也是它。`master` 只跟踪上游，不在上面改。
-- 合并上游 v0.2.1 时开了 `local-tools-v0.2.1`，控制台第三期也在这个分支上；`local-tools` 什么时候快进过来见 [HANDOFF.md](HANDOFF.md) 第 1 节。
+- 合并上游大版本时可以先开临时分支（如 v0.2.1 时的 `local-tools-v0.2.1`），测完快进回 `local-tools` 再删掉。
 - 同步上游：`git fetch upstream` → `git merge upstream/master` → `npm install` → `npm run setup`（上游常会加素材）→ `node --test`。
 - 素材 `public/assets/`、`.cache/`、`.claude/` 都在 `.gitignore` 里，不进仓库。新机器 clone 后要先 `npm install && npm run setup`。
 
