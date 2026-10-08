@@ -9,7 +9,7 @@
 //
 //   SP_ADMIN_PORT  default PORT + 100 (3100); SP_ADMIN=0 turns the console off (server/http/boot.js runMain).
 //
-// (i18n-ignore-file: a Chinese-only tool for the host of this private branch, never shown to players)
+// i18n-ignore-file: a host-only tool in Chinese, not player UI (tools/i18n.mjs)
 
 import http from 'node:http';
 import fs from 'node:fs';
@@ -42,7 +42,8 @@ function cardList(m) {
 
 /** Bonds, effects, board and coming enemies of one player (the console's 详情 panel). */
 function playerDetail(m, ps) {
-  const gd = m.gd;
+  // the player's own data view: a 自选编队 slot reads as its picked operator (server/match/player/diy.js)
+  const gd = ps.gd || m.gd;
   const nameOf = (p) => {
     const rec = p.kind === 'chess' ? gd.chess(p.id) : p.kind === 'item' ? gd.item(p.id) : gd.token(p.id);
     return rec ? rec.name : p.id;

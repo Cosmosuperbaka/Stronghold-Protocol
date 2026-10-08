@@ -1,5 +1,6 @@
 // server/match/rewind.js — rewind a match to the start of any earlier round's 休整期 (PREP), for the local console
-// (server/admin.js). (i18n-ignore-file: its messages go to the Chinese-only console, never to players)
+// (server/admin.js).
+// i18n-ignore-file: its messages are the host console's, in Chinese, not player UI (tools/i18n.mjs)
 //
 // capturePrep(m) runs at the top of Match.enterPrep (stored in m.prepSnapshots by round): one structuredClone of every player's state, the shared pool, the
 // match's round-level state and the six rng streams. rewindToPrep(m, round) stops whatever is in flight (battles, bot jobs,
@@ -11,22 +12,24 @@
 //   uidSeq       a stale g.* intent naming a piece uid hits the same piece or none, never a different one
 //   _battleSeq   a late b.progress / b.result from an aborted battle names no field of the new timeline
 //   _turnToken, ps._botPrepToken   an old bot job / draft timer never passes its validity check
+// Fixed for the match since PlayerState's constructor, kept by reference: the 自选编队 picks (diy, _diyRecords, diyBanned,
+// the per-player gd view) and the stand-ins (standIns, _standInSet). The DIY stock's copies change in a round: its
+// entries are cloned like the shared pool's, the DiyStock instance itself stays.
 // Connection state (connected, left, autoplay) and the locked loadout stay as they are now.
 
-import { DiyStock } from './player/diy.js';
-
 const PS_SKIP = new Set(['m', 'gd', 'playerId', 'seat', 'name', 'isBot', 'connected', 'left', 'autoplay', 'lastEmoteAt',
-  'loadout', '_deployMap', '_deployField', '_legalityStale', '_lastPriv', '_botPrepToken']);
+  'loadout', '_deployMap', '_deployField', '_legalityStale', '_lastPriv', '_botPrepToken',
+  'diy', '_diyRecords', 'diyBanned', 'diyStock', 'standIns', '_standInSet']);
 const MATCH_KEYS = ['round', 'wave', 'bossWaves', 'lastResults', 'draft', 'teamLp', 'hiddenLayerSum', 'hiddenReached', 'overtimeApplied'];
 const RNGS = ['rngSetup', 'rngShop', 'rngWaves', 'rngDraft', 'rngBots', 'rngMeta'];
-/** PlayerState fields holding class instances: structuredClone drops the prototype, so they are rebuilt on restore */
-const PS_CLASSES = { diyStock: DiyStock };
 
 /** Snapshot for rewindToPrep, or null when the state cannot be cloned (logged; the match itself is never affected). */
 export function capturePrep(m) {
   try {
     const players = {};
+    const diyStock = {};
     for (const ps of m.players.values()) {
+      if (ps.diyStock) diyStock[ps.playerId] = ps.diyStock.entries;
       const o = {};
       // own function-valued props are instrumentation (audit.js / tests wrap methods on the instance), not state
       for (const k of Object.keys(ps)) if (!PS_SKIP.has(k) && typeof ps[k] !== 'function') o[k] = ps[k];
@@ -35,7 +38,7 @@ export function capturePrep(m) {
     const match = {};
     for (const k of MATCH_KEYS) match[k] = m[k];
     // one clone for everything: pieces shared between a player's areas stay shared
-    const data = structuredClone({ players, match, pool: m.pool.entries, rng: RNGS.map((k) => m[k].state()) });
+    const data = structuredClone({ players, diyStock, match, pool: m.pool.entries, rng: RNGS.map((k) => m[k].state()) });
     // class instances / PlayerState references: kept by reference (replaced, never mutated, after this point)
     return { round: m.round, at: m.sched.now(), data, refs: { bossPool: m.bossPool, uniteBounds: m._uniteBounds } };
   } catch (e) {
@@ -52,7 +55,7 @@ export function rewindToPrep(m, round) {
   const snap = m.prepSnapshots.get(r);
   if (!snap) return { error: `没有第 ${round} 回合的快照` };
   const errors = m.errorCount;
-  const { players, match, pool, rng } = structuredClone(snap.data);
+  const { players, diyStock, match, pool, rng } = structuredClone(snap.data);
   m.guard(() => {
     if (m.runner) { try { m.runner.stop(); } catch { /* ignore */ } m.runner = null; }
     m._stopClientCombat();
@@ -81,8 +84,8 @@ export function rewindToPrep(m, round) {
       if (!o) continue;
       // lazily created fields (bot caches) that did not exist yet at the snapshot
       for (const k of Object.keys(ps)) if (!PS_SKIP.has(k) && typeof ps[k] !== 'function' && !(k in o)) delete ps[k];
-      for (const [k, C] of Object.entries(PS_CLASSES)) if (o[k]) o[k] = Object.assign(new C(), o[k]);
       Object.assign(ps, o);
+      if (ps.diyStock && diyStock[ps.playerId]) ps.diyStock.entries = diyStock[ps.playerId];
       ps.invalidateDeployMap();
       ps._lastPriv = null;
       ps.dirty();

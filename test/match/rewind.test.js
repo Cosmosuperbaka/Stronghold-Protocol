@@ -88,3 +88,27 @@ test('rewind twice in a row, mid-battle with client-side combat, and the human i
   assert.match(rewindToPrep(m).error, /结束/);
   m.dispose();
 });
+
+test('自选编队 (0.2.0): the DIY stock is rewound in place, the picks stay', () => {
+  const PICKS = { chess_char_5_diy1_a: { charId: 'char_112_siege', skillIndex: 2, uniEquipId: 'uniequip_002_siege' } };
+  const seats = [{ seat: 0, playerId: 'p_0', name: 'P0', isBot: false, connected: true, diy: PICKS },
+    ...[1, 2, 3].map((i) => ({ seat: i, playerId: `ai_${i}`, name: `AI${i}`, isBot: true, connected: true }))];
+  const h = makeMatch({ mode: 'coop', seats, seed: 4242 }).start().autoHumans();
+  const ps = h.m.players.get('p_0');
+  const stock = ps.diyStock;
+  const { diy, gd } = ps;
+  assert.deepEqual(stock.snapshot(), { chess_char_5_diy1_a: 8 });
+  h.drive(() => h.m.phase === PHASE.PREP && h.m.round === 3);
+  const atPrep = fingerprint(h.m);
+  assert.equal(stock.take('chess_char_5_diy1_a', 3), 3);
+  h.drive(() => h.m.phase === PHASE.SETTLE && h.m.round === 3);
+  assert.deepEqual(rewindToPrep(h.m), { ok: true, round: 3 });
+  assert.equal(ps.diyStock, stock, 'the same DiyStock instance');
+  assert.deepEqual(stock.snapshot(), { chess_char_5_diy1_a: 8 });
+  assert.ok(ps.diy === diy && ps.gd === gd, 'picks and the player data view kept');
+  assert.equal(fingerprint(h.m), atPrep);
+  checkInvariants(h.m);
+  assert.ok(h.drive(() => h.ended != null));
+  assert.equal(h.m.errorCount, 0, JSON.stringify(h.m.errors));
+  h.m.dispose();
+});

@@ -236,3 +236,21 @@ test('console: forcing a client-side battle — a win keeps the LP, a loss costs
   h.m.dispose();
 });
 
+
+test('console (0.2.0): a 自选编队 piece is listed under its picked operator', () => {
+  const seats = [{ seat: 0, playerId: 'p_0', name: 'P0', isBot: false, connected: true,
+    diy: { chess_char_5_diy1_a: { charId: 'char_112_siege', skillIndex: 2, uniEquipId: 'uniequip_002_siege' } } },
+  { seat: 1, playerId: 'ai_0', name: 'AI0', isBot: true, connected: true }];
+  const h = harness({ seats, seed: 11 });
+  const m = h.m;
+  h.drive(() => m.phase === 'PREP' && m.round === 2, { ready: false });
+  const ps = m.players.get('p_0');
+  const piece = ps.acquireChess('chess_char_5_diy1_a');
+  assert.ok(piece);
+  assert.equal(h.view().pieces.find((p) => p.uid === piece.uid).name, ps.gd.chess('chess_char_5_diy1_a').name);
+  assert.notEqual(ps.gd.chess('chess_char_5_diy1_a').name, m.gd.chess('chess_char_5_diy1_a').name);
+  assert.deepEqual(h.act('pieceRemove', piece.uid), { ok: true });
+  assert.deepEqual(ps.diyStock.snapshot(), { chess_char_5_diy1_a: 8 }, 'its copy went back to the player\'s own stock');
+  checkInvariants(m);
+  m.dispose();
+});
