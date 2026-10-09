@@ -322,6 +322,21 @@ test('console (local-tools): any 自选 operator to anyone — a slot of the tie
   assert.equal(bot.gd.chess(Object.keys(bot.diy)[0]).charId, ZILAN);
   assert.match(h.act('diy', { charId: 'char_456_ash', tier: 5 }).error, /没有这个自选干员/);
   assert.match(h.act('chess', 'chess_char_5_diy2_a').error, /发放自选/);
+  // the skill and module: given at the grant (W, tier 5), then changed in place for the slot's pieces (diySkill)
+  const wc = cat.diy.find((x) => x.charId === W && x.tier === 5);
+  const zl = cat.diy.find((x) => x.charId === ZILAN && x.tier === 5);
+  assert.deepEqual([zl.skills.map((x) => x.index), zl.modules.map((x) => x.type), zl.def, zl.locked], [[0, 1, 2], ['ARC-X'], { charId: ZILAN, skillIndex: 2, uniEquipId: 'uniequip_002_orchd2' }, null]);
+  for (const p of owned(W)) assert.deepEqual(h.act('pieceRemove', p.uid), { ok: true });
+  assert.deepEqual(h.act('diy', { charId: W, tier: 5, skillIndex: 0, uniEquipId: 'none' }), { ok: true });
+  const w5 = Object.keys(ps.diy).find((id) => ps.diy[id].charId === W);
+  assert.deepEqual([m.gd.tierOf(w5), ps.diy[w5].skillIndex, ps.diy[w5].uniEquipId], [5, 0, null]);
+  assert.equal(ps.gd.chess(w5).skill.index, 0);
+  const wPiece = owned(W)[0];
+  assert.deepEqual(h.act('diySkill', { charId: W, tier: 5, skillIndex: 1, uniEquipId: wc.modules[0].id }), { ok: true });
+  assert.deepEqual([ps.diy[w5].skillIndex, ps.diy[w5].uniEquipId, ps.gd.chess(wPiece.id).skill.index], [1, wc.modules[0].id, 1], 'the piece follows its slot');
+  assert.equal(owned(W).length, 1, 'diySkill grants nothing');
+  assert.match(h.act('diySkill', { charId: W, tier: 5, skillIndex: 7 }).error, /无效/);
+  assert.match(h.act('diySkill', { charId: SIEGE, tier: 5, skillIndex: 0 }).error, /没有这名干员/);
   checkInvariants(m);
   assert.ok(h.drive(() => h.ended != null));
   assert.equal(m.errorCount, 0, JSON.stringify(m.errors));

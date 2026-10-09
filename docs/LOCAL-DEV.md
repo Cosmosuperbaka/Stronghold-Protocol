@@ -146,7 +146,7 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 对局操作：`rewind`（`value` 为回合数，空则最新）、`endPrep`、`pause`（仅独立模拟）、`endMatch`、`enemyPick`（`{ round, id }`，指定某回合的敌人组合，`id` 为空恢复原定）、`battleWin` / `battleLose`（`{ field, n? }`，仅客户端战斗）、`timerScale`（0.1–10）。
 
-玩家操作：`funds`（增减）、`lp`（设定）、`level`（设定）、`refresh`（+1 免费刷新）、`chess` / `item`（发放）、`diy`（`{ charId, tier: 5|6, elite }`，发放自选，见下）、`bondAdd` / `bondSet` / `bondBonus`（`{ bond, n }`）、`autoplay`（1/0，仅真人）、`effectRemove` / `bountyRemove`（效果 / 悬赏 id）、`card`（机变卡 effectId）、`pieceRemove` / `piecePromote`（棋子 uid）、`pieceEquip`（`{ target, item }`）。房间操作：`closeRoom`。
+玩家操作：`funds`（增减）、`lp`（设定）、`level`（设定）、`refresh`（+1 免费刷新）、`chess` / `item`（发放）、`diy`（`{ charId, tier: 5|6, elite, skillIndex?, uniEquipId? }`，发放自选，见下）、`diySkill`（同样的值，只改技能和模组）、`bondAdd` / `bondSet` / `bondBonus`（`{ bond, n }`）、`autoplay`（1/0，仅真人）、`effectRemove` / `bountyRemove`（效果 / 悬赏 id）、`card`（机变卡 effectId）、`pieceRemove` / `piecePromote`（棋子 uid）、`pieceEquip`（`{ target, item }`）。房间操作：`closeRoom`。
 
 - **会触发游戏效果的**：`bondAdd`（走 `addLayers`，派发 `onLayers`）、`card`（走 `applyCard`，全队卡会作用到所有存活队友）、`pieceEquip`（派发 `onEquip`，能合成时直接合成）。其余都是直接改数据，不扣金币、不触发 `onLevelUp` 之类的效果。
 - **判负**：普通战场按 `n` 条计数漏怪生成结果，结算扣 `min(10, n)`；同盟模式下这些漏怪会像真的一样进入联防。联防判胜等于全部击杀，判负等于没人支援（按漏怪者自己的漏怪数扣血）。领袖战判胜把共享血池清零，判负把同盟 LP 清零，两者都会结束所有领袖战场。
@@ -165,7 +165,8 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 自选棋子是按「自选位」区分的（每人 4 个：5 阶、6 阶各 2 个），客户端和战斗都按自选位读玩家的选择（`ps.diy`、`m.private.diy`）。所以发放某名自选干员时，先把它放进该等阶的一个自选位，再发这个位的棋子：优先用已经放着它的位，其次空位，再次这名玩家场上、手牌、整备区都没有棋子的位。也就是说，同一时间每个等阶最多 2 名不同的自选干员；有棋子的位不会被换掉（换掉的话那些棋子会跟着变成别人）。一名持有干员只能占一个位（和自选编队规则一致），已经在另一等阶上场时会拒绝。
 
-- 技能和模组用默认值：原型干员用锁定的选择，持有干员用最后一个技能和第一个可用模组（同干员调配的默认）。
+- 技能和模组：控制台的两个下拉框，不选就用默认（最后一个技能、第一个可用模组，同干员调配）。`uniEquipId: 'none'` 是不装备。原型干员固定用锁定的选择，下拉框不可用。
+- 一个自选位只有一套技能和模组，同一位上的棋子都一样。所以给已在位上的干员换技能（发放时选了别的技能，或点「改技能」走 `diySkill`），这个位上已有的棋子会一起变。召唤物跟技能走的干员（召唤物在手牌里）换技能后没专门处理，可能不一致。
 - 新位的库存直接给满，不检查本局禁用盟约（控制台不受限制）。
 - AI 座位也可以发，绕过 `setDiy` 的 AI 检查，照它的写法重建 `ps.diy`、`ps._diyRecords`、`ps.gd`。
 - 回档：自选位的分配不回滚（`diy` 等在 `PS_SKIP` 里）；快照之后才加的位，库存会被恢复掉，之后那个位从商店抽不到，直到下次发放。

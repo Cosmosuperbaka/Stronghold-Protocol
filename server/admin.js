@@ -176,8 +176,10 @@ const PLAYER_ACTIONS = {
     if (rec.isDiy && !rec.diyFor) return { error: '这个自选位没有干员，请用「发放自选」' };
     return ps.acquireChess(String(v)) ? OK : { error: '手牌和整备区都满了' };
   },
-  // value { charId, tier: 5 | 6, elite? } — any kitted 自选 operator, picks or not (match/adminDiy.js)
+  // value { charId, tier: 5 | 6, elite?, skillIndex?, uniEquipId? } — any kitted 自选 operator, picks or not (match/adminDiy.js)
   diy: (m, ps, v) => grantDiy(m, ps, obj(v)),
+  // the same value: only the skill / module of the slot that holds the operator (its pieces change with it)
+  diySkill: (m, ps, v) => grantDiy(m, ps, { ...obj(v), grant: false }),
   item: (m, ps, v) => {
     if (!m.gd.item(String(v))) return { error: `没有这个道具：${v}` };
     return ps.acquireItem(String(v)) ? OK : { error: '手牌和整备区都满了' };

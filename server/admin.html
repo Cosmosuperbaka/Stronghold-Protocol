@@ -95,6 +95,8 @@ const api = (p, body) => fetch(p, { method: body ? 'POST' : 'GET', headers: { 'X
 let catalogRoom = null;
 const names = { chess: new Map(), diy: new Map(), item: new Map(), equip: new Map(), card: new Map() };
 const idNames = new Map(); // operator / item / card id → its catalog label (the action log)
+const diyEntries = new Map(); // 发放自选 label → its catalog entry (skills, modules, locked, def)
+const diyDraft = new Map(); // player id → { label, skill, mod }: the 发放自选 controls survive the re-renders
 const open = new Set(); // players whose 详情 row is expanded
 
 function say(text, err = false) {
@@ -131,11 +133,12 @@ async function loadCatalog(room) {
   fill(c.chess, 'chess', '#chess-list');
   // 自选: any kitted operator at tier 5 / 6, normal or elite (server/match/adminDiy.js); the value is { charId, tier, elite }
   names.diy.clear();
+  diyEntries.clear();
   $('#diy-list').innerHTML = (c.diy || []).flatMap((x) => [false, true].map((elite) => {
     const label = `${x.name}${elite ? '·精锐' : ''}（自选 ${x.tier} 阶）`;
     const value = { charId: x.charId, tier: x.tier, elite };
     names.diy.set(label, value);
-    idNames.set(JSON.stringify(value), label);
+    diyEntries.set(label, x);
     return `<option value="${esc(label)}"></option>`;
   })).join('');
   fill(c.items, 'item', '#item-list');
@@ -195,6 +198,34 @@ function detailRow(code, p, cols) {
   </div></td></tr>`;
 }
 
+/** The skill / module selects and 改技能 of a player's 发放自选 box (from its draft; disabled until an operator is named). */
+function diySelects(code, pid) {
+  const d = diyDraft.get(pid) || { label: '', skill: '', mod: '' };
+  const e = diyEntries.get(d.label);
+  const off = !e || e.locked ? 'disabled' : '';
+  const sel = (v, cur) => (String(v) === String(cur) ? 'selected' : '');
+  const skills = e && e.locked ? `<option>技能：锁定 S${e.locked.skillIndex + 1}</option>`
+    : `<option value="">技能：默认${e ? ` S${e.def.skillIndex + 1}` : ''}</option>${(e?.skills || []).map((x) => `<option value="${x.index}" ${sel(x.index, d.skill)}>S${x.index + 1} ${esc(x.name)}</option>`).join('')}`;
+  const mods = e && e.locked ? '<option>模组：锁定</option>'
+    : `<option value="">模组：默认</option><option value="none" ${sel('none', d.mod)}>不装备</option>${(e?.modules || []).map((x) => `<option value="${esc(x.id)}" ${sel(x.id, d.mod)}>${esc(x.type)} ${esc(x.name)}</option>`).join('')}`;
+  const at = `data-player="${esc(pid)}" data-room="${code}"`;
+  return `<select data-diy-skill ${at} ${off} aria-label="自选技能">${skills}</select><select data-diy-mod ${at} ${off} aria-label="自选模组">${mods}</select><button data-diy-set ${at} ${off} title="只改这名干员所在自选位的技能和模组，已有的棋子一起变">改技能</button>`;
+}
+/** The 发放自选 action value of a player's draft, or null (no operator named). */
+function diyValue(pid, label) {
+  const v = names.diy.get(label);
+  if (!v) return null;
+  const d = diyDraft.get(pid) || {};
+  return { ...v, ...(d.skill !== '' && d.skill != null ? { skillIndex: Number(d.skill) } : null), ...(d.mod ? { uniEquipId: d.mod } : null) };
+}
+/** The action log's label of a 发放自选 value. */
+function diyLabel(label, v) {
+  const e = diyEntries.get(label);
+  const sk = v.skillIndex != null ? ` S${v.skillIndex + 1}` : '';
+  const md = v.uniEquipId === 'none' ? ' 不装备模组' : v.uniEquipId ? ` ${e?.modules.find((x) => x.id === v.uniEquipId)?.type || v.uniEquipId}` : '';
+  return `${label}${sk}${md}`;
+}
+
 function playerRow(code, p) {
   const who = `${esc(p.name)}${p.bot ? ' <span class="tag">AI</span>' : ''}${p.connected ? '' : ' <span class="tag off">离线</span>'}${p.alive ? '' : ' <span class="tag off">淘汰</span>'}`;
   const field = (action, value, label) => `<input class="num" type="number" value="${value}" aria-label="${esc(p.name)} ${label}" data-act="${action}" data-player="${esc(p.id)}" data-room="${code}" data-label="${label}">`;
@@ -209,7 +240,8 @@ function playerRow(code, p) {
       ${p.bot ? '' : `<button ${on(code, p, 'autoplay', p.autoplay ? '取消托管' : '开启托管')} data-value="${p.autoplay ? 0 : 1}">${p.autoplay ? '取消托管' : '托管'}</button>`}</td>
     <td class="row">
       <input class="grant" list="chess-list" placeholder="发放干员…" aria-label="${esc(p.name)} 发放干员" data-grant="chess" data-player="${esc(p.id)}" data-room="${code}">
-      <input class="grant" list="diy-list" placeholder="发放自选…" aria-label="${esc(p.name)} 发放自选干员" data-grant="diy" data-player="${esc(p.id)}" data-room="${code}">
+      <input class="grant" list="diy-list" placeholder="发放自选…" aria-label="${esc(p.name)} 发放自选干员" data-grant="diy" data-player="${esc(p.id)}" data-room="${code}" value="${esc(diyDraft.get(p.id)?.label || '')}">
+      <span data-diy-sel="${esc(p.id)}">${diySelects(code, p.id)}</span>
       <input class="grant" list="item-list" placeholder="发放道具…" aria-label="${esc(p.name)} 发放道具" data-grant="item" data-player="${esc(p.id)}" data-room="${code}">
       <button data-toggle="${esc(p.id)}" aria-expanded="${open.has(p.id)}">${open.has(p.id) ? '收起' : '详情'}</button>
     </td>
@@ -274,7 +306,7 @@ const TOTALS = [['dmgDealt', '伤害'], ['kills', '击杀'], ['leaks', '漏怪']
   ['gold', '花费'], ['buys', '购买'], ['sells', '出售'], ['refreshes', '刷新'], ['merges', '晋升'], ['itemsEquipped', '配装'], ['healing', '治疗'],
   ['bossDamage', '领袖伤害'], ['activatedLayers', '盟约层数']];
 const ACTION_NAMES = { rewind: '回档', endPrep: '结束休整期', pause: '暂停/继续', enemyPick: '指定敌人', battleWin: '判胜', battleLose: '判负',
-  timerScale: '计时倍率', endMatch: '结束对局', funds: '金币', lp: 'LP', level: '商店等级', refresh: '免费刷新', chess: '发放干员', diy: '发放自选', item: '发放道具',
+  timerScale: '计时倍率', endMatch: '结束对局', funds: '金币', lp: 'LP', level: '商店等级', refresh: '免费刷新', chess: '发放干员', diy: '发放自选', diySkill: '改自选技能', item: '发放道具',
   bondAdd: '加层', bondSet: '设层', bondBonus: '人数加成', autoplay: '托管', effectRemove: '删除效果', bountyRemove: '删除悬赏', card: '补发机变卡',
   pieceRemove: '移除棋子', piecePromote: '升精锐', pieceEquip: '装备' };
 const compact = new Intl.NumberFormat('zh-CN', { notation: 'compact', maximumFractionDigits: 1 });
@@ -727,6 +759,36 @@ async function showSettings() {
   drawPrepPreview();
 }
 
+// 发放自选: the draft follows the box and the selects; naming another operator resets the skill / module to the default
+document.addEventListener('input', (e) => {
+  const el = e.target;
+  if (!el.matches('input[data-grant="diy"]')) return;
+  const pid = el.dataset.player;
+  const d = diyDraft.get(pid) || { label: '', skill: '', mod: '' };
+  const was = d.label;
+  d.label = el.value;
+  if (diyEntries.get(was) !== diyEntries.get(d.label) && diyEntries.get(was)?.charId !== diyEntries.get(d.label)?.charId) { d.skill = ''; d.mod = ''; }
+  diyDraft.set(pid, d);
+  const box = el.parentElement.querySelector(`[data-diy-sel="${CSS.escape(pid)}"]`);
+  if (box) box.innerHTML = diySelects(el.dataset.room, pid);
+});
+document.addEventListener('change', (e) => {
+  const el = e.target;
+  if (!el.matches('select[data-diy-skill], select[data-diy-mod]')) return;
+  const d = diyDraft.get(el.dataset.player) || { label: '', skill: '', mod: '' };
+  if ('diySkill' in el.dataset) d.skill = el.value; else d.mod = el.value;
+  diyDraft.set(el.dataset.player, d);
+  el.blur();
+});
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-diy-set]');
+  if (!b) return;
+  const d = diyDraft.get(b.dataset.player);
+  const v = d && diyValue(b.dataset.player, d.label);
+  if (!v) return;
+  idNames.set(JSON.stringify(v), diyLabel(d.label, v));
+  act(b.dataset.room, 'diySkill', b.dataset.player, v, '改自选技能');
+});
 document.addEventListener('input', (e) => {
   if (!e.target.closest('#prep-form')) return;
   $('#prep-form [data-prep-rounds]').hidden = prepForm().mode !== 'perRound';
@@ -819,6 +881,14 @@ document.addEventListener('keydown', (e) => {
     act(el.dataset.room, 'pieceEquip', el.dataset.player, { target: Number(el.dataset.equip), item: id }, '装备');
     el.value = '';
     el.blur();
+  } else if (el.dataset.grant === 'diy') {
+    loadCatalog(el.dataset.room).then(() => {
+      const v = diyValue(el.dataset.player, el.value);
+      if (!v) { if (el.value.trim()) say(`没有这一项：${el.value.trim()}`, true); return; }
+      idNames.set(JSON.stringify(v), diyLabel(el.value, v));
+      act(el.dataset.room, 'diy', el.dataset.player, v, '发放自选');
+      el.blur();
+    });
   } else if (el.dataset.grant) {
     loadCatalog(el.dataset.room).then(() => {
       const id = names[el.dataset.grant].get(el.value) || (el.dataset.grant === 'diy' ? null : el.value.trim());

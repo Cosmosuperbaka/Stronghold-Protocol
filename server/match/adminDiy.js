@@ -3,24 +3,45 @@
 // shared/diy.js), so a grant puts the operator in a slot of the asked tier first — the slot that already holds it, else
 // an empty one, else one whose operator the player owns no piece of — then gains the slot's piece. Hence at most 2
 // different 自选 operators per tier at a time; a slot with pieces on it is never re-assigned (they would change body).
+// The skill and module may be given (an owned operator: any skill, any 自选 module or none; a prototype keeps its locked
+// ones); for an operator already in a slot a new selection re-picks that slot, so every piece of it changes with it.
 // The picks are rebuilt as PlayerState.setDiy does (without its bot check) and the new slot gets a full stock (no ban
 // check: the console is unrestricted). Rewind keeps the picks (PS_SKIP); a stock added after the snapshot is dropped
 // by the restore, and the slot then draws nothing until the next grant.
+//
+// i18n-ignore-file: a host-only tool in Chinese, not player UI (tools/i18n.mjs)
 
 import { KITTED_CHARS } from '../sim/content/kits/index.js';
-import { diyPool, diySlot, diySlotIds, diyRecord, checkDiyPick, isPrototypePick, isDiyModule } from '../../shared/diy.js';
+import { diyPool, diySlot, diySlotIds, diyRecord, checkDiyPick, isPrototypePick, isDiyModule, lockedSelection } from '../../shared/diy.js';
 import { unitForm } from '../../shared/standIn.js';
 import { diyGameData } from './player/diy.js';
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 
-/** The operators a 自选 grant can name, per tier: [{ charId, name, tier }] (prototypes first, then the owned 6★). */
+/**
+ * The operators a 自选 grant can name, per tier (prototypes first, then the owned 6★): [{ charId, name, tier, skills:
+ * [{ index, name }], modules: [{ id, name, type }] (the elite form's 自选 modules), locked: { skillIndex, uniEquipId } for a
+ * prototype, def: the default selection }].
+ */
 export function diyCatalog(m) {
   const data = m.gd.raw;
   const units = data?.backups?.units || {};
   const out = [];
   for (const tier of [5, 6]) {
-    for (const charId of diyPool(tier, { data, kitted: KITTED_CHARS })) out.push({ charId, name: units[charId]?.name || charId, tier });
+    const slotId = diySlotIds(data).find((id) => diySlot(id, data).tier === tier);
+    if (!slotId) continue;
+    const slot = diySlot(slotId, data);
+    for (const charId of diyPool(tier, { data, kitted: KITTED_CHARS })) {
+      const normal = unitForm(data.backups, charId, slot.normal.status);
+      const elite = unitForm(data.backups, charId, slot.golden.status);
+      out.push({
+        charId, name: units[charId]?.name || charId, tier,
+        skills: (normal?.skills || []).filter(Boolean).map((x) => ({ index: x.index, name: x.name })),
+        modules: (elite?.modules || []).filter(isDiyModule).map((x) => ({ id: x.uniEquipId, name: x.name, type: x.typeName })),
+        locked: isPrototypePick(data, tier, charId) ? lockedSelection(data, tier, charId) : null,
+        def: defaultPick(charId, slotId, data),
+      });
+    }
   }
   return out;
 }
@@ -59,18 +80,45 @@ function applyPicks(ps, picks) {
 }
 
 /**
- * Give player `ps` one piece of 自选 operator `charId` in a slot of `tier` (5 / 6), the elite form with `elite`.
+ * The pick of `charId` in `slotId` with the asked selection: `skillIndex` (omitted = the default), `uniEquipId`
+ * (omitted = the default, null / 'none' = no module); a prototype always takes its locked one.
+ */
+function pickFor(charId, slotId, data, sel) {
+  const def = defaultPick(charId, slotId, data);
+  if (!('skillIndex' in def)) return def;
+  const skillIndex = Number.isInteger(sel.skillIndex) ? sel.skillIndex : def.skillIndex;
+  const uniEquipId = sel.uniEquipId === undefined ? def.uniEquipId : sel.uniEquipId === 'none' ? null : sel.uniEquipId;
+  return { charId, skillIndex, uniEquipId };
+}
+
+/**
+ * Give player `ps` one piece of 自选 operator `charId` in a slot of `tier` (5 / 6), the elite form with `elite`, at
+ * the selection `skillIndex` / `uniEquipId` (see pickFor). `grant: false` only sets the selection of the slot that
+ * holds the operator (every piece of that slot changes with it).
  * @returns {{ ok: true } | { error: string }}
  */
-export function grantDiy(m, ps, { charId, tier, elite = false } = {}) {
+export function grantDiy(m, ps, { charId, tier, elite = false, skillIndex, uniEquipId, grant = true } = {}) {
   const data = m.gd.raw;
   tier = Number(tier);
   if (typeof charId !== 'string' || !diyPool(tier, { data, kitted: KITTED_CHARS }).includes(charId)) return { error: `${tier} 阶没有这个自选干员：${charId}` };
   const slots = diySlotIds(data).map((id) => diySlot(id, data));
   const picks = { ...(isObj(ps.diy) ? ps.diy : {}) };
   const proto = isPrototypePick(data, tier, charId);
+  const sel = { skillIndex: skillIndex == null || skillIndex === '' ? undefined : Number(skillIndex), uniEquipId: uniEquipId === '' ? undefined : uniEquipId };
   let slot = slots.find((s) => s.tier === tier && picks[s.baseId]?.charId === charId);
-  if (!slot) {
+  if (slot) {
+    if (!proto && (sel.skillIndex !== undefined || sel.uniEquipId !== undefined)) {
+      const c = checkDiyPick(slot.baseId, pickFor(charId, slot.baseId, data, sel), data);
+      if (!('ok' in c)) return { error: `自选设置无效：${c.error}` };
+      const cur = picks[slot.baseId];
+      if (c.pick.skillIndex !== cur.skillIndex || c.pick.uniEquipId !== (cur.uniEquipId ?? null)) {
+        picks[slot.baseId] = c.pick;
+        applyPicks(ps, picks);
+      }
+    }
+  } else if (!grant) {
+    return { error: `这名玩家的 ${tier} 阶自选位上没有这名干员` };
+  } else {
     const inTier = slots.filter((s) => s.tier === tier);
     slot = inTier.find((s) => !picks[s.baseId]) || inTier.find((s) => !ownsSlot(ps, s));
     if (!slot) return { error: `${tier} 阶的两个自选位都已有干员在场，先移除其中一个的全部棋子` };
@@ -83,14 +131,14 @@ export function grantDiy(m, ps, { charId, tier, elite = false } = {}) {
         ps.diyStock?.entries.delete(other.baseId);
       }
     }
-    const c = checkDiyPick(slot.baseId, defaultPick(charId, slot.baseId, data), data);
+    const c = checkDiyPick(slot.baseId, pickFor(charId, slot.baseId, data, sel), data);
     if (!('ok' in c)) return { error: `自选设置无效：${c.error}` };
     picks[slot.baseId] = c.pick;
     applyPicks(ps, picks);
     const cap = m.gd.poolCopies(slot.baseId);
     if (ps.diyStock && cap > 0) ps.diyStock.entries.set(slot.baseId, { cap, left: cap, tier, shopLevel: slot.shopLevel });
   }
-  const piece = ps.acquireChess(elite ? slot.goldenId : slot.baseId, { source: 'admin' });
+  const piece = grant ? ps.acquireChess(elite ? slot.goldenId : slot.baseId, { source: 'admin' }) : true;
   ps.recompute();
   ps.dirty();
   return piece ? { ok: true } : { error: '手牌和整备区都满了' };
