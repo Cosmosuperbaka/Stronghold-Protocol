@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { startServer } from '../server/index.js';
-import { startAdmin, handleAction, roomsView, resultRecord } from '../server/admin.js';
+import { startAdmin, handleAction, roomsView, resultRecord, catalogView } from '../server/admin.js';
 import { TestClient } from './helpers/wsClient.js';
 import { makeMatch, checkInvariants } from './match/harness.js';
 import { getPrep, setPrep, resetHostSettings, prepSecondsFor } from '../server/match/hostSettings.js';
@@ -283,6 +283,48 @@ test('console (0.2.0): a 自选编队 piece is listed under its picked operator'
   assert.deepEqual(h.act('pieceRemove', piece.uid), { ok: true });
   assert.deepEqual(ps.diyStock.snapshot(), { chess_char_5_diy1_a: 8 }, 'its copy went back to the player\'s own stock');
   checkInvariants(m);
+  m.dispose();
+});
+
+test('console (local-tools): any 自选 operator to anyone — a slot of the tier is filled, at most 2 per tier at a time', () => {
+  const seats = [{ seat: 0, playerId: 'p_0', name: 'P0', isBot: false, connected: true },
+    { seat: 1, playerId: 'ai_0', name: 'AI0', isBot: true, connected: true }];
+  const h = harness({ seats, seed: 12 });
+  const m = h.m;
+  h.drive(() => m.phase === 'PREP' && m.round === 2, { ready: false });
+  const ps = m.players.get('p_0');
+  const ZILAN = 'char_1048_orchd2', SIEGE = 'char_112_siege', W = 'char_113_cqbw';
+  const owned = (id) => [...ps.hand, ...ps.temp, ...ps.board.values()].filter((p) => p && ps.gd.chess(p.id)?.charId === id);
+  // the catalog lists every kitted operator at both tiers
+  const cat = catalogView({ rooms: new Map([['R', { match: m }]]) }, 'R');
+  assert.ok(cat.diy.some((x) => x.charId === ZILAN && x.tier === 5) && cat.diy.some((x) => x.charId === ZILAN && x.tier === 6));
+  // no picks: 梓兰 takes a tier-6 slot, the elite form comes, from her own stock
+  assert.deepEqual(h.act('diy', { charId: ZILAN, tier: 6, elite: true }), { ok: true });
+  assert.equal(owned(ZILAN).length, 1);
+  assert.ok(ps.gd.chess(owned(ZILAN)[0].id).isGolden && ps.gd.chess(owned(ZILAN)[0].id).diyFor);
+  const slot = Object.keys(ps.diy).find((id) => ps.diy[id].charId === ZILAN);
+  assert.equal(m.gd.tierOf(slot), 6);
+  assert.equal(ps.diyStock.left(slot), ps.diyStock.cap(slot) - m.gd.goldenCopies);
+  // again: the same slot; the second tier-6 slot takes 推进之王; a third operator finds both slots in use
+  assert.deepEqual(h.act('diy', { charId: ZILAN, tier: 6 }), { ok: true });
+  assert.equal(Object.values(ps.diy).filter((p) => p.charId === ZILAN).length, 1);
+  assert.deepEqual(h.act('diy', { charId: SIEGE, tier: 6 }), { ok: true });
+  assert.match(h.act('diy', { charId: W, tier: 6 }).error, /两个自选位/);
+  // an owned operator fills one slot: 推进之王 cannot also go to tier 5 while on the board
+  assert.match(h.act('diy', { charId: SIEGE, tier: 5 }).error, /已在 6 阶/);
+  // once 推进之王's pieces are gone, her slot is free for W
+  for (const p of owned(SIEGE)) assert.deepEqual(h.act('pieceRemove', p.uid), { ok: true });
+  assert.deepEqual(h.act('diy', { charId: W, tier: 6 }), { ok: true });
+  assert.ok(!Object.values(ps.diy).some((p) => p.charId === SIEGE) && owned(W).length === 1);
+  // a bot too; unknown operators are refused
+  const bot = m.players.get('ai_0');
+  assert.deepEqual(h.act('diy', { charId: ZILAN, tier: 5 }, 'ai_0'), { ok: true });
+  assert.equal(bot.gd.chess(Object.keys(bot.diy)[0]).charId, ZILAN);
+  assert.match(h.act('diy', { charId: 'char_456_ash', tier: 5 }).error, /没有这个自选干员/);
+  assert.match(h.act('chess', 'chess_char_5_diy2_a').error, /发放自选/);
+  checkInvariants(m);
+  assert.ok(h.drive(() => h.ended != null));
+  assert.equal(m.errorCount, 0, JSON.stringify(m.errors));
   m.dispose();
 });
 

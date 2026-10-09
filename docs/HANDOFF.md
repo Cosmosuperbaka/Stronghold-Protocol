@@ -5,6 +5,8 @@
 ## 1. 当前状态
 
 - 远程 `origin` 是私有库 `zhewang448/Stronghold-Protocol`，`upstream` 是原作者仓库。上游已合并到 v0.2.1（`a122fde`）。
+- 2026-10-09：在临时分支 `local-tools-v0.2.2` 上合并 v0.2.2（`62eb113`）。只有 `CLAUDE.md` 冲突（上游新增了指向 `AGENTS.md` 的同名文件，保留本地内容并加一行指引）；本地挂钩（`waveSource`、`prepSeconds`、`capturePrep`、控制台启动）都自动合并保留。0.2.2 新增的 `ps.ops`（每名干员的潜能 / 练度，开局后锁定、冻结）加进了 `rewind.js` 的 `PS_SKIP`，`rewind.test.js` 加了对应用例；`ps.personalChoice`（教鞭三选一）是普通数据，自动进快照。
+- 联动干员进自选池：焰狐龙梓兰已完成（同一临时分支）。做法、重新生成数据的步骤、合并上游时的注意事项见 LOCAL-DEV.md 第 8 节。其余 6 名（灰烬、艾拉、麒麟R夜刀、丰川祥子、结城理、玛露西尔）没有现成 kit，要从头写，用户还没说先做哪个。
 - 第三期（含每回合干员伤害排行）都在 `local-tools` 上，已推到 `origin/local-tools`。合并 v0.2.1 时开的临时分支 `local-tools-v0.2.1` 已快进合入并删除（本地和远端）。
 - 用户的规则：只有明确说了才提交；提交信息不加 Claude 署名；不直接推 `master`。
 - 已验证（第三期）：`test/admin.test.js`（9 项）、`test/match/rewind.test.js`（4 项）通过；`test/match/` 全部加 i18n、文档、lobby 相关测试共 737 项，735 通过、0 失败、2 跳过。**没跑全量** `node --test`。浏览器里实测过曲线和悬停、每回合详情、上一局统计、对局记录页、敌人日程的指定、设置页的保存和预览。

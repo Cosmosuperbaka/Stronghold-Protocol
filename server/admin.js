@@ -29,6 +29,7 @@ import { planView, setPick, waveSource } from './match/enemyPicks.js';
 import { syntheticResult } from './match/fields.js';
 import { GameData } from './match/gamedata.js';
 import { getPrep, setPrep, normalizePrep } from './match/hostSettings.js';
+import { diyCatalog, grantDiy } from './match/adminDiy.js';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const OK = { ok: true };
@@ -136,6 +137,7 @@ export function catalogView(lobby, code) {
     }),
     items: Object.values(gd.shopItemsByTier).flat().map((id) => ({ id, name: gd.item(id).name, tier: gd.item(id).tier, equip: gd.item(id).itemType === 'EQUIP' })),
     cards: cardList(m).map(({ src, ...c }) => c),
+    diy: diyCatalog(m),
   };
 }
 
@@ -169,9 +171,13 @@ const PLAYER_ACTIONS = {
     return OK;
   },
   chess: (m, ps, v) => {
-    if (!m.gd.chess(String(v))) return { error: `没有这个干员：${v}` };
+    const rec = ps.gd.chess(String(v));
+    if (!rec) return { error: `没有这个干员：${v}` };
+    if (rec.isDiy && !rec.diyFor) return { error: '这个自选位没有干员，请用「发放自选」' };
     return ps.acquireChess(String(v)) ? OK : { error: '手牌和整备区都满了' };
   },
+  // value { charId, tier: 5 | 6, elite? } — any kitted 自选 operator, picks or not (match/adminDiy.js)
+  diy: (m, ps, v) => grantDiy(m, ps, obj(v)),
   item: (m, ps, v) => {
     if (!m.gd.item(String(v))) return { error: `没有这个道具：${v}` };
     return ps.acquireItem(String(v)) ? OK : { error: '手牌和整备区都满了' };

@@ -27,6 +27,7 @@
 | `server/match/history.js` | 每回合记录 `m.history`（控制台的曲线、每回合详情、干员排行、对局记录） |
 | `server/match/enemyPicks.js` | 敌人日程：每回合所有组合、本局抽到的概率、实际出怪、主机指定（`m.adminPicks`） |
 | `server/match/hostSettings.js` | 主机设置（目前是休整期时长），对所有房间、所有对局生效 |
+| `server/match/adminDiy.js` | 控制台「发放自选」：给任一玩家（含 AI）发放任一有 kit 的自选干员 |
 | `test/match/rewind.test.js`、`test/admin.test.js` | 对应的测试 |
 | `docs/LOCAL-DEV.md`、`LOCAL-CHANGELOG.md`、`HANDOFF.md` | 本分支的文档（上游的 `CHANGELOG.md` 不改，避免合并时冲突） |
 
@@ -41,6 +42,13 @@
 | `server/match/match/phases.js`、`bossRounds.js` | 生成波次的三处（`startRound`、`_planBossWaves`、领袖战开打）把 `this.factions` 换成 `waveSource(this)` |
 | `server/match/audit.js` | 休整期倒计时的检查改用 `prepSeconds()` |
 | `server/http/boot.js` | `runMain()` 里启动控制台，打印 `Console:` 地址 |
+| `tools/build-data.mjs` | 加了 `DIY_COLLAB_ALLOWED`：列在里面的联动 6★ 不受两条联动排除规则限制，进自选池（见第 8 节） |
+| `server/sim/content/kits/index.js` | `OPERATOR_KIT_FILES` 末尾加了 `op-orchd2.js` |
+| `public/js/render/fx/kinds.js` | `FX_KINDS` 加了 `dragonArrow`（梓兰 S3 出手时的闪光，箭的飞行没画） |
+| 生成的数据 | `data/backups.json`、`data/assets.json`、`data/i18n/*.json`、`test/golden/diy.json`：合并上游时按第 8 节重新生成，不要手工合 |
+| 测试里写死的数量 | `test/backups.test.js`、`diy.test.js`、`assets-diy.test.js`、`full-potential.test.js`、`potential.test.js`、`i18n-data.test.js`、`feedback7-voices.test.js`：自选池 71 → 72、单位形态 256 → 259、有语音的干员 191 → 192 等，改动处都标了 `local-tools` |
+
+上游自己的文档（`docs/DATA.md`、`ASSETS.md` 等）里「71 名、7 名联动被排除」的说法没改，避免合并冲突，以本节为准。
 
 0.2.0 起上游把 `Match` 的方法拆到了 `server/match/match/*.js`，启动代码从 `server/index.js` 拆到了 `server/http/`。
 
@@ -93,7 +101,7 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 | `uidSeq` | 浏览器里迟到的操作带着旧 uid，只会命中同一个棋子或找不到，不会误操作到别的棋子 |
 | `_battleSeq` | 被中止的战斗迟到的上报对不上任何新战场，被忽略 |
 | `_turnToken`、`ps._botPrepToken` | 旧的 AI 任务和选秀计时器自动作废 |
-| `connected` / `left` / `autoplay` / `loadout` | 连接状态以现在为准，配装在开局后就锁定 |
+| `connected` / `left` / `autoplay` / `loadout` / `ops` | 连接状态以现在为准，配装和潜能 / 练度（0.2.2 的 `ops`）在开局后就锁定 |
 
 ### 以后加新状态时
 
@@ -138,7 +146,7 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 对局操作：`rewind`（`value` 为回合数，空则最新）、`endPrep`、`pause`（仅独立模拟）、`endMatch`、`enemyPick`（`{ round, id }`，指定某回合的敌人组合，`id` 为空恢复原定）、`battleWin` / `battleLose`（`{ field, n? }`，仅客户端战斗）、`timerScale`（0.1–10）。
 
-玩家操作：`funds`（增减）、`lp`（设定）、`level`（设定）、`refresh`（+1 免费刷新）、`chess` / `item`（发放）、`bondAdd` / `bondSet` / `bondBonus`（`{ bond, n }`）、`autoplay`（1/0，仅真人）、`effectRemove` / `bountyRemove`（效果 / 悬赏 id）、`card`（机变卡 effectId）、`pieceRemove` / `piecePromote`（棋子 uid）、`pieceEquip`（`{ target, item }`）。房间操作：`closeRoom`。
+玩家操作：`funds`（增减）、`lp`（设定）、`level`（设定）、`refresh`（+1 免费刷新）、`chess` / `item`（发放）、`diy`（`{ charId, tier: 5|6, elite }`，发放自选，见下）、`bondAdd` / `bondSet` / `bondBonus`（`{ bond, n }`）、`autoplay`（1/0，仅真人）、`effectRemove` / `bountyRemove`（效果 / 悬赏 id）、`card`（机变卡 effectId）、`pieceRemove` / `piecePromote`（棋子 uid）、`pieceEquip`（`{ target, item }`）。房间操作：`closeRoom`。
 
 - **会触发游戏效果的**：`bondAdd`（走 `addLayers`，派发 `onLayers`）、`card`（走 `applyCard`，全队卡会作用到所有存活队友）、`pieceEquip`（派发 `onEquip`，能合成时直接合成）。其余都是直接改数据，不扣金币、不触发 `onLevelUp` 之类的效果。
 - **判负**：普通战场按 `n` 条计数漏怪生成结果，结算扣 `min(10, n)`；同盟模式下这些漏怪会像真的一样进入联防。联防判胜等于全部击杀，判负等于没人支援（按漏怪者自己的漏怪数扣血）。领袖战判胜把共享血池清零，判负把同盟 LP 清零，两者都会结束所有领袖战场。
@@ -152,6 +160,16 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 - **对局记录**：`startAdmin` 包装了 `lobby.onMatchEnd`（`onEnd` 闭包按属性名调用它，所以实例上的包装会生效；这样不用改上游的 `lobby.js`），在原函数清掉 `room.match` 之前写 `logs/results/<时间>-<房间>.json`：`{ savedAt, room, mode, difficulty, result, history }`。`result` 是 `buildResult` 的结算数据，阵容、道具、盟约、分队补上了名字，`stats` 合并了 `statsOf()`。写文件失败只记日志，不影响对局。同一份数据精简后存在 `room.adminLastMatch`，房间卡片据此显示「上一局统计」，下一局开始后换回本局。`startAdmin({ resultsDir })` 可以改目录（测试用临时目录）；`SP_ADMIN=0` 时不存记录。
 - **每回合干员伤害排行**：前端从 `history[].players[].units` 直接算（`drawUnitRounds`），不另存数据。「占本人」的分母是该玩家这回合所有干员伤害之和，不含联防。
 - **页面**：统计面板在 1.5 秒一次的重绘之外单独维护（`statsPanel`）：重绘后把原节点移回房间卡片，各部分只在自己的数据变化时重画，所以悬停提示、下拉框和展开状态不会被轮询打断。曲线一次画一个指标（不做双 Y 轴），可切换成表格；颜色按座位固定（`#3987e5 #d95926 #199e70 #c98500`，对 `#141816` 和详情底色 `#101311` 都跑过 dataviz 校验）。
+
+### 发放自选（adminDiy.js）
+
+自选棋子是按「自选位」区分的（每人 4 个：5 阶、6 阶各 2 个），客户端和战斗都按自选位读玩家的选择（`ps.diy`、`m.private.diy`）。所以发放某名自选干员时，先把它放进该等阶的一个自选位，再发这个位的棋子：优先用已经放着它的位，其次空位，再次这名玩家场上、手牌、整备区都没有棋子的位。也就是说，同一时间每个等阶最多 2 名不同的自选干员；有棋子的位不会被换掉（换掉的话那些棋子会跟着变成别人）。一名持有干员只能占一个位（和自选编队规则一致），已经在另一等阶上场时会拒绝。
+
+- 技能和模组用默认值：原型干员用锁定的选择，持有干员用最后一个技能和第一个可用模组（同干员调配的默认）。
+- 新位的库存直接给满，不检查本局禁用盟约（控制台不受限制）。
+- AI 座位也可以发，绕过 `setDiy` 的 AI 检查，照它的写法重建 `ps.diy`、`ps._diyRecords`、`ps.gd`。
+- 回档：自选位的分配不回滚（`diy` 等在 `PS_SKIP` 里）；快照之后才加的位，库存会被恢复掉，之后那个位从商店抽不到，直到下次发放。
+- 「发放干员」框里填了没分配的自选位 id 会提示改用「发放自选」。
 
 ### 敌人日程（enemyPicks.js）
 
@@ -203,4 +221,32 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 - **`structuredClone` 克隆不了函数**：`audit.js` 会把 `PlayerState` 的方法包装后挂到实例上，所以快照要跳过函数属性。
 - **端口 3000 被旧进程占着**：先跑 `scripts/stop-server.bat`。预览/测试用别的端口（`.claude/launch.json` 里的 `stronghold-dev` 用 3005）。
 - **合并上游时**先看第 2 节「改动过的上游文件」：冲突只会出在那几处。合并后跑 `node --test test/match/rewind.test.js test/admin.test.js`；如果上游改了生成波次或休整期计时的写法，要把 `waveSource(this)`、`prepSeconds(...)` 接到新位置。
+- **setup 下载很慢或大量 err**：本机 Node 22.14 的 `fetch()` 不走 `HTTP(S)_PROXY`（日志会提示，需要 Node ≥ 22.21 加 `NODE_USE_ENV_PROXY=1`），所以是直连 GitHub，速度取决于本机代理设置。临时可以用 `node tools/setup.mjs --asset-source=mirror`（第三方镜像 gh-proxy.com）。下载可续传，中断后重跑会跳过已有文件。
 - **合并上游后**要重新 `npm run setup`，上游会新增素材清单，否则素材测试会多出一批失败。setup 和 `npm install` 会改写 `data/assets.json`、`package-lock.json`，合并时用上游的版本（`git checkout -- data/assets.json package-lock.json`）。
+
+## 8. 联动干员进自选池
+
+上游以版权为由把联动 6★ 排除在自选池外（`tools/build-data.mjs` 的 `DIY_EXCLUDED_TEAMS` 按阵营、`DIY_EXCLUDED_NUMBER_PREFIXES` 按编号前缀）。本分支的决定（2026-10-09）是写好 kit 的联动干员逐个放进来：把 charId 加进同一文件里的 `DIY_COLLAB_ALLOWED`，再按下面的步骤重新生成。
+
+### 已加入
+
+| 干员 | kit | 来源 |
+|---|---|---|
+| 焰狐龙梓兰 `char_1048_orchd2`（MH05） | `ops/op-orchd2.js`、`test/content/op_orchd2.test.js` | 上游 feedback5 O6 写过（`4075338`），排除她时（`8287422`）丢掉了。原样取回，只改了 0.2.2 满潜后的数字：再部署 70 → 66 秒，T1 115% → 120%。kit 本身从数据读数，不用改 |
+
+还没有 kit 的 6 名：灰烬、艾拉、麒麟R夜刀、丰川祥子、结城理、玛露西尔。可以对照的资料：`WhoAteMyCQQkie/ArknightsDpsCompare` 的 `damage_formulas.py`（有其中 5 名，没有结城理）、`xulai1001/akdata` 的 `dps_anim.json`（有灰烬、艾拉、夜刀的动画帧）。两个库都没有许可证，只能参考，不能抄代码。
+
+### 加一名（或合并上游后）重新生成
+
+1. **游戏数据**：`.cache/gamedata` 要和上游构建 `data/` 时用的 ArknightsGameData 版本一致，否则别的干员的数字也会变。0.2.2 用的是 `a550f5e`（2026-09-29，Client 2.7.71）。判断办法：先不改代码，在临时目录跑 `node tools/build-data.mjs --offline --out <临时目录>`，和 `data/` 逐字节相同才对。不对就用 curl 按 `.cache/gamedata` 里现有的文件列表，从 `https://raw.githubusercontent.com/Kengxxiao/ArknightsGameData/<commit>/zh_CN/gamedata/<路径>` 重新下载（Node 不走代理，curl 会走）。
+2. `node tools/build-data.mjs --offline`：改写 `data/backups.json`。
+3. `node tools/fetch-assets.mjs --add-only`：下载新干员的美术和语音，并改写 `data/assets.json`。网络不稳时可以重跑，会续传。
+4. 数据翻译：`node tools/build-i18n.mjs`（en），以及 `--lang ja` / `ko` / `zh-TW`。下载失败就用 curl 把表预先放进 `.cache/gamedata-<lang>/`（`excel/` 下 8 张表，加上 `levels/enemydata/enemy_database.json`），再加 `--offline`。和旧文件做 JSON 比较：差异应该只有新干员、`_h` 和 `meta` 的覆盖率。2026-10-09 的 zh-TW 还顺带补上了怒潮凛冬的译名（源数据比上游构建时更新）。
+5. kit 文件加进 `kits/index.js` 的 `OPERATOR_KIT_FILES` 末尾；跑 `npm run golden:update`，应该只有 `test/golden/diy.json` 变。
+6. 改测试里写死的数量（第 2 节的表），然后跑 `node --test test/backups.test.js test/diy.test.js test/assets-diy.test.js test/full-potential.test.js test/potential.test.js "test/i18n*.test.js" test/data.test.js test/golden.test.js test/content/op_<代号>.test.js`。
+
+### 合并上游时
+
+`data/backups.json`、`assets.json`、`i18n/*.json`、`test/golden/diy.json` 都是生成的：冲突时先取上游版本，再按上面的 1–5 步重新生成。第 7 节说的「`data/assets.json` 用上游的版本」在这里不适用：直接用上游版本会丢掉梓兰的素材条目，要再跑一次第 3 步。
+
+EN 客户端里还没有梓兰，她的名字、技能、天赋在英文界面显示中文。`test/i18n-data.test.js` 的天赋覆盖率门槛因此从 95% 降到 94.5%（实测 94.9%）。

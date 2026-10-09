@@ -80,6 +80,7 @@
 <main id="records" hidden></main>
 <main id="settings" hidden></main>
 <datalist id="chess-list"></datalist>
+<datalist id="diy-list"></datalist>
 <datalist id="item-list"></datalist>
 <datalist id="equip-list"></datalist>
 <datalist id="card-list"></datalist>
@@ -92,7 +93,7 @@ const api = (p, body) => fetch(p, { method: body ? 'POST' : 'GET', headers: { 'X
   .then((r) => r.json());
 
 let catalogRoom = null;
-const names = { chess: new Map(), item: new Map(), equip: new Map(), card: new Map() };
+const names = { chess: new Map(), diy: new Map(), item: new Map(), equip: new Map(), card: new Map() };
 const idNames = new Map(); // operator / item / card id → its catalog label (the action log)
 const open = new Set(); // players whose 详情 row is expanded
 
@@ -128,6 +129,15 @@ async function loadCatalog(room) {
     }).join('');
   };
   fill(c.chess, 'chess', '#chess-list');
+  // 自选: any kitted operator at tier 5 / 6, normal or elite (server/match/adminDiy.js); the value is { charId, tier, elite }
+  names.diy.clear();
+  $('#diy-list').innerHTML = (c.diy || []).flatMap((x) => [false, true].map((elite) => {
+    const label = `${x.name}${elite ? '·精锐' : ''}（自选 ${x.tier} 阶）`;
+    const value = { charId: x.charId, tier: x.tier, elite };
+    names.diy.set(label, value);
+    idNames.set(JSON.stringify(value), label);
+    return `<option value="${esc(label)}"></option>`;
+  })).join('');
   fill(c.items, 'item', '#item-list');
   fill(c.items.filter((x) => x.equip), 'equip', '#equip-list');
   names.card.clear();
@@ -199,6 +209,7 @@ function playerRow(code, p) {
       ${p.bot ? '' : `<button ${on(code, p, 'autoplay', p.autoplay ? '取消托管' : '开启托管')} data-value="${p.autoplay ? 0 : 1}">${p.autoplay ? '取消托管' : '托管'}</button>`}</td>
     <td class="row">
       <input class="grant" list="chess-list" placeholder="发放干员…" aria-label="${esc(p.name)} 发放干员" data-grant="chess" data-player="${esc(p.id)}" data-room="${code}">
+      <input class="grant" list="diy-list" placeholder="发放自选…" aria-label="${esc(p.name)} 发放自选干员" data-grant="diy" data-player="${esc(p.id)}" data-room="${code}">
       <input class="grant" list="item-list" placeholder="发放道具…" aria-label="${esc(p.name)} 发放道具" data-grant="item" data-player="${esc(p.id)}" data-room="${code}">
       <button data-toggle="${esc(p.id)}" aria-expanded="${open.has(p.id)}">${open.has(p.id) ? '收起' : '详情'}</button>
     </td>
@@ -263,7 +274,7 @@ const TOTALS = [['dmgDealt', '伤害'], ['kills', '击杀'], ['leaks', '漏怪']
   ['gold', '花费'], ['buys', '购买'], ['sells', '出售'], ['refreshes', '刷新'], ['merges', '晋升'], ['itemsEquipped', '配装'], ['healing', '治疗'],
   ['bossDamage', '领袖伤害'], ['activatedLayers', '盟约层数']];
 const ACTION_NAMES = { rewind: '回档', endPrep: '结束休整期', pause: '暂停/继续', enemyPick: '指定敌人', battleWin: '判胜', battleLose: '判负',
-  timerScale: '计时倍率', endMatch: '结束对局', funds: '金币', lp: 'LP', level: '商店等级', refresh: '免费刷新', chess: '发放干员', item: '发放道具',
+  timerScale: '计时倍率', endMatch: '结束对局', funds: '金币', lp: 'LP', level: '商店等级', refresh: '免费刷新', chess: '发放干员', diy: '发放自选', item: '发放道具',
   bondAdd: '加层', bondSet: '设层', bondBonus: '人数加成', autoplay: '托管', effectRemove: '删除效果', bountyRemove: '删除悬赏', card: '补发机变卡',
   pieceRemove: '移除棋子', piecePromote: '升精锐', pieceEquip: '装备' };
 const compact = new Intl.NumberFormat('zh-CN', { notation: 'compact', maximumFractionDigits: 1 });
@@ -810,9 +821,9 @@ document.addEventListener('keydown', (e) => {
     el.blur();
   } else if (el.dataset.grant) {
     loadCatalog(el.dataset.room).then(() => {
-      const id = names[el.dataset.grant].get(el.value) || el.value.trim();
-      if (!id) return;
-      act(el.dataset.room, el.dataset.grant, el.dataset.player, id, { chess: '发放干员', item: '发放道具', card: '补发机变卡' }[el.dataset.grant]);
+      const id = names[el.dataset.grant].get(el.value) || (el.dataset.grant === 'diy' ? null : el.value.trim());
+      if (!id) { if (el.value.trim()) say(`没有这一项：${el.value.trim()}`, true); return; }
+      act(el.dataset.room, el.dataset.grant, el.dataset.player, id, { chess: '发放干员', diy: '发放自选', item: '发放道具', card: '补发机变卡' }[el.dataset.grant]);
       el.value = '';
       el.blur();
     });
