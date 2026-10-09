@@ -150,6 +150,7 @@ export const OPERATOR_KIT_FILES = Object.freeze([
   'op-necras.js',
   'op-kalts2.js',
   'op-monstr.js',
+  'op-orchd2.js', // local-tools: a collab pick (tools/build-data.mjs DIY_COLLAB_ALLOWED)
 ]);
 
 /**

@@ -102,7 +102,7 @@ test('every chess and 自选 form at every potential: the raw keyframes plus the
       forms++;
     }
   }
-  assert.equal(forms, 256);
+  assert.equal(forms, 259); // local-tools: + 焰狐龙梓兰's three forms (256 upstream)
 });
 
 test('talent candidates at every potential: each talent is the last one unlocked with requiredPotentialRank ≤ the rank', { skip: !HAS_CACHE && 'no .cache/gamedata' }, () => {

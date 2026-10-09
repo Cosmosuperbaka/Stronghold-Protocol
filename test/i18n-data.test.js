@@ -101,7 +101,9 @@ test('data/i18n/en.json: shape, the 盟约 season of the EN build, coverage and 
   for (const kind of ['operators', 'skills', 'talents', 'modules', 'traits', 'enemies', 'bonds', 'items', 'effects', 'bands', 'garrisons', 'stages', 'tokens', 'choices', 'config']) {
     const c = OVERLAY.meta.coverage[kind];
     assert.ok(c && c.texts > 0, `coverage of ${kind}`);
-    assert.ok(c.pct >= (['operators', 'skills', 'talents', 'modules'].includes(kind) ? 95 : 98), `${kind}: ${c.pct} %`);
+    // local-tools: talents 94.9 % — 焰狐龙梓兰 (a pick again, tools/build-data.mjs DIY_COLLAB_ALLOWED) is not in the EN client
+    const min = kind === 'talents' ? 94.5 : ['operators', 'skills', 'modules'].includes(kind) ? 95 : 98;
+    assert.ok(c.pct >= min, `${kind}: ${c.pct} %`);
   }
   assert.deepEqual(Object.keys(OVERLAY.files).filter((f) => !DATA_FILES.includes(f)), []);
   assert.equal(OVERLAY.names['琳琅诗怀雅'], 'Swire the Elegant Wit');
