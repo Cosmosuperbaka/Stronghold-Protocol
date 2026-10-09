@@ -1,5 +1,7 @@
 # 项目约定（私有分支 local-tools）
 
+上游给 AI 助手的入口是 [AGENTS.md](AGENTS.md)（必读文档、硬性规则、验证方法），和本文件冲突时以本文件为准。
+
 先读 [docs/LOCAL-DEV.md](docs/LOCAL-DEV.md)：本地改动清单、对局引擎速览、回档与控制台的实现、测试和已知坑。
 进行中的任务和接口要点见 [docs/HANDOFF.md](docs/HANDOFF.md)。
 
