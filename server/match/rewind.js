@@ -15,10 +15,10 @@
 // Fixed for the match since PlayerState's constructor, kept by reference: the 自选编队 picks (diy, _diyRecords, diyBanned,
 // the per-player gd view) and the stand-ins (standIns, _standInSet). The DIY stock's copies change in a round: its
 // entries are cloned like the shared pool's, the DiyStock instance itself stays.
-// Connection state (connected, left, autoplay) and the locked loadout stay as they are now.
+// Connection state (connected, left, autoplay) and the locked loadout and 潜能 / 练度 (`ops`) stay as they are now.
 
 const PS_SKIP = new Set(['m', 'gd', 'playerId', 'seat', 'name', 'isBot', 'connected', 'left', 'autoplay', 'lastEmoteAt',
-  'loadout', '_deployMap', '_deployField', '_legalityStale', '_lastPriv', '_botPrepToken',
+  'loadout', 'ops', '_deployMap', '_deployField', '_legalityStale', '_lastPriv', '_botPrepToken',
   'diy', '_diyRecords', 'diyBanned', 'diyStock', 'standIns', '_standInSet']);
 const MATCH_KEYS = ['round', 'wave', 'bossWaves', 'lastResults', 'draft', 'teamLp', 'hiddenLayerSum', 'hiddenReached', 'overtimeApplied', 'history', 'adminPicks'];
 const RNGS = ['rngSetup', 'rngShop', 'rngWaves', 'rngDraft', 'rngBots', 'rngMeta'];

@@ -114,3 +114,21 @@ test('自选编队 (0.2.0): the DIY stock is rewound in place, the picks stay', 
   assert.equal(h.m.errorCount, 0, JSON.stringify(h.m.errors));
   h.m.dispose();
 });
+
+test('潜能 / 练度 (0.2.2): the locked per-operator settings stay the same frozen object', () => {
+  const OPS = { char_003_kalts: { potential: 2, cultivate: 1 } };
+  const seats = [{ seat: 0, playerId: 'p_0', name: 'P0', isBot: false, connected: true, ops: OPS },
+    ...[1, 2, 3].map((i) => ({ seat: i, playerId: `ai_${i}`, name: `AI${i}`, isBot: true, connected: true }))];
+  const h = makeMatch({ mode: 'coop', seats, seed: 4343 }).start().autoHumans();
+  const ps = h.m.players.get('p_0');
+  const ops = ps.ops;
+  assert.deepEqual(ops, OPS);
+  h.drive(() => h.m.phase === PHASE.SETTLE && h.m.round === 3);
+  assert.deepEqual(rewindToPrep(h.m), { ok: true, round: 3 });
+  assert.equal(ps.ops, ops, 'the same object');
+  assert.ok(Object.isFrozen(ps.ops));
+  checkInvariants(h.m);
+  assert.ok(h.drive(() => h.ended != null));
+  assert.equal(h.m.errorCount, 0, JSON.stringify(h.m.errors));
+  h.m.dispose();
+});
