@@ -209,7 +209,7 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 ## 6. 测试
 
-- 全量：`node --test`，约 3500 项，在这台机器上要 10 分钟左右。
+- 全量：`node --test`，2026-10-09 是 5828 项，这台机器上约 5 分钟（之前记的是 10 分钟，机器忙时会更久）。一次只开一份，否则性能用例会超时。
 - 单个文件：`node --test test/match/rewind.test.js`。
 - 对局测试用 `test/match/harness.js` 的 `makeMatch()`：虚拟时钟（`VirtualScheduler`），完全确定。常用 `h.toPrep(r)`、`h.drive(pred)`（自动替真人确认、选策略、就绪）。注意 `h.runToEnd()` **不会**替真人操作，有真人座位时要用 `h.drive(() => h.ended != null)`。
 - `node tools/matchrun.mjs --check` 可以跑整局并检查不变量。
@@ -218,7 +218,8 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 | 测试 | 原因 |
 |---|---|
-| `test/assets.test.js` 的 manifest 检查 | 公开镜像缺约 31 个文件（几首 BGM、部分音效、几个敌人图标），`npm run setup` 重试多次也下不到。和代码无关 |
+| `test/assets.test.js` 的 manifest 检查 | 公开镜像缺约 31 个文件（几首 BGM、部分音效、几个敌人图标），`npm run setup` 重试多次也下不到。和代码无关。2026-10-09 的全量里没有失败 |
+| `test/assets-env-proxy.test.js` 的 2 项 | 环境里设了 `HTTP(S)_PROXY` 时，Node 22.14 的 `fetch` 不走代理。干净的 HEAD 上一样失败，和代码无关 |
 | `robustness.test.js` 的 boss 战场性能用例（偶尔还有 `realtime.test.js`） | 对 CPU 负载敏感。单独跑约 0.12 ms/tick（门槛 0.5 ms），全量测试里各文件并发跑时可能到 3.8 ms 而失败。它只测战斗模拟，不经过回档代码；合并后、加回档前那次全量是通过的，推测是新增的整局测试加重了并发负载，没有进一步验证 |
 
 ## 7. 踩过的坑

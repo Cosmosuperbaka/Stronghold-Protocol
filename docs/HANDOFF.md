@@ -1,44 +1,108 @@
-# 交接：主机控制台
+# 交接文档（私有分支 local-tools）
 
-最近更新 2026-10-08（第三期完成）。接手前先读 [CLAUDE.md](../CLAUDE.md) 和 [docs/LOCAL-DEV.md](LOCAL-DEV.md)：回档的原理、控制台的结构和安全措施、统计 / 敌人日程 / 休整期设置的实现、测试方法、踩过的坑都在里面，这里不重复。改动摘要见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md)。
+最近更新 2026-10-09。接手这个项目先读这份，再按需要读下面列的文档。这里只放现状、怎么跑、常见任务和待办，实现细节在 [LOCAL-DEV.md](LOCAL-DEV.md)，不重复。
 
-## 1. 当前状态
+## 1. 项目是什么
 
-- 远程 `origin` 是私有库 `zhewang448/Stronghold-Protocol`，`upstream` 是原作者仓库。上游已合并到 v0.2.1（`a122fde`）。
-- 2026-10-09：合并 v0.2.2（`62eb113`），临时分支 `local-tools-v0.2.2` 已快进合入 `local-tools` 并删除（没推过远端）。只有 `CLAUDE.md` 冲突（上游新增了指向 `AGENTS.md` 的同名文件，保留本地内容并加一行指引）；本地挂钩（`waveSource`、`prepSeconds`、`capturePrep`、控制台启动）都自动合并保留。0.2.2 新增的 `ps.ops`（每名干员的潜能 / 练度，开局后锁定、冻结）加进了 `rewind.js` 的 `PS_SKIP`，`rewind.test.js` 加了对应用例；`ps.personalChoice`（教鞭三选一）是普通数据，自动进快照。
-- 联动干员进自选池：7 名全部完成（kit 取自 BBleae fork `64866e81`，焰狐龙梓兰也换成了那边修过的版本）；控制台也能发放任一自选干员（LOCAL-DEV.md 第 5 节「发放自选」）。做法、移植时的改动、重新生成数据的步骤、合并上游时的注意事项见 LOCAL-DEV.md 第 8 节。
-- 第三期（含每回合干员伤害排行）都在 `local-tools` 上，已推到 `origin/local-tools`。合并 v0.2.1 时开的临时分支 `local-tools-v0.2.1` 已快进合入并删除（本地和远端）。
-- 用户的规则：只有明确说了才提交；提交信息不加 Claude 署名；不直接推 `master`。
-- 已验证（第三期）：`test/admin.test.js`（9 项）、`test/match/rewind.test.js`（4 项）通过；`test/match/` 全部加 i18n、文档、lobby 相关测试共 737 项，735 通过、0 失败、2 跳过。**没跑全量** `node --test`。浏览器里实测过曲线和悬停、每回合详情、上一局统计、对局记录页、敌人日程的指定、设置页的保存和预览。
-- 端口 3000 上通常是用户正在开服的进程，**不要动它**。测试用 `.claude/launch.json` 里的 `stronghold-dev`（3005，控制台在 3105）。控制台演示可以不开游戏服：用 `test/match/harness.js` 跑一局，再对一个假 lobby（`{ rooms, onMatchEnd() {}, safeData }`）调 `startAdmin({ port: 3106, resultsDir, settingsFile })`，把这两个路径指到临时目录，别写进仓库的 `logs/`。
+《明日方舟》「卫戍协议：盟约」的非商业同人复刻，跑在浏览器里：Node.js 服务器管经济、回合和房间，战斗模拟是服务器和浏览器共用的确定性代码。上游是 [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol)（GPL-3.0）。
 
-## 2. 已完成
+本仓库是用户（bushikq）的私有分支，用来开服给朋友玩，在上游之上加了：
 
-| 期 | 内容 |
+| 功能 | 主要文件 | 细节 |
+|---|---|---|
+| 主机控制台：改金币 / LP / 等级、发放干员和道具、盟约、托管、效果和机变卡、棋盘编辑、判胜负、计时倍率等 | `server/admin.js`、`admin.html` | LOCAL-DEV §5 |
+| 回档：回到任一回合的休整期开始 | `server/match/rewind.js` | LOCAL-DEV §4 |
+| 统计和记录：本局曲线、每回合详情、干员伤害排行、对局记录、敌人日程（含指定）、休整期时长设置 | `server/match/history.js`、`enemyPicks.js`、`hostSettings.js` | LOCAL-DEV §5 |
+| 控制台发放自选干员（选技能和模组、改技能） | `server/match/adminDiy.js` | LOCAL-DEV §5「发放自选」 |
+| 一键开服 + 公网隧道、释放端口 | `scripts/start-tunnel.*`、`stop-server.bat`、`free-port.mjs` | [scripts/README.md](../scripts/README.md) |
+| 7 名联动 6★ 进自选池（上游因版权排除） | `tools/build-data.mjs` 的 `DIY_COLLAB_ALLOWED`、`kits/ops/op-*.js` | LOCAL-DEV §8 |
+
+### 文档
+
+| 文档 | 内容 |
 |---|---|
-| 第一期 | 回到上个休整期开始；加金币、改 LP、商店等级、免费刷新、发放干员和道具 |
-| 第二期 | 每个休整期存档、选回合回档；盟约层数和人数加成；托管；效果和机变卡；棋盘编辑；敌人预览；战斗判胜判负；计时倍率 |
-| 第三期 | 本局统计（曲线、每回合详情、累计数据、干员排行）、上一局统计、操作日志；对局记录（自动保存 + 查看页）；敌人日程（全部组合、概率、实际出怪、任一回合指定）；休整期时长设置（全局、持久化） |
+| [CLAUDE.md](../CLAUDE.md) | 本分支给 AI 助手的约定（和 AGENTS.md 冲突时以它为准） |
+| [AGENTS.md](../AGENTS.md) | 上游的入口：必读文档、硬性规则（确定性、golden、生成的数据不能手改等）、验证方法 |
+| [LOCAL-DEV.md](LOCAL-DEV.md) | 本分支改了哪些文件、对局引擎速览、回档和控制台的实现、测试、踩过的坑、联动干员 |
+| [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md) | 本分支的更新记录（给玩家看的说法） |
+| [ARCHITECTURE.md](ARCHITECTURE.md)、[SIM.md](SIM.md)、[META.md](META.md)、[DATA.md](DATA.md) | 上游的代码地图、战斗引擎、对局流程、生成数据 |
 
-用户明确说「别的暂时不用」：商店指定格子、存档导出与恢复都不做。
+## 2. 当前状态
 
-## 3. 候选的下一步（用户还没选）
+- 远程：`origin` = 私有库 `zhewang448/Stronghold-Protocol`，`upstream` = 上游。工作分支 `local-tools`（私有库的默认分支），`master` 只跟踪上游、不改。
+- 已合并上游 v0.2.2（`62eb113`，2026-10-09）。2026-10-09 查过，上游 master / dev 没有更新的提交。
+- `local-tools` 比 `origin/local-tools` 多 2 个提交，**还没推送**：
+  - `bb1b599` 控制台：发放自选时可选技能和模组；改技能
+  - `2fc4236` 自选：其余 6 名联动干员进自选池（kit 取自 BBleae fork）
+- 测试（2026-10-09，`2fc4236` 上）：全量 5828 项，5808 通过、17 跳过、3 失败，3 个都是已知失败，见 §5。
+- 本地多了两组只读 ref，可以删：`refs/upstream-pr/*`（上游全部 PR 的 head，查联动 kit 时 fetch 的）、`refs/bbleae/*`（BBleae fork）。删除：`git for-each-ref --format='%(refname)' refs/upstream-pr refs/bbleae | xargs -n1 git update-ref -d`。
 
-第三期结束时提给用户的扩充方向，按价值排序。用户还没挑，做之前先确认。
+## 3. 环境与运行
 
-1. **每回合阵容快照**：在 `recordRound` 里记下作战区的干员、精锐、装备（`boardOrder(ps.board)`，名字用 `ps.gd`，参照 `admin.js` 的 `playerDetail`），每回合详情里显示。
-2. **漏怪分析**：`lastResults.get(pid).leaked` 每条带 `enemyKey`，按敌人汇总每回合漏了哪些、各几只，配合 `history[].enemy`。
-3. **跨局汇总**：「对局记录」页加总览，读 `logs/results/*.json`：胜率、按难度的平均通过回合、最常用的干员和盟约、伤害最高的干员。只读文件，不碰对局逻辑。
-4. **每回合经济明细**：`ps.round`（`refreshes / buys / sells / spent`）在回合开始时清零，要在 `settle()` 时（清零之前）记下来。
-5. **盟约层数曲线**：`ps.layers` 和 `ps.bonds[id].active`，曲线多一个指标或单独一张图。
-6. **导出 CSV**：每回合数据和累计数据，`/api/result?id=&format=csv` 或页面上生成下载。
+- 新 clone：`npm install && npm run setup`。素材下到 `public/assets/`（约 600 MB，不进 git），官方数据缓存在 `.cache/gamedata`。
+- 开服：双击 `scripts/start-tunnel.bat`，游戏在 3000 端口，控制台在 `http://127.0.0.1:3100`（只监听本机）。
+- **3000 端口通常是用户正在开服的进程，不要动它。** 开发预览用 `.claude/launch.json` 的 `stronghold-dev`（3005，控制台 3105）。
+- 浏览器测试：本机没有 Chrome，用 Edge：`CHROME_PATH="C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" SP_E2E=1 node --test test/ui/<文件>.e2e.test.js`。
 
-## 4. 附：第二期各项的实现要点
+## 4. 常见任务
 
-以下是第二期时读代码确认过的接口，第三期的实现见 LOCAL-DEV.md 第 5 节。行号是当时的，改过代码后以函数名为准。4.6 的「重新随机」已换成敌人日程，4.8、4.9 已按其中的要点完成（结算记录在控制台里自己画，没有复用游戏的 ResultScreen）。
+**合并上游新版本**
+1. `git fetch upstream`，开临时分支（如 `local-tools-v0.2.3`），`git merge upstream/master`。
+2. 冲突只会出在 LOCAL-DEV §2「改动过的上游文件」那几处。生成的数据（`data/backups.json`、`assets.json`、`i18n/*.json`、`test/golden/diy.json`）先取上游版本，再按 LOCAL-DEV §8 的 1–5 步重新生成，不要手工合。
+3. `npm install && npm run setup`，跑 `node --test test/match/rewind.test.js test/admin.test.js`，再跑全量。
+4. 上游给 `PlayerState` / `Match` 加了新字段时，检查回档要不要处理（LOCAL-DEV §4「以后加新状态时」）。
+5. 测完快进回 `local-tools`，删临时分支。
+
+**给控制台加操作**：LOCAL-DEV §5「加一个新操作」，接口参考见本文附录。新操作在 `test/admin.test.js` 里至少测一次，改完用 3005 的预览打开控制台实际看一遍。
+
+**加一名自选干员 / 联动干员**：LOCAL-DEV §8「加一名（或合并上游后）重新生成」。
+
+**改对局逻辑**：遵守 CLAUDE.md 的几条（`m.rng*`、`m.later`、`ps.dirty()` / `m.markPublic()`、`m.guard()`、`MATCH_KEYS`）和 AGENTS.md 的硬性规则（确定性、golden）。
+
+## 5. 测试
+
+- 改了哪里先跑哪里：`node --test test/<目录>/<文件>.test.js`。
+- 全量 `node --test` 约 5 分钟，一次只开一份。
+- 已知失败（2026-10-09 全量）：
+
+| 测试 | 原因 |
+|---|---|
+| `test/assets-env-proxy.test.js` 的 2 项 | 本机设了代理，Node 22.14 的 `fetch` 不走代理。干净的 HEAD 上一样失败 |
+| `test/sim/robustness.test.js` 的 boss 战场性能用例 | 全量并发时 CPU 负载高，两次全量分别测到 0.59、2.09 ms/tick，门槛 0.5 ms。单独跑能过 |
+
+## 6. 待办和候选（都要先问用户）
+
+**联动干员没做完的**（fork 那边本来就没做，见 LOCAL-DEV §8）
+- 丰川祥子的 Fever 槽、粉色技力条、KiLLKiSS BGM 切换，以及音符的飞行轨迹没画。
+- 焰狐龙梓兰的龙之箭没有自己的飞行图形。
+- 艾拉的雷鸣地雷没有 Spine 模型，只显示头像。
+- EN / JA / KO 客户端没有焰狐龙梓兰和结城理，zh-TW 没有麒麟R夜刀，对应界面显示中文。
+
+**控制台的扩充方向**（第三期结束时提给用户的，按价值排序，用户还没挑）
+1. 每回合阵容快照：在 `recordRound` 里记下作战区的干员、精锐、装备（`boardOrder(ps.board)`，名字用 `ps.gd`，参照 `admin.js` 的 `playerDetail`），每回合详情里显示。
+2. 漏怪分析：`lastResults.get(pid).leaked` 每条带 `enemyKey`，按敌人汇总每回合漏了哪些、各几只，配合 `history[].enemy`。
+3. 跨局汇总：「对局记录」页加总览，读 `logs/results/*.json`：胜率、按难度的平均通过回合、最常用的干员和盟约、伤害最高的干员。只读文件，不碰对局逻辑。
+4. 每回合经济明细：`ps.round`（`refreshes / buys / sells / spent`）在回合开始时清零，要在 `settle()` 时（清零之前）记下来。
+5. 盟约层数曲线：`ps.layers` 和 `ps.bonds[id].active`，曲线多一个指标或单独一张图。
+6. 导出 CSV：每回合数据和累计数据，`/api/result?id=&format=csv` 或页面上生成下载。
+
+用户明确说不做的：商店指定格子、存档导出与恢复。
+
+## 7. 用户的规则
+
+- 用中文回答，结论先行；没验证的说没验证。
+- 只有用户明确说了才提交；提交信息和 PR 里不加 Claude / AI 署名，作者只写用户一个人。
+- 不直接推 `master`。force push、`reset --hard`、`clean -f`、`branch -D` 这类破坏性操作先问。
+- 查 GitHub 一律用已登录的 `gh`，不要匿名 curl `api.github.com`。
+- 文档用简体中文，代码和注释用英文。
+- 控制台的数据、记录和设置只走 127.0.0.1 的控制台端口；不要在游戏端口上加入口（它通过隧道对公网开放，没有鉴权）。
+
+## 附：控制台各操作用到的引擎接口
+
+以下是第二期时读代码确认过的接口，第三期的实现见 LOCAL-DEV.md 第 5 节。行号是当时的，改过代码后以函数名为准。A.6 的「重新随机」已换成敌人日程，A.8、A.9 已按其中的要点完成（结算记录在控制台里自己画，没有复用游戏的 ResultScreen）。
 
 
-### 4.1 每回合存档
+### A.1 每回合存档
 
 **已完成（2026-10-04）**：下列内容已实现并通过 `rewind.test.js`、`admin.test.js`。
 
@@ -50,7 +114,7 @@
 - 控制台：回档按钮改成「回到第 [下拉] 回合休整期」。`matchView` 里 `rewindRound` 改成 `rewindRounds: number[]`。
 - 测试：在 rewind.test.js 加一个用例「从第 6 回合回到第 3 回合后重打 ≡ 直打」，同时断言第 4–6 回合的存档已被删掉。
 
-### 4.2 盟约
+### A.2 盟约
 
 - 层数在 `ps.layers[bondId]`，上限 `BOND_LAYER_CAP = 999`（`shared/constants.js`，用 `layerGainRoom(before, n)` 截断）。
 - **增加（走游戏逻辑）**：`ps.addLayers(bondId, n, { reason: 'admin' })`（`PlayerState.js` 约 807 行）。它会 `recompute()` 并派发 `onLayers`，等同正常获得。只能加，不能减。
@@ -59,19 +123,19 @@
 - 盟约列表：`m.gd.bondIds`，名字 `m.gd.bond(id).name`，激活门槛 `gd.bond(id).thresholds`（如炎 `[3, 6, 9]`）。当前状态读 `ps.bonds[id]`：`{ count, active, tier, layers }`。
 - 控制台：每个玩家展开一个盟约表（名字、人数/门槛、层数、加成），三个操作 `bondAdd`、`bondSet`、`bondBonus`。
 
-### 4.3 托管切换
+### A.3 托管切换
 
 - `m.setAutoplay(ps, on)`（`Match.js` 约 1006 行），开启时内部会 `kickBot(ps)` 让 AI 接手当前阶段。只对真人有意义，AI 座位跳过。
 - 玩家能看到自己被托管：`m.public.players[].autoplay` 已经存在，客户端会显示。
 
-### 4.4 效果和机变卡
+### A.4 效果和机变卡
 
 - 列表：`ps.effects`，每项 `{ id, key, name, desc, iconKind, counter?, battle?, params?, data? }`；`ps.bounties`（悬赏）。
 - 删除：`ps.effects.splice(i, 1); ps.dirty();`，与 `effectsMeta.js` 的 `removeEffect` 一致。
 - 补发机变卡：`applyCard(m, ps, card)`（`choices.js`，Match 里通过 `m._applyCard` 调用）。卡片来源 `m.gd.choices.cards.tactic`（43 张）和 `.bounty`（129 张）；战术卡要先 `tacticCard(c)` 转成卡片对象。悬赏卡用 `m.addBounty(ps, card)`。
 - 注意 `card.team` 为真的战术卡会同时作用到所有队友（`applyCard` 内部处理）。界面上要提示。
 
-### 4.5 棋盘
+### A.5 棋盘
 
 - `ps.board` 是 `Map<"r,c", piece>`（`tileKey` 在 `server/match/board.js`）。合法区域 `GEO.FIELD = { r0: 9, r1: 12, c0: 2, c1: 10 }`。手牌 `ps.hand`（10 格）、整备区 `ps.temp`（5 格）。棋子 `{ uid, kind: 'chess'|'item'|'token', id, items, poolCopies, ... }`。
 - 定位：`ps.find(uid)` → `{ piece, area, idx?, key?, holder? }`。
@@ -80,14 +144,14 @@
 - 装道具：`equip()` 带 `_gate()`，非休整期或已就绪会被拒。控制台要无视阶段的话，直接用 `ps._attach(target, item)` + 派发 `onEquip`，参照 `equip()` 里非消耗品的那条分支。
 - 显示：表格或 4×9 小网格（行 9–12、列 2–10），每格显示干员名和精锐标记即可，不需要画图。
 
-### 4.6 敌人预览
+### A.6 敌人预览
 
 - 每个玩家下一场的敌人：`m.nextEnemiesFor(ps)` → `[{ enemyKey, count, gate, t, fly, elite, boss, source }]`，名字 `m.gd.enemy(key).name`。
 - 普通回合的波次在 `startRound` 里用 `buildNormalWave(gd, m.rngWaves, m.factions, r)` 生成，存在 `m.wave`；boss 回合是 `m._planBossWaves()` → `m.bossWaves`。
 - **实现时发现**：每回合的敌人条目在开局时就由日程定死了，直接重新调用 `buildNormalWave` 得到的是同一批敌人，也不消耗 `rngWaves`。实际做法是用 `pickRoundEntry` 在同一阵营类型里重抽，见 LOCAL-DEV.md 第 5 节。
 - （2026-10-08 起「重新随机」已换成「敌人日程」，见 LOCAL-DEV.md 第 5 节。下面是原来的做法。）「重新随机」：只允许在 ROUND_START / SP_DRAFT / PREP（战斗开始前）。重新调用上面的函数会多消耗一次 `rngWaves`，之后的随机流跟着变。这是预期行为，回档能恢复。改完要 `markPublic()` 并给每人 `dirty()`（预览在 `m.private.nextEnemies` 里）。
 
-### 4.7 战斗干预
+### A.7 战斗干预
 
 - 默认客户端战斗：战场在 `m.fields`，每个 `f` 有 `cc: true`、`battleId`、`players`、`mode`、`done`。
 - **判本场胜**：`f.result = syntheticResult(f.players)`（`fields.js`，空漏怪 = 完美）→ 给显示该战场的真人发 `{ t: 'b.end', battleId, fieldId, reason: 'forced' }`（`m._humansShowing(f)`，参照 `_endFinal`）→ `m._fieldDone(f)`。全部战场完成后会自动进入结算。
@@ -97,7 +161,7 @@
 - 计时倍率：`m.timerScale`，`m.scaled(ms)` 读它。已经设好的倒计时不会重算，只影响之后的计时。
 - 测试：用 harness 的 `clientCombat: true` 跑到 COMBAT，强制判胜，断言进入 SETTLE 且 LP 不变；判负断言 LP 扣了 `min(10, n)`。
 
-### 4.8 数据记录与曲线
+### A.8 数据记录与曲线
 
 - 记录点：`settle()` 末尾（结算后 LP 已扣），每回合每个玩家记 `{ round, lp, funds, level, layers }`，存到 `m.history`（数组，在构造函数里初始化）。把 `history` 加进 `rewind.js` 的 `MATCH_KEYS`：回档时历史会自动恢复成那个休整期时的样子，和存档的截断规则一致，不用另写代码。
 - 控制台操作日志：`handleAction` 里已经 `log.info`，另外存一份到 `room` 或 `match` 上的数组（最近 100 条），页面上显示。
@@ -109,7 +173,7 @@
   - 提供一个「表格」切换，列出同样的数据，保证不用悬停也能读到。
   - 做完截图检查标签是否重叠。
 
-### 4.9 保存对局结算记录
+### A.9 保存对局结算记录
 
 - 结算数据就是 `m.result` 帧：`buildResult(m, outcome)`（`server/match/results.js`），对局结束时存在 `m.lastResultMsg`；lobby 的 `onMatchEnd(room, ctx, summary)` 收到的 `summary` 是去掉 `t` 后的同一份数据，另加 `errors`。
 - 保存：在 `onMatchEnd`（或 `Match.finish` 之后）写 `logs/results/<时间>-<房间码>.json`。`logs/` 已在 `.gitignore` 里。建议同时存当时的 `m.public` 一份，客户端的 `normalizeResult(res, pub)` 会用它补齐字段。
@@ -119,14 +183,3 @@
   - 这样记录只在本机可见，不会通过隧道暴露。
   - 不要把记录放到游戏服务器的公开路径下：游戏端口通过隧道对公网开放，而且没有鉴权。
 - 控制台加一个「对局记录」列表：时间、房间、模式难度、胜负、回合数，点开看统计页。
-
-## 5. 做法约定
-
-- 每个新操作都加进 `admin.js` 的 `PLAYER_ACTIONS` / `MATCH_ACTIONS`，在 `m.guard()` 里执行，返回 `OK` 或 `{ error }`。
-- 改了状态：`ps.dirty()` / `m.markPublic()`；影响羁绊或棋盘：`ps.recompute()`。
-- 对局逻辑里不要用 `Math.random` / `Date.now`。
-- 给 `Match` 加回合内会变的字段，同步更新 `rewind.js` 的 `MATCH_KEYS`，跑 `node --test test/match/rewind.test.js`。
-- 新操作在 `test/admin.test.js` 里至少各测一次。全量 `node --test` 约 10 分钟，一次只开一份。
-- 改完用 3005 的预览（或第 1 节说的演示控制台）实际打开控制台看一遍，再告诉用户。
-- 控制台的数据、记录和设置只走 127.0.0.1 的控制台端口；不要在游戏端口上加入口（它通过隧道对公网开放，没有鉴权）。
-- 回复用中文，结论先行；没验证的说没验证。
