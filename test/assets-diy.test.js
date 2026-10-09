@@ -114,8 +114,14 @@ test('the committed data/assets.json lists every 自选 operator\'s avatar, port
 test('an operator left out of 自选 (data/backups.json diy.excluded: the collab picks) keeps no art in data/assets.json, so the full release zip (tools/package.mjs) never ships it', () => {
   const m = load('assets');
   const text = JSON.stringify(m);
-  // local-tools: 焰狐龙梓兰 (MH05) is a pick again (tools/build-data.mjs DIY_COLLAB_ALLOWED), with her art
-  assert.ok(!BACKUPS.diy.excluded.includes('char_1048_orchd2') && m.chars.char_1048_orchd2, '焰狐龙梓兰 is a pick with art');
+  // local-tools: the 7 collab 6★ are picks again (tools/build-data.mjs DIY_COLLAB_ALLOWED), with their art, sound and voice
+  assert.deepEqual(BACKUPS.diy.excluded, []);
+  for (const id of ['char_456_ash', 'char_1029_yato2', 'char_1048_orchd2', 'char_4123_ela', 'char_4141_marcil', 'char_4182_oblvns', 'char_4217_makoto']) {
+    const c = m.chars[id];
+    assert.ok(c?.avatar && c.portraitE2 && c.spine?.front && c.spine?.back, `${id}: art and Spine`);
+    assert.ok(m.audio.sfx.units[id] && m.audio.voice[id] && m.audio.voiceJp[id], `${id}: sound and voice`);
+  }
+  assert.ok(m.tokens.token_10033_ela_grzmot?.avatar, "艾拉's 雷鸣地雷: its avatar (no Spine on the mirrors)");
   for (const id of BACKUPS.diy.excluded) {
     const code = id.split('_').slice(2).join('_');
     assert.equal(m.chars[id], undefined, `${id}: chars`);

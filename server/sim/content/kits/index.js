@@ -150,7 +150,14 @@ export const OPERATOR_KIT_FILES = Object.freeze([
   'op-necras.js',
   'op-kalts2.js',
   'op-monstr.js',
-  'op-orchd2.js', // local-tools: a collab pick (tools/build-data.mjs DIY_COLLAB_ALLOWED)
+  // local-tools: the collab picks (tools/build-data.mjs DIY_COLLAB_ALLOWED), kits from the BBleae fork (64866e81)
+  'op-ash.js',
+  'op-yato2.js',
+  'op-orchd2.js',
+  'op-ela.js',
+  'op-marcil.js',
+  'op-oblvns.js',
+  'op-makoto.js',
 ]);
 
 /**

@@ -635,15 +635,23 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
   // `audio.voiceJp` (VOICE_JP_LANG): the same slots and lines in the Japanese dub, a second tree beside the Chinese one
   // (the owner's request of 2026-10-08) — same file names, `audio/voice/jp/`.
   const voiceSlotsByChar = indexVoice(charword, VOICE_ID_LANG, voiceSlots);
+  // local-tools: a collab operator voiced only in its LINKAGE dub (charword voiceLangDict: no CN_MANDARIN — 灰烬, 艾拉,
+  // 玛露西尔, 丰川祥子, 结城理, 自选 picks of this branch: tools/build-data.mjs DIY_COLLAB_ALLOWED) has no voice_cn folder;
+  // its 中文 tree takes that dub, which the dump keeps under voice/ (the JP folder).
+  const linkageOnly = (charId) => {
+    const dict = charword?.voiceLangDict?.[charId]?.dict;
+    return !!dict && !dict.CN_MANDARIN && !!dict.LINKAGE;
+  };
   const voiceTree = (lang) => {
     const tree = {};
     for (const [charId, slots] of voiceSlotsByChar) {
       if (!chars[charId]) continue;          // only the operators this game can field (`chars`: the 138 pool charIds and the 自选 picks)
+      const dub = lang === 'cn' && linkageOnly(charId) ? VOICE_JP_LANG : lang;
       const v = {};
       for (const [slot, assets] of Object.entries(slots)) {
         // one leaf per line (部署1 / 部署2 …): an array stays an array so the client can draw one — chaining them as
         // alternatives of a single leaf would keep only the first line that landed on disk.
-        const lines = assets.map((a) => leaf(voiceAlt(a, lang))).filter(Boolean);
+        const lines = assets.map((a) => leaf(voiceAlt(a, dub))).filter(Boolean);
         if (!lines.length) continue;
         v[slot] = lines.length === 1 ? lines[0] : lines;
       }

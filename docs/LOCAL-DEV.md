@@ -43,10 +43,15 @@
 | `server/match/audit.js` | 休整期倒计时的检查改用 `prepSeconds()` |
 | `server/http/boot.js` | `runMain()` 里启动控制台，打印 `Console:` 地址 |
 | `tools/build-data.mjs` | 加了 `DIY_COLLAB_ALLOWED`：列在里面的联动 6★ 不受两条联动排除规则限制，进自选池（见第 8 节） |
-| `server/sim/content/kits/index.js` | `OPERATOR_KIT_FILES` 末尾加了 `op-orchd2.js` |
-| `public/js/render/fx/kinds.js` | `FX_KINDS` 加了 `dragonArrow`（梓兰 S3 出手时的闪光，箭的飞行没画） |
+| `server/sim/content/kits/index.js` | `OPERATOR_KIT_FILES` 末尾加了 7 个联动 kit（`op-ash.js` … `op-makoto.js`） |
+| `server/sim/ai.js` | `attack` hook 多带一个 `attackId`（两处 `b.emit('attack', …)`），丰川祥子的音符要用 |
+| `server/sim/battle/combat.js` | 加了 `nextAttackId()`：丰川祥子没有目标时的「持续攻击」自己领一个攻击编号 |
+| `server/sim/content/traitMods.js` | 加了 `KIT_OWNED_CHARS`（丰川祥子）：她的 LOR-Y 和 REA-Y 句式相同，但只算技能未开启时的范围，由她的 kit 处理；不排除的话引擎会再加一次攻速 |
+| `tools/assets/plan.mjs` | 中文语音树：只有联动配音（`voiceLangDict` 没有 `CN_MANDARIN`、有 `LINKAGE`）的干员改用 `voice/` 目录（灰烬、艾拉、玛露西尔、丰川祥子、结城理） |
+| `public/js/render/fx/kinds.js` | `FX_KINDS` 加了 `persona`（结城理换人格，只换模型）、`oblvnsNote`（丰川祥子音符命中） |
+| `public/js/render/units.js` | `FORMS` 加了 `char_4217_makoto`：结城理各人格的动画 |
 | 生成的数据 | `data/backups.json`、`data/assets.json`、`data/i18n/*.json`、`test/golden/diy.json`：合并上游时按第 8 节重新生成，不要手工合 |
-| 测试里写死的数量 | `test/backups.test.js`、`diy.test.js`、`assets-diy.test.js`、`full-potential.test.js`、`potential.test.js`、`i18n-data.test.js`、`feedback7-voices.test.js`：自选池 71 → 72、单位形态 256 → 259、有语音的干员 191 → 192 等，改动处都标了 `local-tools` |
+| 测试里写死的数量 | `test/backups.test.js`、`diy.test.js`、`assets-diy.test.js`、`full-potential.test.js`、`potential.test.js`、`i18n-data.test.js`、`feedback7-voices.test.js`、`content/feedback5-we2-summon-hand.test.js`、`render/issue25-downback.test.js`：自选池 71 → 78、单位形态 256 → 277、有语音的干员 191 → 198 等，改动处都标了 `local-tools` |
 
 上游自己的文档（`docs/DATA.md`、`ASSETS.md` 等）里「71 名、7 名联动被排除」的说法没改，避免合并冲突，以本节为准。
 
@@ -227,15 +232,33 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 ## 8. 联动干员进自选池
 
-上游以版权为由把联动 6★ 排除在自选池外（`tools/build-data.mjs` 的 `DIY_EXCLUDED_TEAMS` 按阵营、`DIY_EXCLUDED_NUMBER_PREFIXES` 按编号前缀）。本分支的决定（2026-10-09）是写好 kit 的联动干员逐个放进来：把 charId 加进同一文件里的 `DIY_COLLAB_ALLOWED`，再按下面的步骤重新生成。
+上游以版权为由把联动 6★ 排除在自选池外（`tools/build-data.mjs` 的 `DIY_EXCLUDED_TEAMS` 按阵营、`DIY_EXCLUDED_NUMBER_PREFIXES` 按编号前缀）。本分支的决定（2026-10-09）是把联动干员放进来：charId 列在同一文件里的 `DIY_COLLAB_ALLOWED`，再按下面的步骤重新生成。现在 7 名全部加入，自选池 71 → 78。
 
 ### 已加入
 
-| 干员 | kit | 来源 |
-|---|---|---|
-| 焰狐龙梓兰 `char_1048_orchd2`（MH05） | `ops/op-orchd2.js`、`test/content/op_orchd2.test.js` | 上游 feedback5 O6 写过（`4075338`），排除她时（`8287422`）丢掉了。原样取回，只改了 0.2.2 满潜后的数字：再部署 70 → 66 秒，T1 115% → 120%。kit 本身从数据读数，不用改 |
+7 名的 kit 都取自 BBleae 的 fork（`BBleae/Stronghold-Protocol`，提交 `64866e81`，2026-10-08，GPL-3.0，和上游同许可证）。那边按上游 kit 规范写，带每名一个 `test/content/op_<代号>.test.js`，设计说明在它的 `docs/design/fork.md` §F6（每名做了什么、哪些是 [ASSUMED]）。本地 fetch 在 `refs/bbleae/*`。
 
-还没有 kit 的 6 名：灰烬、艾拉、麒麟R夜刀、丰川祥子、结城理、玛露西尔。可以对照的资料：`WhoAteMyCQQkie/ArknightsDpsCompare` 的 `damage_formulas.py`（有其中 5 名，没有结城理）、`xulai1001/akdata` 的 `dps_anim.json`（有灰烬、艾拉、夜刀的动画帧）。两个库都没有许可证，只能参考，不能抄代码。
+| 干员 | kit | 盟约 |
+|---|---|---|
+| 灰烬 `char_456_ash`（RS01） | `op-ash.js` | 协防 |
+| 麒麟R夜刀 `char_1029_yato2`（MH02） | `op-yato2.js` | 协防 |
+| 焰狐龙梓兰 `char_1048_orchd2`（MH05） | `op-orchd2.js` | 协防 |
+| 艾拉 `char_4123_ela`（RS05） | `op-ela.js`，召唤物雷鸣地雷 `token_10033_ela_grzmot`（手牌 4） | 协防 |
+| 玛露西尔 `char_4141_marcil`（DD02） | `op-marcil.js` | 协防 |
+| 丰川祥子 `char_4182_oblvns`（AM01） | `op-oblvns.js` | 协防 |
+| 结城理 `char_4217_makoto`（PS33） | `op-makoto.js` | 拉特兰（隐藏势力） |
+
+那个 fork 基于 0.2.1，搬过来时改了这些：
+- `Math.hypot` / `sin` / `cos` 换成 `server/sim/detmath.js` 的版本（0.2.2 起 sim 里禁用，`test/sim/detmath.test.js` 会扫）：灰烬、丰川祥子。
+- 玛露西尔用到 fork 独有的 `server/sim/content/fxtiles.js` 的 `keyTiles`（只是 fx 的格子列表），内联进了 `op-marcil.js`。
+- 丰川祥子的 LOR-Y：0.2.2 的 `traitMods.js` 会给所有「攻击范围内存在N名及以上敌人时攻击速度+X」自动加攻速，她的 kit 自己也加（只算技能未开启时的范围），会算两次。在 `traitMods.js` 里按 charId 排除了她（`KIT_OWNED_CHARS`）。
+- 焰狐龙梓兰换成了 fork 的版本（他们修过 S1/S2/S3 的时序和箭的偏移），替掉了原先取回的上游 feedback5 版本；原来本地加的 fx `dragonArrow` 不再用到，删了。
+- 联动干员大多只有联动配音（`LINKAGE`），镜像上没有 `voice_cn/`，中文语音树改用 `voice/` 下的同名文件（`tools/assets/plan.mjs`）。所以这 5 名的中文、日文语音是同一套。
+- fork 的 `TOKEN_SKIN_SPINES`（艾拉地雷的皮肤模型）上游没有，没搬：雷鸣地雷没有 Spine，只有头像。
+
+`test/ui/diy-collab.e2e.test.js`（fork 的浏览器测试：选人、商店、部署、战斗里结城理的人格模型）也搬了。本机没有 Chrome，用 Edge 跑：`CHROME_PATH="C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" SP_E2E=1 node --test test/ui/diy-collab.e2e.test.js`。
+
+fork 文档里列的未完成项（§F6.4）：Fever 槽、她的粉色技力条和 KiLLKiSS BGM 切换没画，音符的飞行没画；龙之箭没有自己的飞行图形；艾拉地雷没有模型。
 
 ### 加一名（或合并上游后）重新生成
 
@@ -248,6 +271,6 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 ### 合并上游时
 
-`data/backups.json`、`assets.json`、`i18n/*.json`、`test/golden/diy.json` 都是生成的：冲突时先取上游版本，再按上面的 1–5 步重新生成。第 7 节说的「`data/assets.json` 用上游的版本」在这里不适用：直接用上游版本会丢掉梓兰的素材条目，要再跑一次第 3 步。
+`data/backups.json`、`assets.json`、`i18n/*.json`、`test/golden/diy.json` 都是生成的：冲突时先取上游版本，再按上面的 1–5 步重新生成。第 7 节说的「`data/assets.json` 用上游的版本」在这里不适用：直接用上游版本会丢掉联动干员的素材条目，要再跑一次第 3 步。
 
-EN 客户端里还没有梓兰，她的名字、技能、天赋在英文界面显示中文。`test/i18n-data.test.js` 的天赋覆盖率门槛因此从 95% 降到 94.5%（实测 94.9%）。
+EN / JA / KO 客户端里没有焰狐龙梓兰和结城理，zh-TW 里还没有麒麟R夜刀，这些在对应界面显示中文。`test/i18n-data.test.js` 的天赋覆盖率门槛因此从 95% 降到 94%（实测 94.5%）。

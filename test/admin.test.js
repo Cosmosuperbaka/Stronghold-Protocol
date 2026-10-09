@@ -320,7 +320,7 @@ test('console (local-tools): any 自选 operator to anyone — a slot of the tie
   const bot = m.players.get('ai_0');
   assert.deepEqual(h.act('diy', { charId: ZILAN, tier: 5 }, 'ai_0'), { ok: true });
   assert.equal(bot.gd.chess(Object.keys(bot.diy)[0]).charId, ZILAN);
-  assert.match(h.act('diy', { charId: 'char_456_ash', tier: 5 }).error, /没有这个自选干员/);
+  assert.match(h.act('diy', { charId: 'char_999_nobody', tier: 5 }).error, /没有这个自选干员/);
   assert.match(h.act('chess', 'chess_char_5_diy2_a').error, /发放自选/);
   // the skill and module: given at the grant (W, tier 5), then changed in place for the slot's pieces (diySkill)
   const wc = cat.diy.find((x) => x.charId === W && x.tier === 5);

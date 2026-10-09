@@ -1178,10 +1178,10 @@ const DIY_EXCLUDED_TEAMS = Object.freeze(['rainbow', 'action4', 'mujica', 'sees'
 const DIY_EXCLUDED_NUMBER_PREFIXES = Object.freeze(['MH', 'RS', 'AM', 'PS', 'DD']);
 /**
  * local-tools: the collab 6★ let back into the 自选 pool despite the two lists above (the private branch's decision of
- * 2026-10-09 — collab operators join the pool as their kits are written; docs/LOCAL-DEV.md). 焰狐龙梓兰 (MH05) first: her
- * kit is upstream's feedback5 O6 (4075338), dropped when she left the pool.
+ * 2026-10-09 — collab operators join the pool as their kits are written; docs/LOCAL-DEV.md). All seven, with the kits
+ * of the BBleae fork (64866e81, GPL-3.0): 灰烬, 麒麟R夜刀, 焰狐龙梓兰, 艾拉, 玛露西尔, 丰川祥子, 结城理.
  */
-const DIY_COLLAB_ALLOWED = Object.freeze(['char_1048_orchd2']);
+const DIY_COLLAB_ALLOWED = Object.freeze(['char_456_ash', 'char_1029_yato2', 'char_1048_orchd2', 'char_4123_ela', 'char_4141_marcil', 'char_4182_oblvns', 'char_4217_makoto']);
 
 /**
  * The skill a prototype carries in a 自选 slot when no 补位 row of the slot's tier names it (only 预备干员-医疗 at tier 5:

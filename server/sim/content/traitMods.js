@@ -101,6 +101,14 @@ const KIT_OWNED = [
 ];
 
 /**
+ * local-tools: operators whose kit owns a line of the shape CONDITIONS would take — refused as 'kit' before the clause
+ * is read. 丰川祥子 (char_4182_oblvns, a collab 自选 pick of this branch) LOR-Y states REA-Y's very sentence, but PRTS's
+ * module note 「仅未开启技能时的攻击范围可享受该特性加成」 counts only her skill-off range, which ops/op-oblvns.js
+ * implements (LORY_KEY); the engine rule (live range) would apply it a second time.
+ */
+const KIT_OWNED_CHARS = new Set(['char_4182_oblvns']);
+
+/**
  * Lines that only ever apply in another game mode — 集成战略 (ISW modules, e.g. 水月 ISW-A `attack_speed: 50`). This
  * mode is 卫戍协议, and the rest of the repo already ignores their mode-gated halves (shared/loadoutRecord.js
  * `traitRangeExtend` skips 空弦 ISW-A for exactly this reason), so they are refused here too.
@@ -173,6 +181,7 @@ export function traitAttackSpeedRule(def) {
   if (!sources.length) return null;
   const value = num(sources[0].attack_speed);
   if (!value) return null;
+  if (KIT_OWNED_CHARS.has(def?.charId)) return { value, condition: null, clause: '', source: null, reason: 'kit' };
   for (const text of traitClauses(def)) {
     const clause = conditionClause(text);
     if (!clause) continue;

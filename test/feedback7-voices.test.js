@@ -62,7 +62,22 @@ test('plan: audio.voiceJp is the JP dub (ArknightsAssets2 voice/) of the very sl
   assert.ok(plan({ voiceSlots: null }).audio.voiceJp.char_263_skadi.gacha);
 });
 
-test('data/assets.json: voiceJp gives every voiced operator the JP twin of each Chinese line (192 operators, 2688 files — local-tools: + 焰狐龙梓兰); stand-ins, 盟约·辅助干员 and summons have neither', () => {
+test('plan (local-tools): a collab operator voiced only in its LINKAGE dub (no CN_MANDARIN) takes it in the 中文 tree too — the dump keeps it under voice/', () => {
+  const cw = (charId, langs) => ({
+    charWords: { a: { charId, wordKey: charId, placeType: 'BATTLE_START', voiceId: 'CN_019', voiceIndex: 19, voiceAsset: `${charId}/CN_019` } },
+    voiceLangDict: { [charId]: { charId, dict: Object.fromEntries(langs.map((l) => [l, { voiceLangType: l }])) } },
+  });
+  const ops = { char_456_ash: { name: '灰烬', skills: [] }, char_263_skadi: { name: '斯卡蒂', skills: [] } };
+  const ash = plan({ charword: cw('char_456_ash', ['LINKAGE']), extraOperators: ops }).audio;
+  assert.equal(ash.voice.char_456_ash.start.alts[0].rel, 'audio/voice/jp/char_456_ash/cn_019.mp3');
+  assert.deepEqual(ash.voice.char_456_ash.start.alts[0].urls, [`${RAW.aa2voice}voice/char_456_ash/cn_019.mp3`]);
+  assert.deepEqual(ash.voiceJp.char_456_ash, ash.voice.char_456_ash);
+  // an operator with a Chinese dub keeps voice_cn/, whatever else it has
+  const skadi = plan({ charword: cw('char_263_skadi', ['CN_MANDARIN', 'JP', 'LINKAGE']), extraOperators: ops }).audio;
+  assert.equal(skadi.voice.char_263_skadi.start.alts[0].rel, 'audio/voice/cn/char_263_skadi/cn_019.mp3');
+});
+
+test('data/assets.json: voiceJp gives every voiced operator the JP twin of each Chinese line (198 operators, 2772 files — local-tools: + the 7 collab picks); stand-ins, 盟约·辅助干员 and summons have neither', () => {
   const m = readJson('data/assets.json');
   const cn = m.audio.voice;
   const jp = m.audio.voiceJp;
@@ -70,13 +85,13 @@ test('data/assets.json: voiceJp gives every voiced operator the JP twin of each 
   assert.deepEqual(Object.keys(jp), Object.keys(cn), 'the same operators');
   assert.equal(m.stats.voiceJpChars, Object.keys(jp).length);
   assert.equal(m.stats.voiceChars, Object.keys(cn).length);
-  assert.equal(Object.keys(jp).length, 192);
+  assert.equal(Object.keys(jp).length, 198);
   // the JP tree is the Chinese one with the folder swapped: same slots, same lines in the same order, same file names
   assert.deepEqual(JSON.parse(JSON.stringify(cn).replaceAll('/assets/audio/voice/cn/', '/assets/audio/voice/jp/')), jp);
   const lines = [];
   const walk = (x) => { if (typeof x === 'string') lines.push(x); else if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === 'object') Object.values(x).forEach(walk); };
   walk(jp);
-  assert.equal(lines.length, 2688);
+  assert.equal(lines.length, 2772);
   for (const u of lines) assert.match(u, /^\/assets\/audio\/voice\/jp\/char_[^/]+\/cn_\d+\.mp3$/);
   // no voice: the 17 stand-ins of data/backups.json (预备干员 / 原型干员), the mode's 盟约·辅助干员, every summon
   const backups = readJson('data/backups.json');

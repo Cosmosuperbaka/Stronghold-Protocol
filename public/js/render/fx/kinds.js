@@ -19,8 +19,6 @@ export const FX_KINDS = Object.freeze({
   // position + the previous point + direction); `pt` because it is not at the caster (it roams and passes by her tile)
   chen3Wave: { a: 'qi', c: 0xdfe8ff, pt: true },
   quadShot: { a: 'volley', c: 0xfff2d0 }, featherArrow: { a: 'counter', c: 0xfff2d0 },
-  // local-tools: 焰狐龙梓兰 S3 龙之箭 (op-orchd2.js) — a release flash at her tile (the arrow's flight is not drawn)
-  dragonArrow: { a: 'counter', c: 0xffb35c },
   burst: { a: 'element', c: 0xd0a0ff },
   // areas
   zone: { a: 'zone', c: 0xffb35c, dur: 3 }, healField: { a: 'zone', c: 0x62f08a, dur: 4 }, firewall: { a: 'wall', c: 0xff6a2a, dur: 4 },
@@ -42,6 +40,9 @@ export const FX_KINDS = Object.freeze({
   // a dollkeeper knocked out as its <替身> (sim professions.js): only its model form goes back to the 本体 for the
   // redeploy — the 替身's death clip already shows the knock-out, nothing is drawn
   dollEnd: { a: 'none', c: 0xd8b0ff },
+  // local-tools (from the BBleae fork): 结城理's persona (sim kits/ops/op-makoto.js): only the model form changes, to the
+  // persona's clips (FORMS)
+  persona: { a: 'none', c: 0xd8b0ff },
   ulpiaReturn: { a: 'blink', c: 0x9ff0dc }, manifoldSplit: { a: 'blink', c: 0xd8b0ff },
   // displacement
   pull: { a: 'move', c: 0x9fd4ff }, push: { a: 'move', c: 0xffd9a0 }, displace: { a: 'move', c: 0xd0c0a0 }, lure: { a: 'move', c: 0xffb3ec },
@@ -78,6 +79,8 @@ export const FX_KINDS = Object.freeze({
   veenBounce: { a: 'counter', c: 0xffd27a }, veenVolley: { a: 'volley', c: 0xffd27a },
   harpoon: { a: 'beam', c: 0xd0c0a0 }, arrowRain: { a: 'volley', c: 0xfff2d0 }, mark: { a: 'reticle', c: 0xff7b8a },
   bounce: { a: 'counter', c: 0xffd9a0 }, dying: { a: 'mark', c: 0xff5a4a },
+  // local-tools (from the BBleae fork): 丰川祥子's note striking an enemy (sim kits/ops/op-oblvns.js NOTE_FX)
+  oblvnsNote: { a: 'counter', c: 0xff8fc8 },
   // beams
   beam: { a: 'beam', c: 0xff7a5a }, link: { a: 'beam', c: 0x9ff0dc }, lightning: { a: 'bolt', c: 0xc9a2ff }, tentacle: { a: 'beam', c: 0x5fe0ff },
   sandChains: { a: 'beam', c: 0xd8c8a0 }, sandChainsCharged: { a: 'beam', c: 0xffd45a },
