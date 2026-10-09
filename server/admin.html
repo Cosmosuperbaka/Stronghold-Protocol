@@ -29,6 +29,11 @@
   :focus-visible { outline: 2px solid var(--mint); outline-offset: 1px; }
   input.num { width: 72px; }
   .grant { width: 200px; }
+  .autocomplete { display: inline-flex; }
+  .candidate-options { position: fixed; z-index: 10; width: 320px; max-width: calc(100vw - 24px); max-height: 240px; overflow: auto; padding: 3px; background: #1e2421; border: 1px solid var(--mint); border-radius: 4px; box-shadow: 0 5px 14px #0008; }
+  .candidate-options[hidden] { display: none; }
+  .candidate-options [role="option"] { display: block; padding: 5px 8px; cursor: pointer; white-space: normal; overflow-wrap: anywhere; }
+  .candidate-options [role="option"]:hover, .candidate-options [role="option"][aria-selected="true"] { background: #2b3c35; color: var(--mint); }
   #status { margin-left: auto; color: var(--dim); }
   #msg { position: fixed; right: 20px; bottom: 20px; max-width: 420px; padding: 10px 14px; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); display: none; }
   #msg.err { border-color: var(--red); }
@@ -80,7 +85,6 @@
 <main id="records" hidden></main>
 <main id="settings" hidden></main>
 <datalist id="chess-list"></datalist>
-<datalist id="diy-list"></datalist>
 <datalist id="item-list"></datalist>
 <datalist id="equip-list"></datalist>
 <datalist id="card-list"></datalist>
@@ -93,6 +97,7 @@ const api = (p, body) => fetch(p, { method: body ? 'POST' : 'GET', headers: { 'X
   .then((r) => r.json());
 
 let catalogRoom = null;
+let catalogPending = null;
 const names = { chess: new Map(), diy: new Map(), item: new Map(), equip: new Map(), card: new Map() };
 const idNames = new Map(); // operator / item / card id → its catalog label (the action log)
 const diyEntries = new Map(); // 发放自选 label → its catalog entry (skills, modules, locked, def)
@@ -115,45 +120,52 @@ async function act(room, action, playerId, value, label) {
   refresh();
 }
 
-async function loadCatalog(room) {
-  if (catalogRoom === room) return;
+function loadCatalog(room) {
+  if (catalogRoom === room) return catalogPending;
   catalogRoom = room;
-  const c = await api(`/api/catalog?room=${encodeURIComponent(room)}`);
-  const fill = (list, kind, sel) => {
-    names[kind].clear();
-    $(sel).innerHTML = list.map((x) => {
-      const label = `${x.name}（${x.tier}费）`;
-      names[kind].set(label, x.id);
+  catalogPending = api(`/api/catalog?room=${encodeURIComponent(room)}`).then((c) => {
+    if (c.error) throw new Error(c.error);
+    if (catalogRoom !== room) return;
+    const fill = (list, kind, sel) => {
+      names[kind].clear();
+      $(sel).innerHTML = list.map((x) => {
+        const label = `${x.name}（${x.tier}费）`;
+        names[kind].set(label, x.id);
+        idNames.set(x.id, label);
+        let opts = `<option value="${esc(label)}"></option>`;
+        if (x.goldenId) { const g = `${x.name}·精锐（${x.tier}费）`; names[kind].set(g, x.goldenId); opts += `<option value="${esc(g)}"></option>`; }
+        return opts;
+      }).join('');
+    };
+    fill(c.chess, 'chess', '#chess-list');
+    // Any kitted operator at tier 5 / 6, normal or elite (match/adminDiy.js).
+    names.diy.clear();
+    diyEntries.clear();
+    (c.diy || []).forEach((x) => [false, true].forEach((elite) => {
+      const label = `${x.name}${elite ? '·精锐' : ''}（自选 ${x.tier} 阶）`;
+      names.diy.set(label, { charId: x.charId, tier: x.tier, elite });
+      diyEntries.set(label, x);
+    }));
+    fill(c.items, 'item', '#item-list');
+    fill(c.items.filter((x) => x.equip), 'equip', '#equip-list');
+    names.card.clear();
+    $('#card-list').innerHTML = c.cards.map((x) => {
+      const label = `${x.name}${x.kind === 'bounty' ? '（悬赏）' : x.team ? '（全队）' : ''}`;
+      names.card.set(label, x.id);
       idNames.set(x.id, label);
-      let opts = `<option value="${esc(label)}"></option>`;
-      if (x.goldenId) { const g = `${x.name}·精锐（${x.tier}费）`; names[kind].set(g, x.goldenId); opts += `<option value="${esc(g)}"></option>`; }
-      return opts;
+      return `<option value="${esc(label)}"></option>`;
     }).join('');
-  };
-  fill(c.chess, 'chess', '#chess-list');
-  // 自选: any kitted operator at tier 5 / 6, normal or elite (server/match/adminDiy.js); the value is { charId, tier, elite }
-  names.diy.clear();
-  diyEntries.clear();
-  $('#diy-list').innerHTML = (c.diy || []).flatMap((x) => [false, true].map((elite) => {
-    const label = `${x.name}${elite ? '·精锐' : ''}（自选 ${x.tier} 阶）`;
-    const value = { charId: x.charId, tier: x.tier, elite };
-    names.diy.set(label, value);
-    diyEntries.set(label, x);
-    return `<option value="${esc(label)}"></option>`;
-  })).join('');
-  fill(c.items, 'item', '#item-list');
-  fill(c.items.filter((x) => x.equip), 'equip', '#equip-list');
-  names.card.clear();
-  $('#card-list').innerHTML = c.cards.map((x) => {
-    const label = `${x.name}${x.kind === 'bounty' ? '（悬赏）' : x.team ? '（全队）' : ''}`;
-    names.card.set(label, x.id);
-    idNames.set(x.id, label);
-    return `<option value="${esc(label)}"></option>`;
-  }).join('');
+  }).catch((e) => { if (catalogRoom === room) catalogRoom = null; throw e; });
+  return catalogPending;
 }
 
 // data attributes of a button that acts on one player
 const on = (code, p, action, label) => `data-room="${code}" data-player="${esc(p.id)}" data-click="${action}" data-label="${label}"`;
+
+function candidateInput(kind, code, pid, attrs, uid = '') {
+  const id = `candidates-${code}-${pid}-${kind}-${uid}`;
+  return `<span class="autocomplete"><input class="grant" data-candidate-kind="${kind}" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${esc(id)}" autocomplete="off" ${attrs}><span class="candidate-options" id="${esc(id)}" data-candidates ${kind === 'diy' ? 'data-diy-options' : ''} role="listbox" aria-label="候选项" hidden></span></span>`;
+}
 
 function detailRow(code, p, cols) {
   const at = (label) => `data-room="${code}" data-player="${esc(p.id)}" data-label="${label}"`;
@@ -172,7 +184,7 @@ function detailRow(code, p, cols) {
       <td>${esc(x.name)}${x.golden ? ' <span class="tag on">精锐</span>' : ''}${x.count > 1 ? ` ×${x.count}` : ''}${x.items.length ? `<br><span class="meta">${x.items.map((i) => esc(i.name)).join('、')}</span>` : ''}</td>
       <td class="row">
         ${x.canPromote ? `<button ${on(code, p, 'piecePromote', '升为精锐')} data-value="${x.uid}">升精锐</button>` : ''}
-        ${x.kind === 'chess' ? `<input class="grant" list="equip-list" placeholder="装备…" aria-label="给 ${esc(x.name)} 装备" data-equip="${x.uid}" ${at('装备')}>` : ''}
+        ${x.kind === 'chess' ? candidateInput('equip', code, p.id, `placeholder="装备…" aria-label="给 ${esc(x.name)} 装备" data-equip="${x.uid}" ${at('装备')}`, x.uid) : ''}
         <button class="danger" ${on(code, p, 'pieceRemove', '移除')} data-value="${x.uid}" data-confirm="移除 ${esc(x.name)}？不退金币。">移除</button>
       </td></tr>`).join('');
   const effects = [
@@ -190,7 +202,7 @@ function detailRow(code, p, cols) {
       <tbody>${bondRows(used) || '<tr><td colspan="4" class="meta">还没有盟约</td></tr>'}</tbody></table>
       ${others.length ? `<details><summary class="meta">其他盟约（${others.length}）</summary><table><tbody>${bondRows(others)}</tbody></table></details>` : ''}</div></div>
     <div><h3>效果与机变卡</h3><ul>${effects || '<li class="meta">没有效果</li>'}</ul>
-      <input class="grant" style="width:240px" list="card-list" placeholder="补发机变卡…" aria-label="${esc(p.name)} 补发机变卡" data-grant="card" ${at('补发机变卡')}>
+      ${candidateInput('card', code, p.id, `style="width:240px" placeholder="补发机变卡…" aria-label="${esc(p.name)} 补发机变卡" data-grant="card" ${at('补发机变卡')}`)}
       <p class="note">标「全队」的卡会同时作用到所有存活队友。</p></div>
     <div><h3>棋盘、手牌、整备区</h3><div class="scroll"><table><tbody>${pieceRows || '<tr><td class="meta">空</td></tr>'}</tbody></table></div>
       <p class="meta">移除不退金币，卡池拷贝归还，装备回到手牌。装备不受阶段限制。</p></div>
@@ -239,10 +251,10 @@ function playerRow(code, p) {
     <td>${p.ready ? '已就绪' : ''}${p.autoplay ? ' <span class="tag on">托管中</span>' : ''}
       ${p.bot ? '' : `<button ${on(code, p, 'autoplay', p.autoplay ? '取消托管' : '开启托管')} data-value="${p.autoplay ? 0 : 1}">${p.autoplay ? '取消托管' : '托管'}</button>`}</td>
     <td class="row">
-      <input class="grant" list="chess-list" placeholder="发放干员…" aria-label="${esc(p.name)} 发放干员" data-grant="chess" data-player="${esc(p.id)}" data-room="${code}">
-      <input class="grant" list="diy-list" placeholder="发放自选…" aria-label="${esc(p.name)} 发放自选干员" data-grant="diy" data-player="${esc(p.id)}" data-room="${code}" value="${esc(diyDraft.get(p.id)?.label || '')}">
+      ${candidateInput('chess', code, p.id, `placeholder="发放干员…" aria-label="${esc(p.name)} 发放干员" data-grant="chess" data-player="${esc(p.id)}" data-room="${code}"`)}
+      ${candidateInput('diy', code, p.id, `placeholder="发放自选…" aria-label="${esc(p.name)} 发放自选干员" data-grant="diy" data-player="${esc(p.id)}" data-room="${code}" value="${esc(diyDraft.get(p.id)?.label || '')}"`)}
       <span data-diy-sel="${esc(p.id)}">${diySelects(code, p.id)}</span>
-      <input class="grant" list="item-list" placeholder="发放道具…" aria-label="${esc(p.name)} 发放道具" data-grant="item" data-player="${esc(p.id)}" data-room="${code}">
+      ${candidateInput('item', code, p.id, `placeholder="发放道具…" aria-label="${esc(p.name)} 发放道具" data-grant="item" data-player="${esc(p.id)}" data-room="${code}"`)}
       <button data-toggle="${esc(p.id)}" aria-expanded="${open.has(p.id)}">${open.has(p.id) ? '收起' : '详情'}</button>
     </td>
   </tr>${open.has(p.id) ? detailRow(code, p, 8) : ''}`;
@@ -759,19 +771,130 @@ async function showSettings() {
   drawPrepPreview();
 }
 
-// 发放自选: the draft follows the box and the selects; naming another operator resets the skill / module to the default
-document.addEventListener('input', (e) => {
-  const el = e.target;
-  if (!el.matches('input[data-grant="diy"]')) return;
+function closeCandidates(el) {
+  const box = el.parentElement.querySelector('[data-candidates]');
+  if (box) box.hidden = true;
+  el.setAttribute('aria-expanded', 'false');
+  el.removeAttribute('aria-activedescendant');
+}
+
+function drawCandidates(el, message = null) {
+  const q = el.value.trim().toLocaleLowerCase();
+  const box = el.parentElement.querySelector('[data-candidates]');
+  if (!box) return [];
+  const kind = el.dataset.candidateKind;
+  const all = kind === 'diy' ? [...diyEntries.keys()] : [...$(`#${kind}-list`).options].map((o) => o.value);
+  const labels = q && !message ? all.filter((label) => label.toLocaleLowerCase().includes(q)) : [];
+  box.replaceChildren(...labels.map((label, i) => {
+    const option = document.createElement('span');
+    option.setAttribute('role', 'option');
+    option.dataset.candidateOption = label;
+    option.id = `${box.id}-${i}`;
+    option.setAttribute('aria-selected', 'false');
+    option.textContent = label;
+    return option;
+  }));
+  if (q && !labels.length) box.textContent = message || (kind === 'diy' || kind === 'chess' ? '没有符合条件的干员' : '没有符合条件的候选项');
+  box.hidden = !q;
+  if (!box.hidden) {
+    const r = el.getBoundingClientRect();
+    box.style.left = `${Math.max(8, Math.min(r.left, innerWidth - 8 - box.offsetWidth))}px`;
+    box.style.maxHeight = '240px';
+    const below = innerHeight - r.bottom - 10;
+    const above = r.top - 10;
+    const openAbove = below < box.offsetHeight && above > below;
+    const height = Math.min(240, Math.max(0, openAbove ? above : below));
+    box.style.maxHeight = `${height}px`;
+    box.style.top = `${openAbove ? r.top - box.offsetHeight - 2 : r.bottom + 2}px`;
+  }
+  el.setAttribute('aria-expanded', String(!box.hidden));
+  el.removeAttribute('aria-activedescendant');
+  return labels;
+}
+
+function chooseCandidate(el, label) {
+  el.value = label;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  closeCandidates(el);
+  el.focus();
+}
+
+// Naming another operator resets the skill / module; tier and elite changes of the same operator retain them.
+function updateDiyDraft(el) {
   const pid = el.dataset.player;
   const d = diyDraft.get(pid) || { label: '', skill: '', mod: '' };
   const was = d.label;
   d.label = el.value;
   if (diyEntries.get(was) !== diyEntries.get(d.label) && diyEntries.get(was)?.charId !== diyEntries.get(d.label)?.charId) { d.skill = ''; d.mod = ''; }
   diyDraft.set(pid, d);
-  const box = el.parentElement.querySelector(`[data-diy-sel="${CSS.escape(pid)}"]`);
+  const box = el.closest('td').querySelector(`[data-diy-sel="${CSS.escape(pid)}"]`);
   if (box) box.innerHTML = diySelects(el.dataset.room, pid);
+}
+
+function showCandidates(el) {
+  const ready = catalogRoom === el.dataset.room && names[el.dataset.candidateKind].size > 0;
+  if (el.dataset.candidateKind === 'diy') updateDiyDraft(el);
+  drawCandidates(el, ready ? null : '正在加载候选项…');
+  if (ready) return;
+  loadCatalog(el.dataset.room).then(() => {
+    if (document.activeElement !== el) return;
+    if (el.dataset.candidateKind === 'diy') updateDiyDraft(el);
+    drawCandidates(el);
+  }).catch(() => {
+    if (document.activeElement === el) drawCandidates(el, '加载失败，请重新输入');
+  });
+}
+document.addEventListener('input', (e) => {
+  if (e.target.matches('input[data-candidate-kind]')) showCandidates(e.target);
 });
+document.addEventListener('focusin', (e) => {
+  if (e.target.matches('input[data-candidate-kind]')) showCandidates(e.target);
+});
+document.addEventListener('focusout', (e) => {
+  if (e.target.matches('input[data-candidate-kind]')) closeCandidates(e.target);
+});
+document.addEventListener('pointerdown', (e) => {
+  if (e.target.closest('[data-candidate-option]')) e.preventDefault();
+});
+document.addEventListener('click', (e) => {
+  if (e.target.matches('input[data-candidate-kind]')) {
+    requestAnimationFrame(() => { if (document.activeElement === e.target) showCandidates(e.target); });
+    return;
+  }
+  const option = e.target.closest('[data-candidate-option]');
+  if (!option) return;
+  const el = option.closest('.autocomplete').querySelector('input');
+  e.preventDefault();
+  chooseCandidate(el, option.dataset.candidateOption);
+});
+document.addEventListener('keydown', (e) => {
+  const el = e.target;
+  if (!el.matches('input[data-candidate-kind]')) return;
+  if (e.isComposing || e.keyCode === 229) return;
+  const box = el.parentElement.querySelector('[data-candidates]');
+  if (e.key === 'Escape') {
+    closeCandidates(el);
+  } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if (box.hidden) drawCandidates(el);
+    const options = [...box.querySelectorAll('[data-candidate-option]')];
+    if (!options.length) return;
+    e.preventDefault();
+    const i = options.findIndex((o) => o.getAttribute('aria-selected') === 'true');
+    const next = (i + (e.key === 'ArrowDown' ? 1 : i < 0 ? 0 : -1) + options.length) % options.length;
+    options.forEach((o, j) => o.setAttribute('aria-selected', String(j === next)));
+    el.setAttribute('aria-activedescendant', options[next].id);
+    options[next].scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter' && !box.hidden) {
+    const option = box.querySelector('[aria-selected="true"]') || (el.dataset.candidateKind === 'diy' && !names.diy.has(el.value) && box.querySelector('[data-candidate-option]'));
+    if (option) { e.preventDefault(); chooseCandidate(el, option.dataset.candidateOption); }
+  }
+});
+function closeVisibleCandidates(e) {
+  if (e?.target?.closest?.('[data-candidates]')) return;
+  document.querySelectorAll('input[data-candidate-kind][aria-expanded="true"]').forEach(closeCandidates);
+}
+document.addEventListener('scroll', closeVisibleCandidates, true);
+window.addEventListener('resize', closeVisibleCandidates);
 document.addEventListener('change', (e) => {
   const el = e.target;
   if (!el.matches('select[data-diy-skill], select[data-diy-mod]')) return;
@@ -803,6 +926,7 @@ async function refresh() {
   let data;
   try { data = await api('/api/rooms'); } catch { $('#status').textContent = '无法连接服务器'; return; }
   if (data.error) { $('#status').textContent = data.error; return; }
+  if (document.activeElement?.matches('input, select')) return;
   $('#status').textContent = `更新于 ${new Date().toLocaleTimeString()}`;
   const json = JSON.stringify(data.rooms);
   if (json === lastJson) return;
@@ -812,7 +936,7 @@ async function refresh() {
   for (const r of data.rooms) $(`[data-stats="${r.code}"]`)?.replaceWith(statsPanel(r));
   for (const code of panels.keys()) if (!data.rooms.some((r) => r.code === code)) panels.delete(code);
   const live = data.rooms.find((r) => r.match);
-  if (live) loadCatalog(live.code);
+  if (live) loadCatalog(live.code).catch(() => { $('#status').textContent = '干员目录加载失败'; });
 }
 
 document.addEventListener('click', (e) => {
@@ -870,7 +994,7 @@ function valueOf(el, v) {
 }
 document.addEventListener('keydown', (e) => {
   const el = e.target;
-  if (e.key !== 'Enter' || !el.matches('input')) return;
+  if (e.defaultPrevented || e.isComposing || e.keyCode === 229 || e.key !== 'Enter' || !el.matches('input')) return;
   if (el.dataset.act && el.value !== '') {
     act(el.dataset.room, el.dataset.act, el.dataset.player, valueOf(el, el.value), el.dataset.label);
     if ('clear' in el.dataset) el.value = '';
