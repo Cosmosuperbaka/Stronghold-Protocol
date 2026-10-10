@@ -462,9 +462,11 @@ function unitsRanking(history, nameOf) {
     for (const h of history) {
       const p = h.players.find((x) => x.playerId === s.id);
       for (const u of (p && p.units) || []) {
-        const e = by.get(u.defId) || { name: u.name, dmg: 0, kills: 0, rounds: 0 };
+        // A host can reuse an empty DIY slot for another operator between rounds.
+        const key = JSON.stringify([u.defId, u.name]);
+        const e = by.get(key) || { name: u.name, dmg: 0, kills: 0, rounds: 0 };
         e.dmg += u.dmg; e.kills += u.kills; e.rounds++;
-        by.set(u.defId, e);
+        by.set(key, e);
       }
     }
     const top = [...by.values()].sort((a, b) => b.dmg - a.dmg).slice(0, 5);

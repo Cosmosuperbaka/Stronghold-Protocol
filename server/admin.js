@@ -56,7 +56,8 @@ function playerDetail(m, ps) {
   // the player's own data view: a 自选编队 slot reads as its picked operator (server/match/player/diy.js)
   const gd = ps.gd || m.gd;
   const nameOf = (p) => {
-    const rec = p.kind === 'chess' ? gd.chess(p.id) : p.kind === 'item' ? gd.item(p.id) : gd.token(p.id);
+    const rec = p.kind === 'chess' ? (ps.fieldsStandIn?.(p.id) ? gd.standIn(p.id) : null) || gd.chess(p.id)
+      : p.kind === 'item' ? gd.item(p.id) : gd.token(p.id);
     return rec ? rec.name : p.id;
   };
   const pieceView = (p, where) => ({
@@ -429,7 +430,7 @@ export function resultRecord(room, m, summary, now = new Date()) {
       // the console's full totals (buys, sells, funds gained, healing are not in the result frame)
       stats: ps ? { ...p.stats, ...statsOf(ps) } : p.stats,
       band: p.bandId && gd.band(p.bandId) ? gd.band(p.bandId).name || p.bandId : null,
-      lineup: (p.lineup || []).map((u) => ({ ...u, name: pgd.chess(u.id)?.name || u.id, items: (u.items || []).map((id) => pgd.item(id)?.name || id) })),
+      lineup: (p.lineup || []).map((u) => ({ ...u, name: (u.standInFor ? pgd.standIn(u.id) : null)?.name || pgd.chess(u.id)?.name || u.id, items: (u.items || []).map((id) => pgd.item(id)?.name || id) })),
       bonds: (p.bonds || []).map((b) => ({ ...b, name: gd.bond(b.bondId)?.name || b.bondId })),
     };
   });
