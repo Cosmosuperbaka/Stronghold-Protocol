@@ -1,4 +1,4 @@
-# 本地开发笔记（私有分支）
+# 扩展分支开发笔记
 
 这份文档记录本仓库在上游 [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol) 之上做的改动，以及读代码时摸清的结构和坑，方便之后继续开发。上游自己的架构文档见 [DESIGN.md](DESIGN.md)（总体）、[META.md](META.md)（对局与经济）、[SIM.md](SIM.md)（战斗模拟）。
 
@@ -6,11 +6,11 @@
 
 | 远程 | 地址 | 用途 |
 |---|---|---|
-| `origin` | `zhewang448/Stronghold-Protocol`（私有） | 自己的改动推到这里 |
+| `origin` | `zhewang448/Stronghold-Protocol` | 本分支扩展与维护 |
 | `upstream` | `sganggs/Stronghold-Protocol` | 拉官方更新 |
 
-- 工作分支 `local-tools`，私有仓库的默认分支也是它。`master` 只跟踪上游，不在上面改。
-- 合并上游大版本时可以先开临时分支（如 v0.2.1 时的 `local-tools-v0.2.1`），测完快进回 `local-tools` 再删掉。
+- 默认分支 `main` 已整合主机工具、联动扩展、皮肤与预加载。`local-tools` 和 `codex/operator-skins` 保留原功能分支历史；`master` 只跟踪上游，不在上面改。
+- 合并上游新版本时从 `main` 开功能分支，完成适配与测试后再合并回 `main`。
 - 同步上游：`git fetch upstream` → `git merge upstream/master` → `npm install` → `npm run setup`（上游常会加素材）→ `node --test`。
 - 素材 `public/assets/`、`.cache/`、`.claude/` 都在 `.gitignore` 里，不进仓库。新机器 clone 后要先 `npm install && npm run setup`。
 
@@ -231,9 +231,9 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 - **模板字符串 `DATA_SHIM_JS`**（0.2.0 起在 `server/http/static.js`）内容里有 `import { getSimData } from './sim/simdata.js';` 这一行。按文本定位插入 import 时容易插进字符串里（我就犯过一次，表现为 `startAdmin is not defined`）。真正的 import 区在文件顶部。
 - **`structuredClone` 克隆不了函数**：`audit.js` 会把 `PlayerState` 的方法包装后挂到实例上，所以快照要跳过函数属性。
-- **端口 3000 被旧进程占着**：先跑 `scripts/stop-server.bat`。预览/测试用别的端口（`.claude/launch.json` 里的 `stronghold-dev` 用 3005）。
+- **端口被占用**：先确认进程用途，预览 / 测试选择空闲端口，不自动关闭已有服务。`scripts/stop-server.bat` 用于明确要停止自己开服进程的情况。
 - **合并上游时**先看第 2 节「改动过的上游文件」：冲突只会出在那几处。合并后跑 `node --test test/match/rewind.test.js test/admin.test.js`；如果上游改了生成波次或休整期计时的写法，要把 `waveSource(this)`、`prepSeconds(...)` 接到新位置。
-- **setup 下载很慢或大量 err**：本机 Node 22.14 的 `fetch()` 不走 `HTTP(S)_PROXY`（日志会提示，需要 Node ≥ 22.21 加 `NODE_USE_ENV_PROXY=1`），所以是直连 GitHub，速度取决于本机代理设置。临时可以用 `node tools/setup.mjs --asset-source=mirror`（第三方镜像 gh-proxy.com）。下载可续传，中断后重跑会跳过已有文件。
+- **setup 下载很慢或大量 err**：旧版 Node 的 `fetch()` 不读取 `HTTP(S)_PROXY`。按下载器提示使用支持环境代理的 Node 版本和 `NODE_USE_ENV_PROXY=1`，或执行 `node tools/setup.mjs --asset-source=mirror` 使用第三方镜像。下载可续传，中断后重跑会跳过已有文件；不要把个人代理凭据写进公共文档。
 - **合并上游后**要重新 `npm run setup`，上游会新增素材清单，否则素材测试会多出一批失败。setup 和 `npm install` 会改写 `data/assets.json`、`package-lock.json`，合并时用上游的版本（`git checkout -- data/assets.json package-lock.json`）。
 
 ## 8. 联动干员进自选池

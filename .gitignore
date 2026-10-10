@@ -35,10 +35,56 @@ scripts/service.env.cmd
 .env
 .env.*
 
+# --- private local state: never publish match exports, credentials or machine profiles -----------
+/private/
+/local/
+/secrets/
+/handoff/
+.codex/
+.ssh/
+.cloudflared/
+.bash_history
+.zsh_history
+.python_history
+.git-credentials
+.npmrc
+*.pem
+*.key
+*.p12
+*.pfx
+frpc*.toml
+frpc*.ini
+frpc*.json
+frps*.toml
+frps*.ini
+frps*.json
+*.sqlite
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+*.har
+browser-profile/
+chrome-profile/
+playwright/.auth/
+stronghold-stats-*.json
+stronghold-loadout-*.json
+stronghold-ownership-*.json
+stronghold-diy-*.json
+# Reviewed templates may be tracked; they must contain placeholders only.
+!.env.example
+!.env.*.example
+
 # --- OS / editor clutter ---------------------------------------------------------------------------
 .DS_Store
 Thumbs.db
 desktop.ini
+*.lnk
+*.url
 *.swp
 .idea/
 .vscode/
