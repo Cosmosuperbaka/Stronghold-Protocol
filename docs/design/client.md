@@ -2,6 +2,16 @@
 
 Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 
+Local optional cosmetic extension (owner request, 2026-10-10): roster and DIY operator details select outfits
+by charId, persisted separately from gameplay loadouts. A roster toolbar action randomizes all supported operators'
+installed non-default outfits (including DIY); operators without an available outfit use the default.
+Views resolve the owner's `m.public.players[].skins`
+without changing simulation input; bots, stand-ins and summons keep their original appearance. Missing or
+failed models use the default fallback. Settings offers manual static-media preloading, progress, cancellation
+and failure counts. Contracts and sources: [SKINS.md](../SKINS.md).
+Shop / reward cards and detail portraits remain the base half-body art; installed outfits currently include avatars
+and battle Spine models only. This affects presentation only, never purchases or simulation inputs.
+
 ## 9. Client rendering contract (public/js/render)
 
 `import { createFieldView } from './render/app.js'`

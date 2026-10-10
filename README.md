@@ -9,6 +9,7 @@
 >   - 对局：结束休整期、暂停 / 继续战斗、结束对局、关闭房间、重抽本回合敌人、对战场判胜 / 判负、计时倍率。
 >   - 玩家：改 LP / 金币 / 商店等级 / 免费刷新，发放干员和道具，盟约加层 / 设层 / 人数加成，托管开关，增删效果与悬赏、补发机变卡，棋盘上升精锐 / 装备 / 移除，预览下一场敌人。
 > - **开服脚本**：`scripts/start-tunnel.bat` 一键开服并开 cloudflared 公网隧道；`scripts/stop-server.bat` 释放游戏端口（仅 Windows）。
+> - **可选干员皮肤**（`codex/operator-skins` 分支）：115 名干员、174 套皮肤，调配 / 自选面板选择和一键随机装备，联机同步与观战可见；设置中可手动预加载素材。皮肤通过命令行安装，商店半身立绘保持原样，详见 [docs/SKINS.md](docs/SKINS.md)。
 >
 > 对原有代码的改动只有几处挂接：`server/match/Match.js`（`enterPrep()` 开头存档）、`server/index.js`（启动控制台）、`server/sim/rng.js`（加 `setState()`），不改游戏规则。完整清单见 [docs/LOCAL-CHANGELOG.md](docs/LOCAL-CHANGELOG.md)，实现细节见 [docs/LOCAL-DEV.md](docs/LOCAL-DEV.md)。
 

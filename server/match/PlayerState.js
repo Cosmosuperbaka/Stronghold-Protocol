@@ -120,6 +120,7 @@
 //   common.js     HAND_SIZE, TEMP_SIZE, MAX_OFFER_SLOTS, OK, fail
 
 import { FIELD } from './board.js';
+import { cleanSkins } from '../../shared/skins.js';
 import { computeBonds } from './bondsMeta.js';
 import { HAND_SIZE, TEMP_SIZE } from './player/common.js';
 import { PlayerBasics } from './player/basics.js';
@@ -158,6 +159,7 @@ export class PlayerState {
     this.lastEmoteAt = -Infinity;
     /** operator loadout (DESIGN §16): frozen { [baseChessId]: { skill, module } }, {} = every chess on its defaults */
     this.loadout = Object.freeze({});
+    this.skins = Object.freeze(this.isBot ? {} : cleanSkins(seat.skins, this.gd.raw.skins || { chars: {} }));
     // 0.2.2: the per-operator 潜能 / 练度 ({} = every operator 潜能 6, 精英2 Lv.60 — bots always)
     this.ops = Object.freeze({});
     if (!this.isBot && (seat.loadout || seat.ops)) this.setLoadout(seat.loadout ?? null, seat.ops ?? null);

@@ -40,6 +40,7 @@ import { bandBondIds } from '../shared/bandBonds.js';
 import { statusKey, composeUnitRecord, standInRecord, unitForm } from '../shared/standIn.js';
 import { extendedGrid } from '../shared/loadoutRecord.js';
 import { FULL_RANK, atRank, stripPotential } from '../shared/potential.js';
+import { skinCatalogue } from './assets/skins.mjs';
 
 // ===== CLI & IO ==================================================================================
 
@@ -385,6 +386,7 @@ async function loadContext() {
     enemies: await loadResearch('05-enemies.json'),
     maps: await loadResearch('05-maps.json'),
     assets: await loadResearch('07-assets.json'),
+    skins: await loadResearch('operator-skins.json'),
   };
 
   return {
@@ -4089,6 +4091,7 @@ async function main() {
   for (const b of Object.values(bands)) b.bondIds = bandBondIds(b, { bonds, pools: choices.pools });
   const config = buildConfig(ctx, waves, stages, bands);
   const files = { config, chess, bonds, garrisons, items, bands, effects, choices, enemies, factions, waves, stages, bosses, tokens, backups };
+  files.skins = skinCatalogue(ctx.research.skins, new Set([...Object.values(chess).map((c) => c.charId).filter(Boolean), ...Object.keys(backups.units)]));
 
   // the unit forms rebuild every PRESET chess at every rank (before the annotation: each pass as built)
   const errors = [...validateAll(files), ...passes.flatMap((p) => checkUnitFormParity(p.ctx, p.chess).map((e) => `${e} (potential rank ${p.ctx.potRank})`))];

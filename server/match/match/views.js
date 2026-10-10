@@ -93,6 +93,7 @@ export class MatchViews {
       paused: !!this.paused,
       players: this.order.map((ps) => ({
         playerId: ps.playerId,
+        ...(Object.keys(ps.skins || {}).length ? { skins: ps.skins } : {}),
         seat: ps.seat,
         name: ps.name,
         isBot: ps.isBot,

@@ -639,3 +639,12 @@
 .lo-voice { display: flex; flex-wrap: wrap; align-items: center; gap: .12rem; padding: .14rem 0; font-size: calc(.18 * var(--t)); }
 .lo-voice > small { flex-basis: 100%; color: var(--text-dim); font-size: calc(.15 * var(--t)); }
 .lo-voice .lo-select { min-width: 1.6rem; max-width: 100%; }
+/* Cosmetic choices inherit the operator detail's compact rows. */
+.lo-skins { display: flex; flex-direction: column; gap: .06rem; }
+.lo-skin { display: flex; align-items: center; gap: .12rem; width: 100%; min-height: 46px; padding: .06rem .1rem; border: 1px solid var(--line); background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.lo-skin.is-on { border-color: var(--mint-500); background: var(--mint-a10); }
+.lo-skin:disabled { opacity: .5; cursor: default; }
+.lo-skin:focus-visible { outline: 2px solid var(--mint-500); outline-offset: 2px; }
+.lo-skin__art { width: 46px; height: 46px; object-fit: contain; flex: 0 0 46px; }
+.lo-skin__text { display: flex; flex-direction: column; flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: max(.16rem, 13px); }
+.lo-skin__text small { font-size: max(.12rem, 11px); }

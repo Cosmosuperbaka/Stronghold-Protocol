@@ -38,6 +38,9 @@ import {
 } from '../ui/loadoutModel.js';
 import { loadoutStore, openLoadout, closeLoadout, setEntries, setOpsMap, applyLoadoutEntries, setNotOwned, applyOwnershipImport, setDiyPicks, applyDiyImport } from '../ui/loadoutSync.js';
 import { OperatorVoice } from '../ui/operatorVoice.js';
+import { SkinSection } from '../ui/skinPicker.js';
+import { skinsStore, setSkin, setSkins, randomSkins } from '../ui/skins.js';
+import { cleanSkins } from '../../../shared/skins.js';
 import { CultivationSelects, CultivationSection } from './cultivation.js';
 import { cultivationCharIds } from '../../../shared/protocol.js';
 import { atPotential } from '../../../shared/potential.js';
@@ -358,6 +361,7 @@ export function LoadoutStats({ base, golden, entries, level, onLevel, getChess =
 }
 
 function Detail({ m, chess, golden, entries, ops = {}, onChange, onOps, onReset, locked, level = 'normal', onLevel, notOwned = false }) {
+  const skinState = useStore((s) => s, Object.is, skinsStore);
   const [statLevel, setStatLevel] = useState('elite'); // 局内数值: the 精锐 shows the chosen module's effect
   const setLevel = onLevel;
   const bodyRef = useRef(null);
@@ -365,7 +369,7 @@ function Detail({ m, chess, golden, entries, ops = {}, onChange, onOps, onReset,
   if (!chess) return html`<aside class="lo-detail lo-detail--empty"><p class="t-dim">${t('没有符合条件的干员')}</p></aside>`;
   const opt = chessOptions(chess, golden);
   const choice = effectiveChoice(entries, chess, golden);
-  const changed = choice.changed || opsOf(ops, chess.charId).changed;
+  const changed = choice.changed || opsOf(ops, chess.charId).changed || !!skinState.entries[chess.charId];
   const modOpt = opt.moduleOptions.find((x) => x.id === choice.module) || null;
   const lv = (c) => c?.status?.skillLevel ?? '—';
   return html`<aside class="lo-detail" aria-label=${t('{name} 调配', { name: chess.name })}>
@@ -389,6 +393,7 @@ function Detail({ m, chess, golden, entries, ops = {}, onChange, onOps, onReset,
     </div>
     <div class="lo-detail__body" ref=${bodyRef}>
       <${OperatorVoice} charId=${chess.charId} />
+      <${SkinSection} charId=${chess.charId} />
       <${CultivationSection} charId=${chess.charId} ops=${ops} onSet=${onOps} standIn=${notOwned} />
       <${LoadoutGarrisons} chess=${level === 'elite' && golden ? golden : chess} m=${m} />
       <section class="lo-sec">
@@ -532,6 +537,8 @@ function LoadoutScreen({ st }) {
   const list = filterRoster(roster, st.filters, st.entries, getChess, getBond, st.ops);
   const selId = st.sel && roster.some((c) => c.chessId === st.sel) ? st.sel : list[0]?.chessId || roster[0]?.chessId || null;
   const { base, golden } = selId ? recordsOf(selId, getChess) : { base: null, golden: null };
+  const skinState = useStore((s) => s, Object.is, skinsStore);
+  const nSkins = Object.keys(skinState.entries).length;
   const nChanged = changedCount(st.entries, getChess, st.ops, roster);
   const locked = (inMatch && phase && phase !== PHASE.INFO_CHECK && phase !== PHASE.LOBBY) || st.sync === 'locked';
   const gridRef = useRef(null);
@@ -575,10 +582,11 @@ function LoadoutScreen({ st }) {
     if (!base) return;
     setOpsMap(resetOps(loadoutStore.get().ops, base.charId));
     setEntries(resetChoice(loadoutStore.get().entries, base.chessId));
+    setSkin(base.charId, null);
   };
   const resetAll = async () => {
-    if (!nChanged) return;
-    const ok = await confirmDialog({ title: t('全部恢复默认'), text: t('将 {nChanged} 名干员的技能、模组、潜能与练度恢复为默认配置？', { nChanged }), okText: t('恢复默认'), danger: true });
+    if (!nChanged && !nSkins) return;
+    const ok = await confirmDialog({ title: t('全部恢复默认'), text: t('恢复全部调配与皮肤为默认配置？'), okText: t('恢复默认'), danger: true });
     if (!ok) return;
     // the roster's operators only: a 自选 pick's settings belong to the 自选编队 tab
     const rosterChars = new Set(roster.map((c) => c.charId));
@@ -586,6 +594,7 @@ function LoadoutScreen({ st }) {
     for (const [id, e] of Object.entries(loadoutStore.get().ops || {})) if (!rosterChars.has(id)) keep[id] = e;
     setOpsMap(keep);
     setEntries({});
+    setSkins({});
   };
 
   // 导出 / 导入 the loadout (or, on the 干员持有 tab, the not-owned list) as the versioned payload (a downloaded file,
@@ -596,7 +605,7 @@ function LoadoutScreen({ st }) {
   const openExport = () => setIo(tab === 'ownership'
     ? { mode: 'export', kind: 'ownership', text: serializeOwnership(loadoutStore.get().notOwned) }
     : tab === 'diy' ? { mode: 'export', kind: 'diy', text: serializeDiy(loadoutStore.get().diy) }
-      : { mode: 'export', kind: 'loadout', text: serializeExport(loadoutStore.get().entries, { ops: loadoutStore.get().ops }) });
+      : { mode: 'export', kind: 'loadout', text: serializeExport(loadoutStore.get().entries, { ops: loadoutStore.get().ops, skins: skinsStore.get().entries }) });
   const openImport = () => setIo({ mode: 'import', kind: tab, text: '' });
   const ioCopy = async () => {
     const ok = await copyText(ioText);
@@ -643,8 +652,11 @@ function LoadoutScreen({ st }) {
     const { applied, dropped } = r;
     const nOps = r.ops ?? 0;
     // nothing survived sanitising (unknown chess, or every choice already the default): keep the current loadout
-    if (!applied && !nOps) { toast(t('导入失败：这份数据在当前版本没有可用的调配，未做任何改动'), 'error'); return; }
+    const importedSkins = res.skins ? cleanSkins(res.skins, data.get('skins') || { chars: {} }) : null;
+    if (!applied && !nOps && !(importedSkins && Object.keys(importedSkins).length)) { toast(t('导入失败：这份数据在当前版本没有可用的调配，未做任何改动'), 'error'); return; }
+    if (importedSkins) setSkins(importedSkins);
     setIo(null);
+    if (!applied && !nOps) { toast(t('已导入皮肤选择'), 'success'); return; }
     toast(!applied ? t('已导入 {n} 名干员的潜能与练度', { n: nOps })
       : dropped ? t('已导入 {applied} 名干员（另有 {dropped} 项未导入）', { applied, dropped })
         : t('已导入 {applied} 名干员的调配', { applied }), dropped ? 'warn' : 'success');
@@ -726,9 +738,12 @@ function LoadoutScreen({ st }) {
         ${inMatch && hasDeadline(infoDeadline) ? html`<${Countdown} deadline=${infoDeadline} size="sm" gauge=${false} label=${t('调配截止')} class="lo-deadline" />` : null}
         ${syncText ? html`<span class=${cx('lo-sync', syncCls)} role="status">${t(syncText)}</span>` : null}
         <span class="lo-count">${t('已调整')} <b class="num">${nChanged}</b><span class="num t-dim">/${roster.length}</span></span>
-        <${Button} variant="ghost" size="sm" data-testid="loadout-export" disabled=${!nChanged} onClick=${openExport} title=${t('导出当前调配（可复制或下载）')}>${t('导出')}<//>
+        ${nSkins ? html`<span class="lo-count">${t('皮肤 {n}', { n: nSkins })}</span>` : null}
+        <${Button} variant="ghost" size="sm" icon="refresh" data-testid="skins-random" disabled=${!ready}
+          title=${t('随机装备皮肤')} onClick=${() => setSkins(randomSkins(data.get('skins'), data.get('assets')))}>${t('随机装备皮肤')}<//>
+        <${Button} variant="ghost" size="sm" data-testid="loadout-export" disabled=${!nChanged && !nSkins} onClick=${openExport} title=${t('导出当前调配（可复制或下载）')}>${t('导出')}<//>
         <${Button} variant="ghost" size="sm" data-testid="loadout-import" disabled=${!ready} onClick=${openImport} title=${t('导入调配（粘贴或选择文件）')}>${t('导入')}<//>
-        <${Button} variant="secondary" size="sm" icon="refresh" disabled=${!nChanged} onClick=${resetAll}>${t('全部恢复默认')}<//>
+        <${Button} variant="secondary" size="sm" icon="refresh" disabled=${!nChanged && !nSkins} onClick=${resetAll}>${t('全部恢复默认')}<//>
       </div>`}
     </header>
     ${tab === 'diy'

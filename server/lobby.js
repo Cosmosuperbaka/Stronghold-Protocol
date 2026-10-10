@@ -105,6 +105,7 @@ import { encode, isDroppable, isErrCode, sendRaw, sendSession } from './net.js';
 import { getData as defaultGetData, lookup } from './data.js';
 import { Match as DefaultMatch } from './match/Match.js';
 import { KITTED_CHARS } from './sim/content/kits/index.js';
+import { cleanSkins, isSkinSelection } from '../shared/skins.js';
 
 /** Room code alphabet: uppercase letters without I and O (and no digits, so no 0/1). */
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -133,6 +134,7 @@ const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
  * @typedef {{ seat: number, playerId: string, name: string, isBot: boolean, ready: boolean,
  *             connected: boolean, left: boolean, loadout?: Record<string, { skill: number, module: string|null }> | null,
  *             ops?: Readonly<Record<string, { potential: number, cultivate: number }>> | null,
+ *             skins?: Readonly<Record<string, string>> | null,
  *             notOwned?: readonly string[] | null, diy?: Readonly<Record<string, DiyLoadout>> | null }} Seat
  * @typedef {{ charId: string, skillIndex: number, uniEquipId: string|null }} DiyLoadout
  */
@@ -346,6 +348,7 @@ export class Lobby {
       case 'room.rerollSetup': return this.rerollSetup(session, msg);
       case 'room.cancelReroll': return this.rerollSetup(session, msg, true);
       case 'room.loadout': return this.loadout(session, msg);
+      case 'room.skins': return this.skins(session, msg);
       case 'room.ownership': return this.ownership(session, msg);
       case 'room.diy': return this.diy(session, msg);
       case 'room.spectate': return this.spectate(session, msg);
@@ -720,6 +723,7 @@ export class Lobby {
       seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, connected: s.connected,
       // DESIGN §16: the human's checked operator loadout and (0.2.2) per-operator 潜能 / 练度 (bots fight with the defaults)
       loadout: s.isBot ? null : s.loadout || null,
+      skins: s.isBot ? null : s.skins || null,
       ops: s.isBot ? null : s.ops || null,
       // 0.2.0 补位: the chess the human marked as not owned (bots own every operator)
       notOwned: s.isBot ? null : s.notOwned || null,
@@ -980,11 +984,24 @@ export class Lobby {
     return room;
   }
 
+  /** Cosmetic preferences may change during a match; they never touch its battle specification. */
+  skins(session, { skins }) {
+    if (!isSkinSelection(skins)) return fail(ERR.BAD_MSG);
+    const cleaned = Object.freeze(cleanSkins(skins, this.safeData().skins || { chars: {} }));
+    session.skins = cleaned;
+    const room = this.roomOf(session);
+    const seat = room?.seatOf(session.playerId);
+    if (seat) seat.skins = cleaned;
+    if (room?.match && seat && typeof room.match.setSkins === 'function') return room.match.setSkins(session.playerId, cleaned);
+    return OK;
+  }
+
   /** @returns {Seat} */
   humanSeat(idx, session) {
     return {
       seat: idx, playerId: session.playerId, name: session.name, isBot: false, ready: false, connected: session.connected, left: false,
       loadout: session.loadout || null,
+      skins: session.skins || null,
       ops: session.ops || null,
       notOwned: session.notOwned || null,
       diy: session.diy || null,

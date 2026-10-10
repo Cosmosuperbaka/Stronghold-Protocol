@@ -45,6 +45,11 @@
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const str = (v) => (typeof v === 'string' && v ? v : null);
 const get = (o, k) => (isObj(o) && Object.hasOwn(o, k) ? o[k] : undefined);
+const skinFallbacks = new WeakMap();
+export function skinEntry(m, id, skin) {
+  const rec = get(get(m, 'chars'), baseCharId(id));
+  return get(get(rec, 'skins'), skin);
+}
 
 // ---- pure URL helpers (manifest first) ---------------------------------------------------------------------
 
@@ -60,6 +65,8 @@ export function baseCharId(id) {
  * `opts.e2` prefers the E2 art. Falls back to the base avatar, then null.
  */
 export function avatarUrl(m, id, opts) {
+  const skinAvatar = skinEntry(m, id, opts?.skin)?.avatar;
+  if (typeof skinAvatar === 'string' && skinAvatar.startsWith('/assets/')) return skinAvatar;
   const s = str(id);
   if (!s) return null;
   const direct = get(get(m, 'chars'), s);
@@ -154,6 +161,16 @@ export function spineEntry(m, id, opts) {
   const ch = get(get(m, 'chars'), s) || get(get(m, 'chars'), baseCharId(s));
   if (ch && isObj(ch.spine)) {
     const sp = (opts && opts.back && isObj(ch.spine.back)) ? ch.spine.back : ch.spine.front;
+    const outfit = skinEntry(m, id, opts?.skin);
+    const selected = opts?.back ? outfit?.spine?.back || outfit?.spine?.front : outfit?.spine?.front;
+    if (validSpine(selected)) {
+      let entries = skinFallbacks.get(selected);
+      if (!entries) { entries = new Map(); skinFallbacks.set(selected, entries); }
+      if (!entries.has(sp)) {
+        entries.set(sp, { ...selected, fallback: validSpine(sp) ? sp : null });
+      }
+      return entries.get(sp);
+    }
     return validSpine(sp) ? sp : null;
   }
   const tk = get(get(m, 'tokens'), s);
@@ -200,7 +217,9 @@ export function localSpineEntry(sl, local, web) {
 }
 
 /** Whether an operator/token/enemy has a Back model. */
-export function hasBackSpine(m, id) {
+export function hasBackSpine(m, id, opts) {
+  const outfit = skinEntry(m, id, opts?.skin);
+  if (validSpine(outfit?.spine?.front)) return validSpine(outfit.spine.back);
   const ch = get(get(m, 'chars'), str(id) || '') || get(get(m, 'chars'), baseCharId(id) || '');
   return !!(ch && isObj(ch.spine) && validSpine(ch.spine.back));
 }
@@ -210,8 +229,8 @@ export function validSpine(sp) {
 }
 
 /** Best 2D picture for a unit asset id (operator avatar, token avatar, enemy icon, item icon). */
-export function unitPictureUrl(m, id) {
-  return avatarUrl(m, id) || tokenAvatarUrl(m, id) || enemyIconUrl(m, id) || itemIconUrl(m, id) || null;
+export function unitPictureUrl(m, id, opts) {
+  return avatarUrl(m, id, opts) || tokenAvatarUrl(m, id) || enemyIconUrl(m, id) || itemIconUrl(m, id) || null;
 }
 
 // ---- audio ---------------------------------------------------------------------------------------------------
@@ -908,9 +927,9 @@ export function createAssets(options) {
     profIcon: (p, kind) => profIconUrl(m(), p, kind),
     subProfIcon: (s) => subProfIconUrl(m(), s),
     ui: (name) => uiUrl(m(), name),
-    picture: (id) => unitPictureUrl(m(), id),
+    picture: (id, o) => unitPictureUrl(m(), id, o),
     spineEntry: (id, o) => spineEntry(m(), id, localManifest ? { ...o, local: localManifest } : o),
-    hasBack: (id) => hasBackSpine(m(), id),
+    hasBack: (id, o) => hasBackSpine(m(), id, o),
     audio: {
       bgm: (kind) => bgmEntry(m(), kind),
       sfx: (group, key) => sfxUrl(m(), group, key),

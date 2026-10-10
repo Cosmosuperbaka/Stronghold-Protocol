@@ -75,6 +75,7 @@ import {
 import { collectLeaves, downloadLeaves, resolveTemplate, totalBytes, contentHash, droppedEntries, MANIFEST_VERSION } from './assets/manifest.mjs';
 import { fontJobs, buildFonts } from './assets/fonts.mjs';
 import { skelParserAvailable } from './assets/skel.mjs';
+import { buildSkinPlan, completeSkins } from './assets/skins.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ASSETS = join(ROOT, 'public', 'assets');
@@ -303,16 +304,18 @@ function tidyManifest(m) {
   for (const c of Object.values(m.chars || {})) if (c.spine && !Object.keys(c.spine).length) delete c.spine;
 }
 
-function countStats(m, bytes, files) {
+export function countStats(m, bytes, files) {
   const vals = (o) => Object.values(o || {});
   const spines = new Set();
   for (const c of vals(m.chars)) for (const s of vals(c.spine)) spines.add(s.skel);
+  for (const c of vals(m.chars)) for (const skin of vals(c.skins)) for (const s of vals(skin.spine)) spines.add(s.skel);
   for (const e of vals(m.enemies)) if (e.spine) spines.add(e.spine.skel);
   for (const t of vals(m.tokens)) if (t.spine) spines.add(t.spine.skel);
   return {
     files,
     bytes,
     chars: Object.keys(m.chars || {}).length,
+    skins: vals(m.chars).reduce((n, c) => n + Object.keys(c.skins || {}).length, 0),
     charsWithBack: vals(m.chars).filter((c) => c.spine?.back).length,
     enemies: Object.keys(m.enemies || {}).length,
     enemiesWithSpine: vals(m.enemies).filter((e) => e.spine).length,
@@ -414,6 +417,14 @@ async function main() {
     extraOperators: extras.extraOperators,
     moduleTypes: extras.moduleTypes,
   });
+  const installedManifest = await readJson('data/assets.json').catch(() => null);
+  const installedSkins = Object.values(installedManifest?.chars || {}).flatMap((c) => Object.keys(c.skins || {}));
+  if (installedSkins.length) {
+    const research = await readJson('docs/research/operator-skins.json');
+    const skinPlan = buildSkinPlan(research, installedSkins);
+    for (const [id, c] of Object.entries(skinPlan.template.chars)) if (plan.template.chars[id]) plan.template.chars[id].skins = c.skins;
+    for (const [id, m] of skinPlan.models) plan.models.set(id, m);
+  }
   const leaves = collectLeaves(plan.template);
   log(`[plan] ${leaves.length} files + ${plan.models.size} Spine models ` +
     `(${Object.keys(plan.template.chars).length} chars, ${Object.keys(plan.template.enemies).length} enemies, ` +
@@ -459,6 +470,7 @@ async function main() {
   // Manifest
   const resolved = resolveTemplate(plan.template, { root: ASSETS, spine: spine.entries, sourceOf: (rel) => dl.ledger.files[rel]?.url });
   const body = resolved.value;
+  completeSkins(body.chars);
   tidyManifest(body);
   const fontFaces = {};
   for (const [name, f] of Object.entries(fonts.files)) fontFaces[name] = f;

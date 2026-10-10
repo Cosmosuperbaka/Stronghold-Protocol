@@ -5,6 +5,10 @@ the **UI owner** consuming `m.public` / `m.private` / `m.result`, and anyone dri
 Normative contracts stay in DESIGN.md §6 and §8 ([design/match.md](design/match.md),
 [design/network.md](design/network.md)); this file documents the implementation and every assumption it makes.
 
+Optional cosmetics: lobby `room.skins` stores a catalogue-filtered operator map on the session / seat.
+PlayerState takes a frozen copy; `Match.setSkins` can update it during any active phase and flush the public
+player's non-empty `skins` map. No gameplay state or battle input changes. See [SKINS.md](SKINS.md).
+
 ```
 server/match/
   Match.js         state machine, timers, round loop, co-op orchestration, views (the lobby⇄match interface is at the top)

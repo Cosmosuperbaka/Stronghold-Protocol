@@ -752,8 +752,11 @@ describe('generated manifest data/assets.json', () => {
     };
     const spineDir = join(ASSETS, 'spine');
     if (existsSync(spineDir)) walk(spineDir);
+    // Optional skin installers can retain incomplete downloads for a later retry. Validate served skins only.
+    const installedSkinAtlases = new Set(urls(manifest).filter((u) => u.endsWith('.atlas')).map((u) => join(PUBLIC, u)));
     assert.ok(atlases.length > 400, `${atlases.length} atlases`);
     for (const p of atlases) {
+      if (/spine[\\/]op[\\/]char_[^\\/]+[\\/]char_[^\\/]+[\\/]/.test(p) && !installedSkinAtlases.has(p)) continue;
       const info = atlasInfo(readFileSync(p, 'utf8'));
       assert.ok(info.hasSize, `${p} has size`);
       if (p.includes(`${join('spine', 'enemy')}`)) assert.ok(info.hasPma, `${p} has pma`);

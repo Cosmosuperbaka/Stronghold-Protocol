@@ -6,6 +6,11 @@ All official game art, Spine models and audio are **downloaded at install time**
 All downloaded game assets the client needs are listed in **`data/assets.json`**. Game-art requests must use that manifest.
 The original project icons below are shipped static files, not downloaded game assets.
 
+Optional operator outfits are installed by `tools/install-skins.mjs` and stored under
+`chars[charId].skins[skinId]` with their own avatar and front/back Spine entries. Normal resource rebuilding
+preserves installed outfits through the same parser. See [SKINS.md](SKINS.md) for installation, fallbacks,
+sources and manual browser-cache preloading.
+
 ## Original project application icons (#413)
 
 By the maintainer's revised decision of 2026-10-10, **沿用 0.2.x 的薄荷绿城堡并精修**.

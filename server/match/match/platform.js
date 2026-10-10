@@ -9,10 +9,21 @@ import { PHASE, ERR } from '../../../shared/constants.js';
 import { syntheticResult } from '../fields.js';
 import { FLOW_TICKER_PRIORITY, OK, fail } from './common.js';
 import { msg } from '../../../shared/i18n.js';
+import { cleanSkins, isSkinSelection } from '../../../shared/skins.js';
 
 const GAME_TYPES = new Set(Object.keys(C2S).filter((t) => Object.hasOwn(C2S, t) && (t.startsWith('g.') || t.startsWith('b.'))));
 
 export class MatchPlatform {
+  setSkins(playerId, skins) {
+    if (!isSkinSelection(skins)) return fail(ERR.BAD_MSG);
+    const ps = this.players.get(playerId);
+    if (!ps || ps.isBot || ps.left || this.disposed || this.ended) return fail(ERR.NOT_IN_ROOM);
+    ps.skins = Object.freeze(cleanSkins(skins, this.gd.raw.skins || { chars: {} }));
+    this.markPublic();
+    this.flush();
+    return OK;
+  }
+
   start() {
     if (this.disposed || this.ended || this.phase !== PHASE.LOBBY) return;
     this.guard(() => {

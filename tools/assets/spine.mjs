@@ -327,10 +327,13 @@ export async function processModels(models, { root, dl, cachePath, download = tr
       }
     }
     nextCache[m.skel.rel] = { key: ck, info: sk };
-    if (sk.missingRegions?.length) problems.push(`${m.key}: ${sk.missingRegions.length} attachment(s) not in atlas (e.g. ${sk.missingRegions[0]})`);
+    if (sk.missingRegions?.length) {
+      problems.push(`${m.key}: ${sk.missingRegions.length} attachment(s) not in atlas (e.g. ${sk.missingRegions[0]})`);
+      if (m.strict) continue;
+    }
     if (!sk.animations.length) { problems.push(`${m.key}: skeleton has no animations`); continue; }
     const key = String(m.key);
-    const id = key.startsWith('enemy:') ? key.slice('enemy:'.length) : key.startsWith('op:') ? key.split(':')[1] : null; // op:<char>:front|back
+    const id = m.roleId || (key.startsWith('enemy:') ? key.slice('enemy:'.length) : key.startsWith('op:') ? key.split(':')[1] : null); // op:<char>:front|back
     // an enemy's numbered skill clips are resolved too (anims.skills: the clip of each skill slot it casts, PR #275);
     // operators keep the pool's indices (their equipped skill picks among them)
     const fixed = applyRoleFix(resolveRoles(sk.animations, { skillIndices: m.skillIndices, numberedSkills: key.startsWith('enemy:'), durations: sk.durations }), id ? PREFAB_SPINE_ROLES[id] : undefined, sk.durations);

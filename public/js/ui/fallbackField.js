@@ -25,6 +25,9 @@ import { GEO } from '../../../shared/constants.js';
 import { chessAvatarUrl, itemIconUrl, tokenAvatarUrl, enemyIconUrl } from './assetUrls.js';
 import { tileKey, hasFlag, UF, penPlacement, PEN, fieldTile, ownStandIn, ownDiyRecord } from './gameLogic.js';
 import { t } from '../../../shared/i18n.js';
+import { avatarUrl } from '../assets.js';
+import { skinForUnit, skinsStore } from './skins.js';
+import { store } from '../store.js';
 
 const DRAG_PX = 6;
 const DMG_TTL = 900;
@@ -36,6 +39,8 @@ function unitArt(m, info) {
   if (!m || !id) return null;
   if (info.side === 'enemy' || String(id).startsWith('enemy_')) return enemyIconUrl(m, id);
   if (String(id).startsWith('token_')) return tokenAvatarUrl(m, id);
+  const skin = skinForUnit(info);
+  if (skin) return avatarUrl(m, id, { skin });
   const chars = m.chars || {};
   if (chars[id]?.avatar) return chars[id].avatar;
   if (String(id).endsWith('_2') && chars[id.slice(0, -2)]) return chars[id.slice(0, -2)].avatarE2 || chars[id.slice(0, -2)].avatar;
@@ -127,7 +132,9 @@ export function createFallbackView(host, opts = {}) {
     if (p.kind === 'item') return itemIconUrl(mm, lookup('items', p.id));
     if (p.kind === 'token') return tokenAvatarUrl(mm, p.id);
     const chess = lookup('chess', p.id);
-    return chessAvatarUrl(mm, ownSi(chess) || ownDiy(chess) || chess);
+    const si = ownSi(chess), rec = si || ownDiy(chess) || chess;
+    const skin = !si && rec ? skinForUnit({ avatar: rec.assets?.avatar || rec.charId, side: 'ally' }) : null;
+    return skin ? avatarUrl(mm, rec.assets?.avatar || rec.charId, { skin }) : chessAvatarUrl(mm, rec);
   }
   /** 0.2.0 补位: the player's own piece of a chess it does not own is its stand-in, bench and board alike (render/app.js pieceInfo) */
   function ownSi(chess) {
@@ -527,5 +534,9 @@ export function createFallbackView(host, opts = {}) {
     },
   };
   view.resize();
+  const offSkins = skinsStore.subscribe(schedule);
+  const offPlayers = store.subscribe((s, prev) => { if (s.match.public !== prev.match.public) schedule(); });
+  const destroy = view.destroy;
+  view.destroy = () => { offSkins(); offPlayers(); destroy(); };
   return view;
 }

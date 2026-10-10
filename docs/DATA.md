@@ -37,6 +37,10 @@ Unknown options or a missing option value are errors (exit code 2); `--refresh` 
 
 ## 0. Conventions used by every file
 
+Optional cosmetics: `skins.json` is `{ version: 1, chars: { [charId]: [{ id, name, group }] } }`, generated from
+`docs/research/operator-skins.json` and restricted to current chess / backup operator ids. It contains catalogue
+metadata only; installed files are resolved exclusively through `assets.json`. See [SKINS.md](SKINS.md).
+
 | Convention | Meaning |
 |---|---|
 | ids | Always the official ids: `chess_char_1_01_a` (normal) / `_b` (精锐 golden), `chess_item_1_01_e_a`, `garrison_16_a`, `bondeffect_yan`, `enemy_1422_lrsldr`, `band_bldsk`, `boss_1`, `act1autochess_03` (wave template = level file name, lower-case), `act2autochess_m01` (stage). |

@@ -521,6 +521,11 @@
 .settings-btn .btn__label { display: inline-flex; align-items: center; gap: .1rem; }
 .settings-btn .btn__icon { color: var(--mint-500); }
 .set-list { display: flex; flex-direction: column; gap: .16rem; padding-top: .06rem; }
+.set-preload { border-top: 1px solid var(--line-2); padding-top: .16rem; }
+.set-preload select { min-width: 0; width: 100%; padding: .08rem; border: 1px solid var(--line-2); background: var(--bg-1); color: var(--text-hi); font-size: max(13px, calc(.16 * var(--t))); }
+.set-preload progress { display: block; width: 100%; height: 8px; margin-top: .12rem; accent-color: var(--mint-500); }
+.set-preload .set-hint { overflow-wrap: anywhere; }
+@media (max-width: 480px) { .set-preload .set-row { grid-template-columns: minmax(0, 1fr) auto; } .set-preload .set-row__label { grid-column: 1 / -1; } }
 .set-row { display: grid; grid-template-columns: minmax(0, 3.3rem) minmax(0, 1fr) auto; align-items: center; gap: .18rem; min-height: .44rem; }
 /* The label column may shrink (the label wraps) instead of pushing its control out of the modal: at 设置 →「文字大小」
    大 / 特大 a phone's label (a Chinese name plus its Latin micro label) is wider than 3.3rem at 1rem = 40 px. */
