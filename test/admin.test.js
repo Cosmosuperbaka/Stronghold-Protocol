@@ -286,6 +286,33 @@ test('console (0.2.0): a 自选编队 piece is listed under its picked operator'
   m.dispose();
 });
 
+test('console (0.2.3): rerolled setup supports new and collab DIY grants, modules and rewind', () => {
+  const h = harness({ seed: 11, fake: true });
+  const m = h.m;
+  const ps = m.players.get('p_0');
+  assert.equal(m.phase, 'INFO_CHECK');
+  assert.deepEqual(m.requestSetupReroll(ps.playerId, 0), { ok: true });
+  assert.equal(m.setupRevision, 1);
+  h.drive(() => m.phase === 'PREP' && m.round === 1, { ready: false });
+  const cat = catalogView({ rooms: new Map([['TEST', { match: m }]]) }, 'TEST');
+  const clemnt = cat.diy.find((p) => p.charId === 'char_4231_clemnt' && p.tier === 6);
+  assert.deepEqual(clemnt.skills.map((s) => s.index), [0, 1, 2]);
+  assert.ok(cat.diy.find((p) => p.charId === 'char_2025_shu' && p.tier === 6).modules.some((p) => p.id === 'uniequip_003_shu'));
+  assert.ok(m.gd.raw.chess.chess_char_5_05_b.modules.some((p) => p.uniEquipId === 'uniequip_003_ulpia'));
+  const grant = { charId: clemnt.charId, tier: 6, skillIndex: 1 };
+  assert.deepEqual(h.act('diy', grant), { ok: true });
+  assert.deepEqual(h.act('diy', { charId: 'char_456_ash', tier: 6, skillIndex: 2 }), { ok: true });
+  const slot = Object.keys(ps.diy).find((id) => ps.diy[id].charId === clemnt.charId);
+  assert.equal(ps.gd.chess(slot).skill.index, 1);
+  assert.deepEqual(h.act('diySkill', { ...grant, skillIndex: 2 }), { ok: true });
+  assert.equal(ps.gd.chess(slot).skill.index, 2);
+  assert.deepEqual(h.act('rewind', 1), { ok: true, round: 1 });
+  assert.equal(m.setupRevision, 1, 'the rerolled opening stays');
+  assert.equal(m.errorCount, 0, JSON.stringify(m.errors));
+  checkInvariants(m);
+  m.dispose();
+});
+
 test('console (local-tools): any 自选 operator to anyone — a slot of the tier is filled, at most 2 per tier at a time', () => {
   const seats = [{ seat: 0, playerId: 'p_0', name: 'P0', isBot: false, connected: true },
     { seat: 1, playerId: 'ai_0', name: 'AI0', isBot: true, connected: true }];

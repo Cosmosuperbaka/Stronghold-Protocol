@@ -102,7 +102,7 @@ test('every chess and 自选 form at every potential: the raw keyframes plus the
       forms++;
     }
   }
-  assert.equal(forms, 277); // local-tools: + the 7 collab picks' three forms each (256 upstream)
+  assert.equal(forms, 280); // local-tools: + the 7 collab picks' three forms each (259 upstream)
 });
 
 test('talent candidates at every potential: each talent is the last one unlocked with requiredPotentialRank ≤ the rank', { skip: !HAS_CACHE && 'no .cache/gamedata' }, () => {

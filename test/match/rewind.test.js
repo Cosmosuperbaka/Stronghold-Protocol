@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PHASE } from '../../shared/constants.js';
-import { rewindToPrep } from '../../server/match/rewind.js';
+import { capturePrep, rewindToPrep } from '../../server/match/rewind.js';
 import { makeMatch, checkInvariants } from './harness.js';
 
 /** Everything that decides a match, without piece uids (rewind keeps uidSeq monotonic). */
@@ -20,6 +20,22 @@ function fingerprint(m) {
 }
 
 const play = (seed) => makeMatch({ mode: 'coop', humans: 1, bots: 3, seed }).start().autoHumans();
+
+test('0.2.3: rewind restores AI reaction counters from the abandoned timeline', () => {
+  const h = makeMatch({ mode: 'coop', humans: 1, bots: 1, seed: 11, fake: true }).start().autoHumans();
+  const m = h.m;
+  h.drive(() => m.phase === PHASE.PREP && m.round === 2, { ready: false });
+  m._botEmotesSettledRound = 1;
+  m._botEmotesMerges = new Map([['ai_0', 1]]);
+  m.prepSnapshots.set(2, capturePrep(m));
+  m._botEmotesSettledRound = 4;
+  m._botEmotesMerges.set('ai_0', 3);
+  assert.deepEqual(rewindToPrep(m, 2), { ok: true, round: 2 });
+  assert.equal(m._botEmotesSettledRound, 1);
+  assert.deepEqual([...m._botEmotesMerges], [['ai_0', 1]]);
+  checkInvariants(m);
+  m.dispose();
+});
 
 test('rewound mid-round and replayed: the match ends exactly like the straight run', () => {
   const a = play(4242);

@@ -1,6 +1,6 @@
 # 交接文档（私有分支 local-tools）
 
-最近更新 2026-10-09。接手这个项目先读这份，再按需要读下面列的文档。这里只放现状、怎么跑、常见任务和待办，实现细节在 [LOCAL-DEV.md](LOCAL-DEV.md)，不重复。
+最近更新 2026-10-10。接手这个项目先读这份，再按需要读下面列的文档。这里只放现状、怎么跑、常见任务和待办，实现细节在 [LOCAL-DEV.md](LOCAL-DEV.md)，不重复。
 
 ## 1. 项目是什么
 
@@ -30,11 +30,14 @@
 ## 2. 当前状态
 
 - 远程：`origin` = 私有库 `zhewang448/Stronghold-Protocol`，`upstream` = 上游。工作分支 `local-tools`（私有库的默认分支），`master` 只跟踪上游、不改。
-- 已合并上游 v0.2.2（`62eb113`，2026-10-09）。2026-10-09 查过，上游 master / dev 没有更新的提交。
-- `local-tools` 比 `origin/local-tools` 多 2 个提交，**还没推送**：
+- 已按用户指令提交上游 v0.2.3（`1db8e510`，2026-10-10）的合并，**尚未推送**。保留本地全部功能，自选池为 79 名。
+- 合并前的 HEAD `935cd81a` 比 `origin/local-tools` 多 4 个本地提交，以下提交及本次合并**均尚未推送**：
   - `bb1b599` 控制台：发放自选时可选技能和模组；改技能
   - `2fc4236` 自选：其余 6 名联动干员进自选池（kit 取自 BBleae fork）
-- 测试（2026-10-09，`2fc4236` 上）：全量 5828 项，5808 通过、17 跳过、3 失败，3 个都是已知失败，见 §5。
+  - `e405f4c` 文档：项目交接
+  - `935cd81` 控制台：修复自选候选即时显示并统一候选框样式
+- 验证（2026-10-10，v0.2.3 合并工作区）：Node 24.19 下 `node --test --test-concurrency=4` 共 6026 项，6013 通过、13 跳过、0 失败；控制台和联动自选的真实 Chrome 测试分别通过；全部 296 个 golden 场景通过；CI 的 setup、smoke、lint、imports、typecheck 均通过，四个界面语言包严格检查通过。日志在 `.cache/merge-v023/`。
+- 合并仅更新文件：3000 端口的旧 v0.2.2 服务未重启，需重启才会加载 v0.2.3 服务代码。
 - 本地多了两组只读 ref，可以删：`refs/upstream-pr/*`（上游全部 PR 的 head，查联动 kit 时 fetch 的）、`refs/bbleae/*`（BBleae fork）。删除：`git for-each-ref --format='%(refname)' refs/upstream-pr refs/bbleae | xargs -n1 git update-ref -d`。
 
 ## 3. 环境与运行
@@ -42,16 +45,16 @@
 - 新 clone：`npm install && npm run setup`。素材下到 `public/assets/`（约 600 MB，不进 git），官方数据缓存在 `.cache/gamedata`。
 - 开服：双击 `scripts/start-tunnel.bat`，游戏在 3000 端口，控制台在 `http://127.0.0.1:3100`（只监听本机）。
 - **3000 端口通常是用户正在开服的进程，不要动它。** 开发预览用 `.claude/launch.json` 的 `stronghold-dev`（3005，控制台 3105）。
-- 浏览器测试：本机没有 Chrome，用 Edge：`CHROME_PATH="C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" SP_E2E=1 node --test test/ui/<文件>.e2e.test.js`。
+- 浏览器测试通过 `CHROME_PATH` 指定可运行的 Chrome/Chromium。2026-10-10 Edge 启动立即退出，已改用缓存 Chrome `%USERPROFILE%/.cache/puppeteer/chrome/win64-151.0.7922.71/chrome-win64/chrome.exe`，控制台浏览器测试通过。
 
 ## 4. 常见任务
 
 **合并上游新版本**
-1. `git fetch upstream`，开临时分支（如 `local-tools-v0.2.3`），`git merge upstream/master`。
+1. `git fetch upstream`，在工作分支执行 `git merge --no-commit --no-ff upstream/master`；没有用户的明确指令不提交、不推送。
 2. 冲突只会出在 LOCAL-DEV §2「改动过的上游文件」那几处。生成的数据（`data/backups.json`、`assets.json`、`i18n/*.json`、`test/golden/diy.json`）先取上游版本，再按 LOCAL-DEV §8 的 1–5 步重新生成，不要手工合。
 3. `npm install && npm run setup`，跑 `node --test test/match/rewind.test.js test/admin.test.js`，再跑全量。
 4. 上游给 `PlayerState` / `Match` 加了新字段时，检查回档要不要处理（LOCAL-DEV §4「以后加新状态时」）。
-5. 测完快进回 `local-tools`，删临时分支。
+5. 测完保留已解决冲突的工作区和合并状态，记录验证结果；仅在用户明确要求后才提交。
 
 **给控制台加操作**：LOCAL-DEV §5「加一个新操作」，接口参考见本文附录。新操作在 `test/admin.test.js` 里至少测一次，改完用 3005 的预览打开控制台实际看一遍。
 
@@ -62,8 +65,8 @@
 ## 5. 测试
 
 - 改了哪里先跑哪里：`node --test test/<目录>/<文件>.test.js`。
-- 全量 `node --test` 约 5 分钟，一次只开一份。
-- 已知失败（2026-10-09 全量）：
+- 全量测试约 5 分钟，一次只开一份。当前以 `node --test --test-concurrency=4` 跑完 6026 项，0 失败，避免全机并发挤占性能用例。
+- 历史失败（2026-10-09；2026-10-10 使用 Node 24.19 和并发上限 4 已全部通过）：
 
 | 测试 | 原因 |
 |---|---|

@@ -53,7 +53,7 @@
 | 生成的数据 | `data/backups.json`、`data/assets.json`、`data/i18n/*.json`、`test/golden/diy.json`：合并上游时按第 8 节重新生成，不要手工合 |
 | 测试里写死的数量 | `test/backups.test.js`、`diy.test.js`、`assets-diy.test.js`、`full-potential.test.js`、`potential.test.js`、`i18n-data.test.js`、`feedback7-voices.test.js`、`content/feedback5-we2-summon-hand.test.js`、`render/issue25-downback.test.js`：自选池 71 → 78、单位形态 256 → 277、有语音的干员 191 → 198 等，改动处都标了 `local-tools` |
 
-上游自己的文档（`docs/DATA.md`、`ASSETS.md` 等）里「71 名、7 名联动被排除」的说法没改，避免合并冲突，以本节为准。
+当前 v0.2.3 的自选池为 79 名（上游 72 + 本地 7），单位形态 280 个，有语音的干员 199 名。上表的 71 → 78、256 → 277 等是 v0.2.2 的历史数量。上游自己的文档仍描述排除联动的官方分支，以本节为准。
 
 0.2.0 起上游把 `Match` 的方法拆到了 `server/match/match/*.js`，启动代码从 `server/index.js` 拆到了 `server/http/`。
 
@@ -91,6 +91,7 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 - 每个 `PlayerState` 的全部自有字段，减去 `PS_SKIP` 里的那些（引用、身份、连接状态、缓存、配装）
 - `MATCH_KEYS` 里的对局级字段（回合、波次、上回合结果、团队 LP 等）
+- v0.2.3 新增的 AI 表情计数 `_botEmotesSettledRound`、`_botEmotesMerges`，避免废弃时间线抑制回档后的反应。开局重刷字段在开局后锁定，保留当前重刷结果。
 - 共享卡池 `m.pool.entries`
 - 六条 rng 的状态
 - `bossPool`、`_uniteBounds` 这类类实例或含 `PlayerState` 引用的对象，按引用保存（它们只会被替换，不会被原地修改）
@@ -171,7 +172,7 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 自选棋子是按「自选位」区分的（每人 4 个：5 阶、6 阶各 2 个），客户端和战斗都按自选位读玩家的选择（`ps.diy`、`m.private.diy`）。所以发放某名自选干员时，先把它放进该等阶的一个自选位，再发这个位的棋子：优先用已经放着它的位，其次空位，再次这名玩家场上、手牌、整备区都没有棋子的位。也就是说，同一时间每个等阶最多 2 名不同的自选干员；有棋子的位不会被换掉（换掉的话那些棋子会跟着变成别人）。一名持有干员只能占一个位（和自选编队规则一致），已经在另一等阶上场时会拒绝。
 
 - 技能和模组：控制台的两个下拉框，不选就用默认（最后一个技能、第一个可用模组，同干员调配）。`uniEquipId: 'none'` 是不装备。原型干员固定用锁定的选择，下拉框不可用。
-- 输入名字即显示匹配候选（5/6 阶、普通/精锐），目录尚未返回时显示加载状态，返回后自动补齐。点击候选或上下键加回车只选择，再按回车发放；中文输入法确认不触发发放。使用页面候选列表，避免浏览器原生 `datalist` 异步更新后不弹出的问题。浏览器回归：`SP_E2E=1 node --test test/ui/admin-diy.e2e.test.js`（Windows 设置 `CHROME_PATH` 为 Edge 路径）。
+- 输入名字即显示匹配候选（5/6 阶、普通/精锐），目录尚未返回时显示加载状态，返回后自动补齐。点击候选或上下键加回车只选择，再按回车发放；中文输入法确认不触发发放。使用页面候选列表，避免浏览器原生 `datalist` 异步更新后不弹出的问题。浏览器回归：`SP_E2E=1 node --test test/ui/admin-diy.e2e.test.js`（Windows 设置 `CHROME_PATH` 为可运行的 Chrome/Chromium 路径，见 HANDOFF §3）。
 - 其他候选输入（发放干员、道具、装备、机变卡）共用 `candidateInput()` 和候选层，仍从原有 `datalist` 目录读取标签，回车走原有动作处理器，保留直接输入 ID。候选层固定定位，滚动或窗口尺寸改变时关闭，避免被详情区裁切。上述浏览器回归同时覆盖这四类操作的目录和实际请求参数。
 - 一个自选位只有一套技能和模组，同一位上的棋子都一样。所以给已在位上的干员换技能（发放时选了别的技能，或点「改技能」走 `diySkill`），这个位上已有的棋子会一起变。召唤物跟技能走的干员（召唤物在手牌里）换技能后没专门处理，可能不一致。
 - 新位的库存直接给满，不检查本局禁用盟约（控制台不受限制）。
@@ -211,12 +212,14 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 ## 6. 测试
 
-- 全量：`node --test`，2026-10-09 是 5828 项，这台机器上约 5 分钟（之前记的是 10 分钟，机器忙时会更久）。一次只开一份，否则性能用例会超时。
+- 全量：当前推荐 `node --test --test-concurrency=4`。2026-10-10 在 Node 24.19 下是 6026 项，6013 通过、13 跳过、0 失败，约 5 分钟。一次只开一份，否则性能用例会超时。Node 22.14 下的首轮 47 项控制台、回档、数据专项也全部通过。
 - 单个文件：`node --test test/match/rewind.test.js`。
 - 对局测试用 `test/match/harness.js` 的 `makeMatch()`：虚拟时钟（`VirtualScheduler`），完全确定。常用 `h.toPrep(r)`、`h.drive(pred)`（自动替真人确认、选策略、就绪）。注意 `h.runToEnd()` **不会**替真人操作，有真人座位时要用 `h.drive(() => h.ended != null)`。
 - `node tools/matchrun.mjs --check` 可以跑整局并检查不变量。
 
 ### 已知的失败
+
+下表记录旧环境的失败。2026-10-10 改用 Node 24.19 并限制测试并发为 4 后，全量 0 失败。第一次无并发上限的测试在冲突尚未全部标记解决时遇到了打包路径重复，以及性能阈值失败；解决索引冲突并限制并发后，两项在最终全量中均通过。控制台和联动自选的真实浏览器测试也通过；全部 296 个 golden 场景通过，除自选族外与上游的 golden 文件一致。完整日志见 `.cache/merge-v023/`。
 
 | 测试 | 原因 |
 |---|---|
@@ -235,7 +238,7 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 ## 8. 联动干员进自选池
 
-上游以版权为由把联动 6★ 排除在自选池外（`tools/build-data.mjs` 的 `DIY_EXCLUDED_TEAMS` 按阵营、`DIY_EXCLUDED_NUMBER_PREFIXES` 按编号前缀）。本分支的决定（2026-10-09）是把联动干员放进来：charId 列在同一文件里的 `DIY_COLLAB_ALLOWED`，再按下面的步骤重新生成。现在 7 名全部加入，自选池 71 → 78。
+上游以版权为由把联动 6★ 排除在自选池外（`tools/build-data.mjs` 的 `DIY_EXCLUDED_TEAMS` 按阵营、`DIY_EXCLUDED_NUMBER_PREFIXES` 按编号前缀）。本分支的决定（2026-10-09）是把联动干员放进来：charId 列在同一文件里的 `DIY_COLLAB_ALLOWED`，再按下面的步骤重新生成。7 名全部加入：0.2.2 的自选池 71 → 78，当前 0.2.3 为 72 → 79。
 
 ### 已加入
 
@@ -259,13 +262,13 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 - 联动干员大多只有联动配音（`LINKAGE`），镜像上没有 `voice_cn/`，中文语音树改用 `voice/` 下的同名文件（`tools/assets/plan.mjs`）。所以这 5 名的中文、日文语音是同一套。
 - fork 的 `TOKEN_SKIN_SPINES`（艾拉地雷的皮肤模型）上游没有，没搬：雷鸣地雷没有 Spine，只有头像。
 
-`test/ui/diy-collab.e2e.test.js`（fork 的浏览器测试：选人、商店、部署、战斗里结城理的人格模型）也搬了。本机没有 Chrome，用 Edge 跑：`CHROME_PATH="C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" SP_E2E=1 node --test test/ui/diy-collab.e2e.test.js`。
+`test/ui/diy-collab.e2e.test.js`（fork 的浏览器测试：选人、商店、部署、战斗里结城理的人格模型）也搬了。通过 `CHROME_PATH` 指定可运行的 Chrome/Chromium 后设置 `SP_E2E=1` 执行该文件；本机当前可用的缓存 Chrome 路径见 HANDOFF §3。
 
 fork 文档里列的未完成项（§F6.4）：Fever 槽、她的粉色技力条和 KiLLKiSS BGM 切换没画，音符的飞行没画；龙之箭没有自己的飞行图形；艾拉地雷没有模型。
 
 ### 加一名（或合并上游后）重新生成
 
-1. **游戏数据**：`.cache/gamedata` 要和上游构建 `data/` 时用的 ArknightsGameData 版本一致，否则别的干员的数字也会变。0.2.2 用的是 `a550f5e`（2026-09-29，Client 2.7.71）。判断办法：先不改代码，在临时目录跑 `node tools/build-data.mjs --offline --out <临时目录>`，和 `data/` 逐字节相同才对。不对就用 curl 按 `.cache/gamedata` 里现有的文件列表，从 `https://raw.githubusercontent.com/Kengxxiao/ArknightsGameData/<commit>/zh_CN/gamedata/<路径>` 重新下载（Node 不走代理，curl 会走）。
+1. **游戏数据**：`.cache/gamedata` 要和上游构建 `data/` 时用的 ArknightsGameData 版本一致，否则别的干员的数字也会变。当前 0.2.3 用的是 `17759cc8cdf37388414145d16262a3a06f3ab25e`（2026-10-08，Client 2.7.81；见上游 `docs/history/0.2.3.md`）；0.2.2 曾用 `a550f5e`（Client 2.7.71）。先备份旧缓存、把指定版本下载到独立缓存，再用上游原版构建脚本生成到临时目录，与上游发布的 `data/` 逐项比较；确认一致才替换缓存并运行本地构建脚本。不要用本地已经放行联动的脚本验证上游数据。
 2. `node tools/build-data.mjs --offline`：改写 `data/backups.json`。
 3. `node tools/fetch-assets.mjs --add-only`：下载新干员的美术和语音，并改写 `data/assets.json`。网络不稳时可以重跑，会续传。
 4. 数据翻译：`node tools/build-i18n.mjs`（en），以及 `--lang ja` / `ko` / `zh-TW`。下载失败就用 curl 把表预先放进 `.cache/gamedata-<lang>/`（`excel/` 下 8 张表，加上 `levels/enemydata/enemy_database.json`），再加 `--offline`。和旧文件做 JSON 比较：差异应该只有新干员、`_h` 和 `meta` 的覆盖率。2026-10-09 的 zh-TW 还顺带补上了怒潮凛冬的译名（源数据比上游构建时更新）。
@@ -276,4 +279,4 @@ fork 文档里列的未完成项（§F6.4）：Fever 槽、她的粉色技力条
 
 `data/backups.json`、`assets.json`、`i18n/*.json`、`test/golden/diy.json` 都是生成的：冲突时先取上游版本，再按上面的 1–5 步重新生成。第 7 节说的「`data/assets.json` 用上游的版本」在这里不适用：直接用上游版本会丢掉联动干员的素材条目，要再跑一次第 3 步。
 
-EN / JA / KO 客户端里没有焰狐龙梓兰和结城理，zh-TW 里还没有麒麟R夜刀，这些在对应界面显示中文。`test/i18n-data.test.js` 的天赋覆盖率门槛因此从 95% 降到 94%（实测 94.5%）。
+EN / JA / KO 客户端里没有焰狐龙梓兰和结城理，zh-TW 里还没有麒麟R夜刀，这些在对应界面显示中文。0.2.3 新增的克莱门莎尚未有英文文本；当前英文总覆盖率 96.9%、技能 95.1%、天赋 94%，测试按该实测下限校验，其余分类门槛保持不变。

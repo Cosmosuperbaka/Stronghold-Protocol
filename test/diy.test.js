@@ -36,11 +36,11 @@ test('slots: two per tier (5, 6), each with its elite twin', () => {
   assert.equal(diyTokenOwner(SIEGE, chess.chess_char_6_diy1_b.status), 'char_112_siege@2/60/7/3');
 });
 
-test('diyPool: tier 5 = 15 prototypes + 78 owned 6★, tier 6 = 9 + 78 (local-tools: the collab 6★ included); no preset; with the kit registry only kitted operators', () => {
+test('diyPool: tier 5 = 15 prototypes + 79 owned 6★, tier 6 = 9 + 79 (local-tools: the collab 6★ included); no preset; with the kit registry only kitted operators', () => {
   const p5 = diyPool(5, { data: DATA }), p6 = diyPool(6, { data: DATA });
   assert.deepEqual(p5, [...RESERVES5, ...ELITES, ...ownedPool]);
   assert.deepEqual(p6, [...ELITES, ...ownedPool]);
-  assert.deepEqual([p5.length, p6.length], [93, 87]);
+  assert.deepEqual([p5.length, p6.length], [94, 88]);
   const roster = new Set(Object.values(chess).map((c) => c.charId).filter(Boolean));
   for (const id of p5) assert.ok(!roster.has(id), id);
   for (const id of COLLAB) assert.ok(p5.includes(id) && p6.includes(id), id);
