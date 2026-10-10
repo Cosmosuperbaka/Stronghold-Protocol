@@ -26,7 +26,7 @@
 | `server/match/rewind.js` | 回到任一回合的休整期开始（快照 + 恢复） |
 | `server/match/history.js` | 每回合记录 `m.history`（控制台的曲线、每回合详情、干员排行、对局记录） |
 | `server/match/enemyPicks.js` | 敌人日程：每回合所有组合、本局抽到的概率、实际出怪、主机指定（`m.adminPicks`） |
-| `server/match/hostSettings.js` | 主机设置（目前是休整期时长），对所有房间、所有对局生效 |
+| `server/match/hostSettings.js` | 主机设置：休整期时长与可选联防叠层，对所有房间、所有对局生效 |
 | `server/match/adminDiy.js` | 控制台「发放自选」：给任一玩家（含 AI）发放任一有 kit 的自选干员 |
 | `test/match/rewind.test.js`、`test/admin.test.js` | 对应的测试 |
 | `docs/LOCAL-DEV.md`、`LOCAL-CHANGELOG.md`、`HANDOFF.md` | 本分支的文档（上游的 `CHANGELOG.md` 不改，避免合并时冲突） |
@@ -197,6 +197,17 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 - `startAdmin` 启动时读 `logs/admin-settings.json`（`settingsFile` 选项可改，测试用临时文件）。保存时先校验、写临时文件再改名，最后才生效；文件损坏时记日志并按默认处理。
 - 设置不进回档快照：回档重进休整期时用的是当前设置。`SP_ADMIN=0` 时控制台不启动，设置也不会加载。
 
+### 可选联防叠层（hostSettings.js）
+
+控制台「设置 → 联防叠层 → 允许联防叠层」，进程级布尔值 `uniteLayerGains`，默认 `false`。这是明确选择的自定义规则，与上游默认联防不叠层的玩法不同。
+
+- `GET /api/settings` 返回 `prep` 和 `uniteLayerGains`；`POST /api/settings` 允许只提交其中一项，省略项保留。两者都校验通过并成功写入 `logs/admin-settings.json` 后才生效；旧文件没有开关时保持关闭。
+- 每次 `_uniteOpts()` 构建联防时通过 `getUniteLayerGains()` 读取当前设置，保存到 `Match.uniteLayerGainsEnabled` 并写入 `flags.layerGainsEnabled`。服务器与浏览器使用同一规则；战斗中改开关只影响下一次联防。
+- 援助干员从本轮普通战斗已达到的层数开始联防，每场战斗的特性计数和额度重新获得。结算先合入普通战斗增量，再给援助者合入联防增量各一次，复用 999 上限和 `onLayers` 钩子；漏怪方不会收到援助者的层数，合成兜底结果也不发层数。
+- 最终攻势和隐秘核心仍禁止叠层。主机开关不进回档快照；回档后开始的新联防读取当时设置，战斗开关在每次构建联防时重新捕获。
+- 页面支持保存、撤销未保存修改、重载与保存失败重试；休整期时长和联防开关独立保存，不会互相覆盖。
+- 回归：`node --test test/admin.test.js test/match/unite-layers.test.js test/content/garrisons_battle.test.js test/match/rewind.test.js`；真实控制台操作与桌面 / 手机布局用 `SP_E2E=1 node --test test/ui/admin-settings.e2e.test.js`。
+
 ### 本地文件
 
 都在 `logs/` 下（已在 `.gitignore` 里，不会提交）：
@@ -204,7 +215,7 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 | 路径 | 内容 |
 |---|---|
 | `logs/results/<YYYYMMDD-HHMMSS>-<房间>.json` | 每局一份对局记录，同一秒同一房间重名时加 `-2`、`-3` |
-| `logs/admin-settings.json` | 休整期设置 |
+| `logs/admin-settings.json` | 休整期时长与联防叠层开关 |
 
 ### 加一个新操作
 

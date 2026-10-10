@@ -16,6 +16,7 @@
 | 休整期回档 | 自动保存每回合休整期开始的状态，可回到指定回合，恢复随机数状态和对应统计；快照只保留在当前服务进程内 |
 | 主机统计与对局记录 | 本局曲线、每回合详情、累计与单回合干员伤害排行；结束后写入本机记录，可在控制台回看 |
 | 敌人日程与设置 | 查看各回合候选敌人组合、抽取概率和实际出怪，可指定敌人组合、设置休整期时长 |
+| 可选联防叠层 | 控制台设置中开启，默认关闭；援助干员在联防中重新获得每场战斗的叠层额度，新增层数结算后保留，上限仍为 999 |
 | 自选与联动干员 | 控制台可发放自选干员、选技能 / 模组并改技能；自选池增加灰烬、艾拉、麒麟R夜刀、玛露西尔、丰川祥子、结城理、焰狐龙梓兰，v0.2.3 共 79 名（上游 72 名） |
 | Windows 开服脚本 | 一键启动游戏与 cloudflared 公网隧道，提供停止服务器脚本 |
 | 可选皮肤与预加载 | 115 名干员、174 套皮肤目录，选择、一键随机装备、联机同步、观战显示和可取消的手动素材预加载 |
@@ -23,6 +24,8 @@
 默认分支 **`main`** 已整合主机工具、联动干员、皮肤与预加载。皮肤素材需额外安装，随机装备只从已安装且可用的非原皮中抽取，没有其他可用皮肤时使用原皮；商店、奖励与详情的半身立绘仍使用默认资源。皮肤只影响外观，不改变战斗数值或战斗哈希。安装与限制见 [皮肤文档](docs/SKINS.md)。
 
 主机控制台默认监听 `http://127.0.0.1:3100`，使用启动时生成的 token；`SP_ADMIN_PORT` 可改端口，`SP_ADMIN=0` 可关闭。公网隧道只应转发游戏端口，控制台用于主机本地管理。主机操作会改变对局状态，请与同局玩家协商使用。
+
+“联防叠层”是本分支的自定义规则，在控制台「设置 → 联防叠层」中保存开关，适用于所有房间并从下一次联防开始生效。开关与休整期时长独立保存，重启后保留；联防开始后修改开关不影响正在进行的战斗。最终攻势和隐秘核心仍不叠层，关闭时保持上游规则。
 
 联动技能实现参考 [BBleae/Stronghold-Protocol](https://github.com/BBleae/Stronghold-Protocol)；皮肤参考 [Paper-Yuan 的融合版本](https://github.com/Paper-Yuan/Stronghold-Protocol/releases/tag/v0.2.1-fusion) 与 [上游 PR #85](https://github.com/sganggs/Stronghold-Protocol/pull/85)。部分联动专属视觉效果尚未完成，详见 [开发笔记](docs/LOCAL-DEV.md#8-联动干员进自选池)。完整差异与验证记录见 [分支更新记录](docs/LOCAL-CHANGELOG.md)。
 
@@ -291,7 +294,7 @@ node tools/perfbench.mjs --cpu 1,4,6 --profile             # 真实战斗的帧�
 
 An **unofficial, non-commercial fan remake** of Arknights' seasonal auto-chess tower-defense mode *Stronghold Protocol: Alliance*, played in the browser: solo, or 1–4 player co-op (AI teammates can fill seats). Combat is simulated in each player's browser, so a low-power PC can host.
 
-This repository extends [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol), currently based on upstream v0.2.3. The default `main` branch includes a local host console, prep-phase rewind, host match history and damage statistics, enemy scheduling, seven collaboration operators, Windows hosting scripts, optional skins, random non-default skin selection and manual asset preloading. Shop portraits still use the original artwork.
+This repository extends [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol), currently based on upstream v0.2.3. The default `main` branch includes a local host console, prep-phase rewind, host match history and damage statistics, enemy scheduling, seven collaboration operators, Windows hosting scripts, optional skins, random non-default skin selection and manual asset preloading. An optional host rule enables layer gains during co-op assistance, with fresh per-battle allowances and gains kept at settlement; it defaults off, applies from the next assistance battle, and leaves boss rounds unchanged. Shop portraits still use the original artwork.
 
 We will regularly follow upstream releases and fixes, merging after compatibility work and verification. Updates are recorded in [docs/LOCAL-CHANGELOG.md](docs/LOCAL-CHANGELOG.md); synchronization is not immediate and has no fixed release schedule. To run this fork, clone the `main` branch of `https://github.com/zhewang448/Stronghold-Protocol.git` and run `npm install`, `npm run setup`, then `npm start` with Node.js 22 or 24. This fork currently has no release bundles; upstream bundles do not include these extensions. Review Git history and commit email metadata before publishing, as ignore rules do not remove existing history ([privacy notes](docs/PRIVACY.md)).
 

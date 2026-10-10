@@ -27,11 +27,11 @@ const gains = (h, pid = 'p1') => h.result().perPlayer[pid].layerGains;
 const approx = (a, b, msg = '') => assert.ok(Math.abs(a - b) < 1e-6, `${msg} ${a} ≈ ${b}`);
 
 /** Battle with synthetic operators: units = [{ id, g: garrisonIds, row, col, bonds?, o? }]. */
-function battle({ units, bonds = {}, enemies = [], edefs = {}, kind, seed = 3, players } = {}) {
+function battle({ units, bonds = {}, enemies = [], edefs = {}, kind, seed = 3, players, flags } = {}) {
   const chess = {};
   for (const u of units) chess[u.id] = rec(u.id, u.g ?? [], { bonds: u.bonds ?? [], ...(u.o || {}) });
   const h = makeBattle({
-    kind, seed, bonds, players,
+    kind, seed, bonds, players, flags,
     defs: { chess, enemies: { e_dummy: dummy(), ...edefs } },
     units: units.map((u) => ({ chessId: u.id, row: u.row, col: u.col })),
     enemies, autoFinish: false, timeLimit: 400,
@@ -40,6 +40,24 @@ function battle({ units, bonds = {}, enemies = [], edefs = {}, kind, seed = 3, p
   return h;
 }
 const skill = (h, u) => h.b.emit('skillStart', { unit: u, skill: u.skill, reason: 'test' });
+
+test('optional 联防 gains: fresh per-battle trait allowance after normal combat reached its cap', () => {
+  for (const gid of ['garrison_95_a', 'garrison_95_b']) {
+    const cap = capOf(gid);
+    const units = [{ id: 'op', g: [gid], row: 10, col: 4, bonds: ['yanShip'] }];
+    const normal = battle({ units, bonds: { yanShip: B(0) } });
+    for (let i = 0; i < 20; i++) skill(normal, normal.unit('op'));
+    assert.equal(gains(normal).yanShip, cap);
+    const unite = battle({ units, kind: 'unite', bonds: { yanShip: B(cap) }, flags: { layerGainsEnabled: true } });
+    for (let i = 0; i < 20; i++) skill(unite, unite.unit('op'));
+    assert.equal(gains(unite).yanShip, cap, 'gets the full allowance again, stops at its new cap');
+    assert.equal(unite.b.getPlayer('p1').bonds.yanShip.layers, cap * 2, 'carried and fresh gains both affect the live field');
+    const official = battle({ units, kind: 'unite', bonds: { yanShip: B(cap) } });
+    skill(official, official.unit('op'));
+    assert.deepEqual(gains(official), {}, 'default 联防 remains disabled');
+    checkInvariants(unite.b);
+  }
+});
 const alwaysHit = (h) => { h.b.rng = Object.assign(() => 0, h.b.rng); };
 
 /**

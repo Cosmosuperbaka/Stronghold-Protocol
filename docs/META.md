@@ -750,7 +750,14 @@ combat carries `{ down: true }` (PRTS 卫戍协议/帮助: "部署完成后…�
 at once, it lies on its tile with the redeploy ring and redeploys like after any knock-out (docs/SIM.md §1.1; user
 playtest #5 item 2 — it used to stay out and vanish); its timer is its full redeploy time (the official setup carries
 only hp / tech per operator; confirmed by the user), with the redeploy-time effects that start with the battle (机变 征召); summons are
-fielded as the board has them (their SP carried); `flags.layerGainsEnabled = false`; time limit = the round's combat limit.
+fielded as the board has them (their SP carried); `flags.layerGainsEnabled = false` by default; time limit = the round's combat limit.
+
+The host's local console can enable the custom **联防叠层** rule (`hostSettings.js getUniteLayerGains`, default off,
+saved with the prep timer in `logs/admin-settings.json`). The setting is captured at the start of each 联防 and sent
+in its BattleSpec; mid-battle toggles affect only the next 联防. Each operator gets fresh per-battle trait counters
+and allowances. Helpers begin with their normal battle's reached layers; SETTLE saves the normal increments and the
+helper's 联防 increments once, capped at 999, through the existing `onLayers` hooks. Synthetic results grant no
+联防 layers. Boss / hidden fields still disable gains. DESIGN §28.28 records this owner-requested deviation.
 Every enemy still alive at the end (leaked again, or never spawned before the limit) costs its **source** player 1 LP.
 A client-run 联防 result may bill a survivor only to a leaker who sent that enemy in — a split / summon only to a leaker
 who sent in its parent, ≤ the parents' data offspring count (磨砻 2, 烹泉 4 …; fields.js offspringPerParent).

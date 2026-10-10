@@ -11,6 +11,7 @@ import { uniteLeft } from '../../sim/spec.js';
 import { FLOW_TICKER_PRIORITY, DELAYS } from './common.js';
 import { msg } from '../../../shared/i18n.js';
 import { onStartUnite } from '../botEmotes.js';
+import { getUniteLayerGains } from '../hostSettings.js';
 
 export class MatchUnite {
   startUnite(plan) {
@@ -49,6 +50,8 @@ export class MatchUnite {
    */
   _uniteOpts(plan, limit) {
     const { wave, players } = uniteBattleOpts(this, plan, limit);
+    // Host's custom rule, latched for this field and settlement even if the setting changes mid-battle.
+    this.uniteLayerGainsEnabled = getUniteLayerGains();
     return {
       seed: deriveSeed(this.seed, `u:${this.round}`),
       kind: 'unite',
@@ -61,7 +64,7 @@ export class MatchUnite {
       spawns: this._sanitizeSpawns(wave.spawns),
       routes: wave.routes,
       sharedBoss: null,
-      flags: { layerGainsEnabled: false, ...this.gd.dp },
+      flags: { ...this.gd.dp, layerGainsEnabled: this.uniteLayerGainsEnabled },
       fieldId: 'u',
       // leaked enemies re-enter with the stats they had: the round template's stat overrides apply again
       enemyOverrides: this.wave && this.wave.overrides ? this.wave.overrides : {},

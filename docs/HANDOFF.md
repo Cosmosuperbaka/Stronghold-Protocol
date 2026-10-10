@@ -13,6 +13,7 @@
 | 主机控制台：改金币 / LP / 等级、发放干员和道具、盟约、托管、效果和机变卡、棋盘编辑、判胜负、计时倍率等 | `server/admin.js`、`admin.html` | LOCAL-DEV §5 |
 | 回档：回到任一回合的休整期开始 | `server/match/rewind.js` | LOCAL-DEV §4 |
 | 统计和记录：本局曲线、每回合详情、干员伤害排行、对局记录、敌人日程（含指定）、休整期时长设置 | `server/match/history.js`、`enemyPicks.js`、`hostSettings.js` | LOCAL-DEV §5 |
+| 可选联防叠层：默认关闭，下次联防生效，援助干员重新获得额度，结算后保留增量 | `server/match/hostSettings.js`、`match/unitePhase.js`、`match/settle.js` | LOCAL-DEV §5「可选联防叠层」 |
 | 控制台发放自选干员（选技能和模组、改技能） | `server/match/adminDiy.js` | LOCAL-DEV §5「发放自选」 |
 | 一键开服 + 公网隧道、释放端口 | `scripts/start-tunnel.*`、`stop-server.bat`、`free-port.mjs` | [scripts/README.md](../scripts/README.md) |
 | 7 名联动 6★ 进自选池（上游因版权排除） | `tools/build-data.mjs` 的 `DIY_COLLAB_ALLOWED`、`kits/ops/op-*.js` | LOCAL-DEV §8 |

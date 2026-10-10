@@ -5,7 +5,8 @@
 // result, the timer scale, ending the prep or the match, closing a room. Statistics: the per-round record
 // (./match/history.js), every player's running totals, the console's own action log (room.adminLog), and each finished
 // match saved as logs/results/<time>-<room>.json (startAdmin wraps lobby.onMatchEnd) for the 对局记录 page. Settings:
-// the 休整期 timer for every room and match (./match/hostSettings.js), kept in logs/admin-settings.json.
+// the 休整期 timer and optional 联防 layer gains for every room and match (./match/hostSettings.js), kept in
+// logs/admin-settings.json.
 //
 // Reachable from this computer only: it listens on 127.0.0.1 (the LAN and a cloudflared tunnel to the game port never
 // reach it), every /api request carries the per-process token embedded in the page, and the Host header must be the
@@ -28,7 +29,7 @@ import { buildNormalWave, buildBossWave } from './match/waves.js';
 import { planView, setPick, waveSource } from './match/enemyPicks.js';
 import { syntheticResult } from './match/fields.js';
 import { GameData } from './match/gamedata.js';
-import { getPrep, setPrep, normalizePrep } from './match/hostSettings.js';
+import { getPrep, setPrep, normalizePrep, getUniteLayerGains, setUniteLayerGains } from './match/hostSettings.js';
 import { diyCatalog, grantDiy } from './match/adminDiy.js';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -488,7 +489,7 @@ export function readRecord(dir, id) {
   try { return JSON.parse(fs.readFileSync(path.join(dir, id), 'utf8')); } catch { return null; }
 }
 
-// ---- settings: logs/admin-settings.json { prep }, loaded at start, written on every change
+// ---- settings: logs/admin-settings.json { prep, uniteLayerGains }, loaded at start, written on every change
 
 /** The data's prep seconds per round of every timed (同盟) mode, for the settings page's defaults and preview. */
 export function prepDefaults(data) {
@@ -509,21 +510,27 @@ function loadSettings(file, log) {
   let raw;
   try { raw = fs.readFileSync(file, 'utf8'); } catch { return; } // none yet: the data's timers
   try {
-    const r = setPrep(JSON.parse(raw).prep);
+    const saved = JSON.parse(raw);
+    const r = setPrep(saved.prep);
     if (r.error) log.error(`[admin] ${file}: prep ignored (${r.error})`);
+    const u = setUniteLayerGains(saved.uniteLayerGains ?? false);
+    if (u.error) log.error(`[admin] ${file}: uniteLayerGains ignored (${u.error})`);
   } catch (e) { log.error(`[admin] ${file} is not valid JSON, ignored`, e); }
 }
 
-/** POST /api/settings { prep }: validated, written (tmp + rename), then applied. */
+/** POST /api/settings { prep?, uniteLayerGains? }: omitted settings preserved; validate and save before applying. */
 function saveSettings(file, body) {
-  const r = normalizePrep(body && body.prep);
+  const r = normalizePrep(Object.hasOwn(body, 'prep') ? body.prep : getPrep());
   if (r.error) return r;
+  const uniteLayerGains = Object.hasOwn(body, 'uniteLayerGains') ? body.uniteLayerGains : getUniteLayerGains();
+  if (typeof uniteLayerGains !== 'boolean') return { error: '联防叠层设置必须为开或关' };
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify({ prep: r.prep }, null, 2));
+  fs.writeFileSync(tmp, JSON.stringify({ prep: r.prep, uniteLayerGains }, null, 2));
   fs.renameSync(tmp, file);
   setPrep(r.prep);
-  return { ok: true, prep: getPrep() };
+  setUniteLayerGains(uniteLayerGains);
+  return { ok: true, prep: getPrep(), uniteLayerGains: getUniteLayerGains() };
 }
 
 function readJson(req, limit = 8192) {
@@ -563,13 +570,13 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
       if (req.method === 'GET' && url.pathname === '/api/rooms') return send(200, { rooms: roomsView(lobby) });
       if (req.method === 'GET' && url.pathname === '/api/catalog') return send(200, catalogView(lobby, url.searchParams.get('room')));
       if (req.method === 'GET' && url.pathname === '/api/results') return send(200, { records: listRecords(resultsDir) });
-      if (req.method === 'GET' && url.pathname === '/api/settings') return send(200, { prep: getPrep(), file: settingsFile, defaults: prepDefaults(lobby.safeData()) });
+      if (req.method === 'GET' && url.pathname === '/api/settings') return send(200, { prep: getPrep(), uniteLayerGains: getUniteLayerGains(), file: settingsFile, defaults: prepDefaults(lobby.safeData()) });
       if (req.method === 'POST' && url.pathname === '/api/settings') {
         const body = await readJson(req);
         if (!body) return send(400, { error: '请求格式错误' });
         let r;
         try { r = saveSettings(settingsFile, body); } catch (e) { log.error('[admin] saving the settings failed', e); r = { error: `写入 ${settingsFile} 失败` }; }
-        log.info(`[admin] settings prep ${JSON.stringify(body.prep)} → ${r.ok ? 'ok' : r.error}`);
+        log.info(`[admin] settings ${JSON.stringify(body)} → ${r.ok ? 'ok' : r.error}`);
         return send(200, r);
       }
       if (req.method === 'GET' && url.pathname === '/api/result') {

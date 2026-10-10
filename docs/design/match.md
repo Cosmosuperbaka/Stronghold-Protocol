@@ -21,7 +21,7 @@ LOBBY(room) → INFO_CHECK (co-op 25 s; solo and any single-human match untimed 
      COMBAT        (one Battle per alive player, all in parallel, 2×; watchers get snapshots; solo: pausable, §14 Solo pause)
      UNITE         (co-op only, if ≥1 leaked & ≥1 perfect: ≤2 perfect helpers in `unite.js helperOrder` order (research 08 §5 / PRTS 帮助:
                     most units on the field > an active bond > most standing units > seat; the pair ordered by units > active bond >
-                    Σ active layers > standing > seat, the first one on the right-hand field) fight the union of leaks; no layer gains — with
+                    Σ active layers > standing > seat, the first one on the right-hand field) fight the union of leaks; no layer gains by default (§28.28 host override) — with
                     the layers their own combat reached (the round's pending gains, PRTS "以其阵地当前的状态" [ASSUMED]);
                     a helper's operator knocked out at the end of its own combat enters down — carryState { down: true },
                     PRTS "上一阶段为退场状态的干员强制退场", its full redeploy timer — confirmed by the user (§19.3))
@@ -75,7 +75,16 @@ The offer is recipient-private, including after reconnect, and never enters `m.p
 - `count` = number of **distinct base chess** on the board carrying the bond (`BOARD`); `BOARD_AND_DECK` bonds also count the hand; 绝技 counts elites on board; 调和 adds +1 to each core bond count that has a real member on the board (the views mark such an entry `harmony: 1`, §21.26), etc. (research 02).
 - 变形同构体: an operator wearing it together with an item that has a `giveBondId` is a member of that bond — counted like any member (BOARD: on the board only; once per operator), in the battle, and in the client's member list (tagged 同构) and bond chips (§21.11).
 - `tier` from thresholds; `active = tier ≥ 1`.
-- `layers[bondId]` persist all match; gains come from garrisons/bands/items/choices/bond effects; IN_BATTLE gains are collected from `BattleResult.layerGains` at SETTLE (disabled in unite/boss/hidden).
+- `layers[bondId]` persist all match; gains come from garrisons/bands/items/choices/bond effects; IN_BATTLE gains are collected from `BattleResult.layerGains` at SETTLE (disabled in unite by default, always disabled in boss/hidden). The host-only custom rule of §28.28 can enable unite gains.
+
+**Host-only 联防叠层 (§28.28):** the local console's settings expose `uniteLayerGains` (boolean, default false),
+persisted alongside `prep` in `logs/admin-settings.json`. It applies to every room starting with its next 联防;
+the field captures the setting in `flags.layerGainsEnabled`, shared by server and browser simulation, and settlement
+uses that captured value even if the host toggles it while fighting. 联防 is a fresh battle: every per-battle trait
+allowance and trigger counter resets. Helpers start from their normal battle's reached layers; settlement applies
+normal increments then each helper's 联防 increments once, with the 999 cap and existing `onLayers` hooks. Leakers
+receive no helper layers, synthetic results grant none, and boss/hidden gains remain disabled. This is an explicitly
+requested custom mode, not an official rule; old settings files without the field keep it off.
 - A bond holds at most `BOND_LAYER_CAP` = 999 layers (the client's `MAX_GARRISON_STACK`, §20.12): every writer — `PlayerState.addLayers`, the SETTLE merge, `Battle.addLayers`, the dev tools — adds `layerGainRoom(before, n)` = min(n, 999 − before); a gain at the cap adds 0 and dispatches nothing (no onLayers, no `layerGain` hook, no 'layer' event), so the per-N milestones stop with the count.
 - Σ activated layers (hidden-core check) = Σ layers over bonds that are active at the moment of the check (end of R14 prep, per research).
 

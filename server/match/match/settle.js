@@ -60,9 +60,11 @@ export class MatchSettle {
       if (coins > 0) { ps.pendingFunds += coins; ps.stats.fundsGained += coins; }
       for (const b of ps.bounties) b.roundsLeft--;
       ps.bounties = ps.bounties.filter((b) => b.roundsLeft > 0);
-      // IN_BATTLE layer gains (normal battles only), at most the room left under BOND_LAYER_CAP (999, as the battle's
-      // live copy: Battle.addLayers); a bond at the cap gains nothing and dispatches nothing
-      for (const [bondId, n] of Object.entries(r.layerGains || {})) {
+      // Normal gains, then the helper's 联防 gains under the field's latched custom rule. The latter are increments
+      // from its carried layers, never absolute counts. Synthetic fields cannot grant layers.
+      const layerSources = [r.layerGains];
+      if (uniteRan && this.uniteLayerGainsEnabled && plan.helpers.includes(ps) && up) layerSources.push(up.layerGains);
+      for (const source of layerSources) for (const [bondId, n] of Object.entries(source || {})) {
         if (!this.gd.bond(bondId) || !(n > 0)) continue;
         const before = ps.layers[bondId] || 0;
         const add = layerGainRoom(before, Math.floor(n));

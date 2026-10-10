@@ -385,6 +385,7 @@ export class Match {
     this.watchPref = new Map();
     this.lastResults = new Map();
     this.unitePlan = null;
+    this.uniteLayerGainsEnabled = false; // host setting captured at the start of each 联防 field
     /** 联防 outcome for the SETTLE view: { through, helpers, leakers, losses } (settle()), null when no 联防 resolved */
     this.uniteResultView = null;
     /** server-run 联防: the leakers' counts last published (_uniteTick) */
