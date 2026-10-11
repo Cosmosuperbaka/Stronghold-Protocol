@@ -85,7 +85,17 @@ test('the real tracked tree: runtime in, the rest out; every shipped import, npm
     assert.ok(!got.has(f), f);
   }
   // the design document (the index docs/DESIGN.md and its parts in docs/design/, docs/history/) stays out too
-  for (const f of got) assert.ok(!/^(?:test|handoff|\.github|types|public\/dev|docs\/img|docs\/design|docs\/history)\//.test(f), f);
+  for (const f of got) assert.ok(!/^(?:test|handoff|\.github|types|public\/dev|docs\/design|docs\/history)\//.test(f)
+    && (!f.startsWith('docs/img/') || f.startsWith('docs/img/features/')), f);
+  // A player reading the packaged README must get its screenshots, local guides and tunnel launchers.
+  const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
+  for (const [, href] of readme.matchAll(/\]\(([^)\s]+)\)/g)) {
+    if (/^(?:[a-z]+:|#)/i.test(href)) continue;
+    assert.ok(got.has(href.split('#')[0]), `README link missing from the release: ${href}`);
+  }
+  for (const f of ['scripts/start-tunnel.bat', 'scripts/start-tunnel.mjs', 'scripts/stop-server.bat', 'scripts/free-port.mjs']) {
+    assert.ok(got.has(f), `extension launcher missing from the release: ${f}`);
+  }
   const code = [...got].filter((f) => /\.(?:m?js|py)$/.test(f));
   for (const f of code) {
     const src = fs.readFileSync(path.join(ROOT, f), 'utf8');

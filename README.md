@@ -4,7 +4,7 @@
 
 [下载本库整合包](https://github.com/zhewang448/Stronghold-Protocol/releases/latest) · [扩展更新记录](docs/LOCAL-CHANGELOG.md) · [玩法指南](docs/PLAYING.md) · [反馈问题](https://github.com/zhewang448/Stronghold-Protocol/issues)
 
-> 本文描述当前 `main` 的功能。最新发布包为 `v0.2.4-extended.2`；下文的禁用干员按盟约分组尚未包含在该包中，使用它需要运行当前源码。游戏内基础版本显示 `0.2.4`，扩展修订号请以下载页的标签和附件文件名为准。
+> 当前扩展版为 `v0.2.4-extended.3`，包含本文列出的功能。游戏内基础版本显示 `0.2.4`，扩展修订号请以下载页的标签和附件文件名为准。
 >
 > 非官方、非商业同人项目，与《明日方舟》官方无隶属或授权关系。游戏名称、美术、音频、文本与数据的权利归原权利人；仅供学习和个人非商业使用。
 
@@ -102,7 +102,7 @@ node tools/install-skins.mjs --all
 
 ![本局信息禁用列表局部：灵巧、奥术、奇迹、投资人、突袭和独行分组](docs/img/features/banned-operator-groups.webp)
 
-此项为当前源码功能，尚未包含在 `v0.2.4-extended.2` 整合包中。
+此项从 `v0.2.4-extended.3` 起包含在整合包中。
 
 ## 和朋友一起玩
 
@@ -167,8 +167,8 @@ npm start
 | [扩展开发笔记](docs/LOCAL-DEV.md) | 控制台、回档、联动干员等实现细节 |
 | [皮肤说明](docs/SKINS.md) | 安装、外观同步、随机装备与预加载 |
 | [开服脚本](scripts/README.md) | Windows 隧道、停服与后台运行 |
-| [架构](docs/ARCHITECTURE.md) / [设计](docs/DESIGN.md) | 代码入口、当前规则与接口约定 |
-| [贡献指南](CONTRIBUTING.md) / [助手指引](AGENTS.md) | 环境准备、改动与验证要求 |
+| [架构](https://github.com/zhewang448/Stronghold-Protocol/blob/main/docs/ARCHITECTURE.md) / [设计](https://github.com/zhewang448/Stronghold-Protocol/blob/main/docs/DESIGN.md) | 代码入口、当前规则与接口约定（在线开发文档） |
+| [贡献指南](https://github.com/zhewang448/Stronghold-Protocol/blob/main/CONTRIBUTING.md) / [助手指引](https://github.com/zhewang448/Stronghold-Protocol/blob/main/AGENTS.md) | 环境准备、改动与验证要求（在线开发文档） |
 
 ```powershell
 npm test             # 单元与集成测试，约 6100 项
@@ -176,7 +176,7 @@ npm run ci           # 测试、启动 smoke、lint、导入边界与类型检�
 npm run golden       # 确定性战斗与整局黄金结果
 ```
 
-先运行改动涉及的测试，再执行完整检查。真实浏览器测试需要系统 Chrome / Edge 和对应的环境开关，配置见[贡献指南](CONTRIBUTING.md)。生成数据通过 `npm run build-data` 更新，不手工编辑 `data/*.json`；不将下载或提取的游戏素材提交到仓库。
+先运行改动涉及的测试，再执行完整检查。真实浏览器测试需要系统 Chrome / Edge 和对应的环境开关，配置见[贡献指南](https://github.com/zhewang448/Stronghold-Protocol/blob/main/CONTRIBUTING.md)。生成数据通过 `npm run build-data` 更新，不手工编辑 `data/*.json`；不将下载或提取的游戏素材提交到仓库。
 
 问题和功能建议请提交到[本库 Issues](https://github.com/zhewang448/Stronghold-Protocol/issues)，说明运行方式、扩展版本、复现步骤与相关日志。
 
