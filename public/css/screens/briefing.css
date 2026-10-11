@@ -90,6 +90,15 @@
 .brief-banned__n { margin-left: auto; font-size: calc(.22 * var(--t)); color: var(--red-premium); }
 .brief-banned__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(.6rem, 1fr)); gap: .08rem; }
 .brief-banned__grid .uthumb { --ut: .6rem; }
+.banned-groups { display: flex; flex-direction: column; gap: max(.18rem, 10px); min-width: 0; }
+.banned-groups__note { margin: 0; font-size: max(calc(.14 * var(--t)), 12px); line-height: 1.5; color: var(--text-md); }
+.banned-group { min-width: 0; }
+.banned-group + .banned-group { padding-top: max(.14rem, 8px); border-top: 1px solid var(--line); }
+.banned-group__head { display: flex; align-items: center; gap: max(.08rem, 4px); margin: 0 0 max(.1rem, 6px);
+  font-size: max(calc(.17 * var(--t)), 12px); font-weight: 700; line-height: 1.5; color: var(--text-hi); }
+.banned-group__head > span:not(.num) { min-width: 0; overflow-wrap: anywhere; }
+.banned-group__head .bglyph { flex: none; width: max(.24rem, 18px); height: max(.24rem, 18px); }
+.banned-group__n { margin-left: auto; flex: none; color: var(--red-premium); }
 /* 0.2.0: the player's own 自选 pieces out of the shop this match (ui/matchInfo.js DiyBannedLine; m.private.diyBanned) */
 .brief-banned__diy { margin: .1rem 0 0; font-size: calc(.14 * var(--t)); line-height: 1.5; color: var(--text-dim, #b8c2bf); }
 .diybanned__tag { display: inline-block; margin-right: .06rem; padding: .01rem .06rem; font-size: calc(.12 * var(--t)); font-weight: 700;

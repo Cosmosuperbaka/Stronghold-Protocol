@@ -2,7 +2,7 @@
 // strategy draft there was no way to see the disabled bonds and the banned operators again, though players choose a
 // strategy partly by them. ui/matchInfo.js is now the one implementation of the briefing's bond rows (greyed: the drawn
 // set D and the mode's static inactive bonds; the banned-member badge; briefingBondTip), the legend and the 本局禁用干员
-// grid (by tier): the briefing renders it (MatchInfo), the draft's 本局信息 dialog renders the same blocks
+// groups (by bond, then tier): the briefing renders it (MatchInfo), the draft's 本局信息 dialog renders the same blocks
 // (MatchInfoDialog), and the in-game 本局信息 tab reads the same model (matchInfoModel). The dialog's status line repeats
 // the turn and its countdown (bandDraft.js draftInfoStatus) and a turn change closes it. Browser: test/ui/match-info.e2e.test.js.
 import { test } from 'node:test';
@@ -24,7 +24,7 @@ globalThis.fetch = async (url) => {
   }
 };
 
-const { matchInfoModel, MatchBondRow, MatchLegend, BannedOperators, MatchInfo, MatchInfoDialog } = await import('../../public/js/ui/matchInfo.js');
+const { matchInfoModel, MatchBondRow, MatchLegend, BannedOperatorGroups, BannedOperators, MatchInfo, MatchInfoDialog } = await import('../../public/js/ui/matchInfo.js');
 const { briefingBondTip } = await import('../../public/js/ui/gameLogic.js');
 const { BondDisc, Tooltip, Modal, Button } = await import('../../public/js/ui/components.js');
 const { UnitThumb } = await import('../../public/js/ui/gameComponents.js');
@@ -116,16 +116,49 @@ test('MatchLegend: the grey and the badge; "或本模式禁用" only when the mo
   assert.doesNotMatch(textOf(MatchLegend({ model: hard })), /本模式禁用/);
 });
 
-test('BannedOperators: the count and dimmed avatars in tier order; none ⇒ 本局没有禁用干员', () => {
+test('BannedOperators: the unique count and grouped dimmed avatars; none ⇒ 本局没有禁用干员', () => {
   const m = model();
   const block = BannedOperators({ model: m });
   assert.match(textOf(block), /本局禁用干员BANNED OPERATORS4/);
-  const thumbs = [...walk(block)].filter((v) => v.type === UnitThumb);
-  assert.deepEqual(thumbs.map((v) => v.props.id), m.banned);
+  const groups = [...walk(block)].find((v) => v.type === BannedOperatorGroups);
+  assert.equal(groups.props.model, m);
+  const thumbs = [...walk(BannedOperatorGroups(groups.props))].filter((v) => v.type === UnitThumb);
+  assert.deepEqual(thumbs.map((v) => v.props.id), m.bannedGroups.flatMap((g) => g.ids));
+  assert.deepEqual([...new Set(thumbs.map((v) => v.props.id))].sort(), [...m.banned].sort());
   assert.ok(thumbs.every((v) => v.props.kind === 'chess' && v.props.dim === true && v.props.size === 'sm'));
   const none = BannedOperators({ model: matchInfoModel({}, SRC('mode_single_normal')) });
   assert.match(textOf(none), /本局没有禁用干员/);
   assert.equal([...walk(none)].filter((v) => v.type === UnitThumb).length, 0);
+});
+
+test('banned groups preserve every affiliation, bond order and tier order without hiding ungrouped operators', () => {
+  const records = { low: { tier: 1 }, high: { tier: 6 }, orphan: { tier: 3 } };
+  const bonds = [
+    { bondId: 'second', name: '第二组', bondOrder: 2, visibleMembers: ['high', 'low'] },
+    { bondId: 'empty', name: '空组', bondOrder: 0, visibleMembers: ['notBanned'] },
+    { bondId: 'first', name: '第一组', bondOrder: 1, visibleMembers: ['high'] },
+  ];
+  const pub = { bannedChess: ['high', 'orphan', 'unknown', 'low', 'high'] };
+  const before = JSON.stringify({ pub, bonds });
+  const m = matchInfoModel(pub, { bonds, chess: (id) => records[id] });
+  assert.deepEqual(m.bannedGroups.map((g) => [g.bond?.bondId ?? null, g.ids]), [
+    ['first', ['high']], ['second', ['low', 'high']], [null, ['orphan']],
+  ]);
+  assert.equal(m.banned.length, 3, 'multi-bond operators count once in the total');
+  assert.equal(m.perBond.get('second'), 2, 'the group count matches the bond badge');
+  assert.equal(JSON.stringify({ pub, bonds }), before, 'no source data is mutated');
+  const block = BannedOperatorGroups({ model: m });
+  assert.match(textOf(block), /总数不重复计算/);
+  assert.match(textOf(block), /其他1/);
+  const opened = [];
+  const compact = BannedOperatorGroups({ model: m, onChess: (id) => opened.push(id) });
+  const buttons = [...walk(compact)].filter((v) => v.type === 'button');
+  assert.equal(buttons.length, 4);
+  buttons[0].props.onClick();
+  assert.deepEqual(opened, ['high'], 'in-game operator details remain clickable');
+  const fallback = matchInfoModel(pub, { chess: (id) => records[id] });
+  assert.deepEqual(fallback.bannedGroups.map((g) => g.ids), [['low', 'orphan', 'high']]);
+  assert.doesNotMatch(textOf(BannedOperatorGroups({ model: fallback })), /总数不重复计算/);
 });
 
 test('MatchInfo = 核心盟约, 附加盟约, the legend, 本局禁用干员 (one model); MatchInfoDialog = the same in a Modal with 关闭 and the status line', () => {
@@ -204,7 +237,7 @@ test('the briefing, the strategy draft and the in-game 本局信息 tab all read
   // a turn change or my pick closes it; the draft's end unmounts the screen
   assert.match(draft, /const turnKey = `\$\{draft\.turnPid \|\| ''\}\|\$\{myPick \|\| ''\}`;\n\s*useEffect\(\(\) => \{ setInfoOpen\(false\); \}, \[turnKey\]\);/);
   const drawer = read('public/js/ui/enemyDrawer.js');
-  assert.match(drawer, /import \{ matchInfoModel, DiyBannedLine \} from '\.\/matchInfo\.js';/);
+  assert.match(drawer, /import \{ matchInfoModel, DiyBannedLine, BannedOperatorGroups \} from '\.\/matchInfo\.js';/);
   assert.match(drawer, /matchInfoModel\(pub, \{\s*bonds: data\.list\('bonds'\), chess: \(id\) => data\.lookup\('chess', id\), mode: data\.get\('config'\)\?\.modes\?\.\[pub\?\.modeId\],/);
   assert.doesNotMatch(drawer, /bannedPerBond|disabledBondSets/, 'the drawer derives nothing on its own');
 });
