@@ -2,9 +2,9 @@
 
 《明日方舟》季节性自走棋塔防玩法「卫戍协议：盟约」的**非官方同人复刻**：浏览器即开即玩，单人或 1–4 人联机合作。
 
-本仓库是 [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol) 的扩展分支，面向自己开服、和朋友联机的玩家。游戏本体、规则和主要实现都来自上游。本分支在此基础上增加了主机控制台、休整期回档、对局统计、联动自选干员和可选皮肤。当前基于上游 **v0.2.3**。
+本仓库是 [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol) 的扩展分支，面向自己开服、和朋友联机的玩家。游戏本体、规则和主要实现都来自上游。本分支在此基础上增加了主机控制台、休整期回档、对局统计、联动自选干员和可选皮肤。当前基于上游 **v0.2.4**。
 
-![version](https://img.shields.io/badge/version-0.2.3-2ea44f)
+![version](https://img.shields.io/badge/version-0.2.4-2ea44f)
 ![license](https://img.shields.io/badge/code%20license-GPL--3.0--or--later-blue)
 ![node](https://img.shields.io/badge/node-22%20%7C%2024-339933)
 
@@ -63,7 +63,7 @@ English summary: [below](#english).
 
 - 有**独立模拟**（单人）和**同盟模拟**（1–4 人**合作**，没有 PvP，空位可以加 AI 队友）两种模式。
 - 服务器是一个 Node.js 程序。**战斗在每个玩家的浏览器里模拟**（和官方一样），服务器只负责经济和回合，所以一台低功耗小主机就能开服。
-- 仍有少数规则是按推断实现的，发现和官方不一致的地方欢迎在 Issue 里反馈。上游各版本的改动见 [CHANGELOG.md](CHANGELOG.md)。
+- 上游 v0.2.4 补齐共享卡池与装备库存，修正突袭复活选敌、克莱门莎、浊心斯卡蒂与坚守等规则，联机首领战突袭可以跳到空半场。仍有少数规则是按推断实现的，发现和官方不一致的地方欢迎在 Issue 里反馈。上游各版本的改动见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 功能一览
 

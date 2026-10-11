@@ -34,7 +34,7 @@
 import { TICK, SNAPSHOT_EVERY } from '../sim/constants.js';
 import { layerGainRoom } from '../../shared/constants.js';
 import { uniteLeft } from '../sim/spec.js';
-import { diyRecordOf, diyTokenOwner } from '../../shared/diy.js';
+import { diyTokenOwner, diyRecordOf } from '../../shared/diy.js';
 
 export const MAX_TICKS_PER_INTERVAL = 8;
 export const INTERVAL_MS = 1000 / 30;
@@ -679,7 +679,7 @@ export function specBounds(spec, gd = null) {
     if (!p || typeof p.playerId !== 'string') continue;
     const chess = new Map();
     const all = new Map();
-    const units = new Map();
+    const names = new Map();
     // unit types this player can field: its board's chess / tokens, their summons, and the ownerless summons of
     // bonds / bands (炎佑, 预备干员) — the only names a statistic of a unit created in battle (no board uid) may carry
     const defIds = new Set(gd ? ownerlessSummons(gd) : []);
@@ -687,7 +687,11 @@ export function specBounds(spec, gd = null) {
       if (!u || !Number.isInteger(u.uid)) continue;
       const defId = u.kind === 'token' ? u.tokenId : u.chessId;
       all.set(u.uid, defId);
-      units.set(u.uid, u);
+      if (gd) {
+        const base = gd.chess?.(defId) || gd.token?.(defId);
+        const rec = u.standIn === true ? gd.standIn?.(defId) : u.diy && base?.isDiy ? diyRecordOf(base, u.diy, gd.raw) : base;
+        if (typeof rec?.name === 'string') names.set(u.uid, rec.name);
+      }
       if (typeof defId === 'string') defIds.add(defId);
       if (u.kind !== 'token') {
         chess.set(u.uid, defId);
@@ -701,7 +705,7 @@ export function specBounds(spec, gd = null) {
       const v = Number(b && b.layers);
       if (Number.isFinite(v) && v > 0) startLayers.set(id, v);
     }
-    players.set(p.playerId, { chess, all, units, defIds, bonds: gd ? layerBondsOf(p, gd) : null, startLayers, layerAllow: gd ? layerAllowanceOf(p, gd) : new Map() });
+    players.set(p.playerId, { chess, all, names, defIds, bonds: gd ? layerBondsOf(p, gd) : null, startLayers, layerAllow: gd ? layerAllowanceOf(p, gd) : new Map() });
   }
   const round = Number(spec && spec.round) || 0;
   return {
@@ -874,15 +878,10 @@ export function validateClientResult(spec, raw, { gd = null } = {}) {
         if (!defId) continue;
         // a unit created in battle (summon) is one this player's lineup can field — never another player's operator
         if (!onBoard && gd && !own.defIds.has(defId)) continue;
-        // Names follow the server's battle input, never the client's text or another seat's DIY slot.
-        const input = onBoard ? own.units.get(u.uid) : null;
-        const chess = gd?.chess?.(defId);
-        const rec = input?.diy && chess?.isDiy ? diyRecordOf(chess, input.diy, gd.raw) || chess
-          : input?.standIn === true ? gd?.standIn?.(defId) || chess
-          : chess || gd?.token?.(defId);
+        const rec = gd ? (gd.chess?.(defId) || gd.token?.(defId)) : null;
         if (gd && !rec) continue;
         unitStats.push({
-          uid: Number.isInteger(u.uid) ? u.uid : null, defId, name: rec && typeof rec.name === 'string' ? rec.name : defId, kind: u.kind === 'token' ? 'token' : 'op',
+          uid: Number.isInteger(u.uid) ? u.uid : null, defId, name: (onBoard && own.names.get(u.uid)) || (typeof rec?.name === 'string' ? rec.name : defId), kind: u.kind === 'token' ? 'token' : 'op',
           dmg: Math.max(0, Number(u.dmg) || 0), kills: Math.max(0, Math.trunc(Number(u.kills) || 0)), heal: Math.max(0, Number(u.heal) || 0),
           taken: Math.max(0, Number(u.taken) || 0), attacks: Math.max(0, Math.trunc(Number(u.attacks) || 0)),
         });
