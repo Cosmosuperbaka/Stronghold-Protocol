@@ -100,6 +100,11 @@ export class GameData {
     const chess = this.raw.chess && typeof this.raw.chess === 'object' ? this.raw.chess : {};
     this._chess = chess;
     this._items = this.raw.items && typeof this.raw.items === 'object' ? this.raw.items : {};
+    // Fixed equipment produced by traits (Swire, Carnelian, Kjera, Muelsyse). Derive identities from official data;
+    // random equipment traits and ordinary strategy gifts are not unlimited production (DESIGN §29.17).
+    this._traitFixedItems = new Set(Object.values(this.raw.garrisons || {})
+      .filter(g => g?.effectType === 'SERVER_GAIN_EQUIP' && this.item(g.bbStr?.chess))
+      .map(g => this.baseIdOf(g.bbStr.chess)));
     this._bonds = this.raw.bonds && typeof this.raw.bonds === 'object' ? this.raw.bonds : {};
     /** visible, shop-eligible base (normal) chess ids */
     this.visibleChess = Object.keys(chess).filter((id) => {
@@ -310,6 +315,11 @@ export class GameData {
     if (!rec || !isShopItem(rec)) return null;
     const count = this.economy.itemPoolCopiesOverrides?.[base] ?? this.economy.itemPoolCopies?.[rec.tier];
     return Number.isInteger(count) && count >= 0 ? count : null;
+  }
+
+  /** Fixed trait-produced equipment, including upgraded forms. Shop purchases still require available stock. */
+  isTraitFixedItem(id) {
+    return !!this.item(id) && this._traitFixedItems.has(this.baseIdOf(id));
   }
 
   /** Copies needed to merge (0 = never merges: golden chess). */

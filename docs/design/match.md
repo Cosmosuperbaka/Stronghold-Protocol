@@ -62,6 +62,13 @@ Equipment (research 04 §2 + addendum, 09 §1.2): 2 slots per chess; a third ite
 
 Economy/shop/pool/merge/hand rules: exactly as research 00-INDEX §3–§4 (income `min(3+r,12)`; prices by tier; refresh 1; freeze toggles all; sell +1; items not sellable; upgrade prices per mode with −1/round; single-player pool copies 12/14/18/16/8/5 plus measured exceptions; co-op shared operators use twice those counts, while equipment has separate shared stock (DESIGN §29.8); elite = 3 copies; odds = copy-weighted draw over unbanned visible chess with tier ≤ level; merge 3 (风丸 2) → elite onto the consumed deployed copy's tile, else to the hand (§20.11) + reward offer of 3 **different** free chess of tier `min(level+1, 6)` (copy-weighted; a tier short of different chess tops up from the tier below [ASSUMED], §20.6); full hand blocks every buy / reward pick, a merge-completing one too (PRTS 卫戍协议/帮助 §手牌区, GitHub #82); overflow to temp; a free hand slot pulls the temp pieces back in at once, right → left (`PlayerState._fillHandFromTemp`); temp blocks ready).
 
+Fixed equipment production (`SERVER_GAIN_EQUIP`: 迅捷作战粮 / 变形同构体 / 谢拉格不融冰 / 盟约之币, including
+copied traits and investment repeats) is never refused for exhausted equipment stock. Fixed-round strategy grants
+of the same identities, notably 变形者集群, follow this exception (DESIGN §29.17). [ASSUMED] These gifts still occupy
+stock under the all-source ownership rule: ordinary / upgraded copies count 1 / 2, over-cap ownership keeps shop
+availability at zero until enough copies leave ownership. Ordinary strategy equipment, random item draws, shop /
+reward / draft picks and 整备 retain their stock checks. This does not bypass hand / temporary-area capacity.
+
 **Temp overflow (临时整备区, row 8; user playtest #3 item 3).** Passive gains that find the hand full (merge elites, grants — the operator a 突变细胞 transformation gains included, §21.1 —, battle-result rewards, equipment returned by a merged / sold / transformed carrier) overflow into the 5 temp slots, and Ready is refused while any is occupied (official "直到溢出情况排除才可开始进行作战"). A temp piece is resolved — a chess sold back to the pool with its summons removed, items destroyed, a summon stack removed (it comes back at the next round start, PRTS "干员所属召唤物会于下一回合返还", §20.1) — only at the deadline of the **first prep in which its player could act on it** (`PlayerState.tempDue(piece)` vs `prepsEnded`; every write into a temp slot goes through `_putTemp`, which records it): a piece that arrived during a prep before Ready is due at that prep's end; one that arrived after Ready or during the `<休整期结束时>` effects, or outside PREP (COMBAT, 联防, SETTLE — battle-result grants, a SETTLE merge's elite, returned equipment —, the next ROUND_START, 机变) is kept, visible and usable (move to a free hand slot, place, equip, use, destroy, sell) through the **next** prep. Un-readying (`setReady(false)`) makes whatever arrived while ready due at the current prep. ROUND_START no longer wipes temp (it used to destroy what SETTLE had put there before the player ever saw it). A merge's elite whose merge consumed a deployed copy takes that copy's tile and facing (§20.11); otherwise it goes to the hand, overflowing into temp (also outside PREP). `server/match/audit.js` (`tools/matchrun.mjs --check`) tracks the arrivals itself and flags any temp piece that outlives its due prep. The UI frames the row on the board with the rule (§17.5).
 
 Pointing Stick creates at most one pending offer per alive, non-Ready player in PREP. The owner confirms it with
@@ -150,3 +157,14 @@ before mutation; data preparation failure leaves the old opening intact. This is
 mode rule. Unrelated result-screen changes from PR #408 are not included.
 
 The shared DIY detail preview (stats, range, trait, talents, potential, cultivation and matching normal/elite skill descriptions) follows roster loadout resolution. Jessica shield placement is limited to her four orthogonal neighbors. The two Ptilopsis prep-gift copy exceptions are defined in §29.3 and META; no generic change to all copied conditions is implied.
+
+
+### 扩展主机操作与回合历史（§29.18–19）
+
+主机控制台发放超库存装备或直接装备都先请求确认；点是后，发放重发 `{ id, force: true }`，直接装备重发
+`{ target, item, force: true }`，否 / Esc 不执行。
+强制加入仍占库存、遵守手牌与整备区上限，合成和回档保留 `adminStockCopies` 授权份数；商店和普通获取不允许突破库存。
+此项仅供已鉴权的本机主机工具，是维护者要求的自定义规则。
+
+普通结算和领袖战结算都在切换回合前保存 `history`，每回合只记录一次。最终攻势进入隐秘核心前保留第 14 回合的干员伤害，
+终局和隐藏回合共用同样流程；未作战 / 未结算时手动终止，不把上一回合明细记为本回合伤害。旧的缺失明细不做推算补写。

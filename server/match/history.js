@@ -3,12 +3,12 @@
 // kills, damage, the units' damage) and the round's enemy composition.
 // i18n-ignore-file: host-console data, no player-facing text (tools/i18n.mjs)
 //
-// recordRound(m) runs at the end of Match.settle (match/settle.js) and once more in finish() for a round that ended
-// without a SETTLE (the Final Assault / Hidden Core). m.history is a MATCH_KEYS field (rewind.js): a rewind to round R's
+// recordRound(m) runs after normal or leader settlement before the next round resets results, and once more in
+// finish() for an interrupted round. m.history is a MATCH_KEYS field (rewind.js): a rewind to round R's
 // prep restores the record as it was then, rounds ≥ R gone.
 
 /** Append m.round's entry to m.history (a no-op when the round is already recorded). */
-export function recordRound(m) {
+export function recordRound(m, { includeBattleResults = true } = {}) {
   if (!Array.isArray(m.history)) m.history = [];
   if (m.history.some((h) => h.round === m.round)) return;
   const prev = m.history[m.history.length - 1];
@@ -16,7 +16,7 @@ export function recordRound(m) {
   const players = m.order.map((ps) => {
     const s = ps.stats;
     const b = before.get(ps.playerId);
-    const r = m.lastResults && m.lastResults.get(ps.playerId);
+    const r = includeBattleResults && m.lastResults && m.lastResults.get(ps.playerId);
     // the own battle's units (a 联防's damage counts in the totals below, its units are not reported per unit)
     const units = (r && Array.isArray(r.unitStats) ? r.unitStats : [])
       .filter((u) => u && u.kind !== 'token' && u.dmg > 0)

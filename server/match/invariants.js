@@ -4,7 +4,7 @@
 //
 // collectViolations(m) → string[] (empty when every invariant holds):
 //   pool     raw balance ≤ cap and raw balance + Σ copies held by pieces == cap (public availability is clamped at zero) per base chess; non-pool chess hold 0 copies;
-//            every capped shop item is held by at most its cap (normal occupies 1, upgraded 2; effect-only items have no cap)
+//            capped shop items stay within capacity except fixed trait production and confirmed host grants
 //            a player's 自选 stock (0.2.0, player/diy.js) the same against its own pieces of each slotted slot — a DIY
 //            piece is always a slotted slot of its owner's, and a DIY shop / reward card one of its stocked slots
 //   economy  funds / pendingFunds non-negative integers, LP finite, shop level in range, prices ≥ 0
@@ -42,6 +42,8 @@ export function collectViolations(m, { limit = 25 } = {}) {
   const uids = new Set();
   const banned = new Set(m.bannedChess || []);
   const note = (ps, p) => {
+    if (p.adminStockCopies != null && (p.kind !== 'item' || !Number.isInteger(p.adminStockCopies)
+      || p.adminStockCopies < 1 || p.adminStockCopies > m.itemPool.need(p.id))) fail(`${ps.playerId}: bad admin stock copies ${p.adminStockCopies}`);
     if (!Number.isInteger(p.uid) || p.uid <= 0) fail(`${ps.playerId}: bad uid ${p.uid}`);
     else if (uids.has(p.uid)) fail(`${ps.playerId}: duplicate uid ${p.uid}`);
     uids.add(p.uid);
@@ -202,14 +204,14 @@ export function collectViolations(m, { limit = 25 } = {}) {
   }
   for (const [base, n] of held) if (!m.pool.has(base) && n !== 0) fail(`non-pool chess ${base} holds ${n} copies`);
 
-  // Shared shop equipment. The chess pool above may go negative (Mimic). Item stock may not: held ≤ cap.
+  // Fixed trait production and explicitly confirmed host copies may exceed capacity; ordinary copies cannot.
   if (m.itemPool && gd.raw.items) {
     for (const [id, rec] of Object.entries(gd.raw.items)) {
       if (!rec || rec.isGolden) continue;
       const cap = m.itemPool.cap(id);
       if (!Number.isInteger(cap)) continue;
-      const h = m.itemPool.held(id);
-      if (h > cap) fail(`item ${id}: held ${h} > cap ${cap}`);
+      const h = m.itemPool.held(id, { ignoreAdmin: true });
+      if (h > cap && !gd.isTraitFixedItem(id)) fail(`item ${id}: held ${h} > cap ${cap}`);
     }
   }
 

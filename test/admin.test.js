@@ -10,6 +10,7 @@ import { startAdmin, handleAction, roomsView, resultRecord, catalogView } from '
 import { TestClient } from './helpers/wsClient.js';
 import { makeMatch, checkInvariants } from './match/harness.js';
 import { getPrep, setPrep, resetHostSettings, prepSecondsFor, getUniteLayerGains } from '../server/match/hostSettings.js';
+import { capturePrep, rewindToPrep } from '../server/match/rewind.js';
 
 let srv = null;
 let admin = null;
@@ -117,6 +118,67 @@ function harness(o) {
   h.matchView = () => roomsView(lobby)[0].match;
   return h;
 }
+
+test('console item stock: confirmation, forced merge, occupancy, removal and rewind', t => {
+  const h = makeMatch({ humans: 1, seed: 11, fake: true }).start().toPrep();
+  t.after(() => h.m.dispose());
+  const m = h.m, ps = h.ps('p_0'), id = 'chess_item_5_07_e_a';
+  ps.bandId = null;
+  const lobby = { rooms: new Map([['TEST', { code: 'TEST', match: m }]]) };
+  const act = value => handleAction(lobby, { room: 'TEST', action: 'item', playerId: ps.playerId, value });
+  assert.equal(m.itemPool.cap(id), 2);
+  assert.deepEqual(act(id), { ok: true });
+  assert.deepEqual(act(id), { ok: true });
+  const funds = ps.funds;
+  const confirmation = act(id);
+  assert.equal(confirmation.code, 'ITEM_STOCK_CONFIRM');
+  assert.match(confirmation.error, /库存不足/);
+  assert.equal(m.itemPool.held(id), 2, 'unconfirmed action changes nothing');
+  assert.equal(act({ id, force: 'true' }).code, 'ITEM_STOCK_CONFIRM', 'only explicit boolean confirmation works');
+  m.prepSnapshots.set(m.round, capturePrep(m));
+  const round = m.round;
+  assert.deepEqual(act({ id, force: true }), { ok: true });
+  assert.equal(m.itemPool.held(id), 3);
+  assert.equal(m.itemPool.left(id), 0);
+  assert.equal(ps.acquireItem(id), null, 'ordinary grants keep their stock gate');
+  assert.deepEqual(act({ id, force: true }), { ok: true });
+  assert.equal(m.itemPool.held(id), 4);
+  const forced = ps.hand.find(p => p?.adminStockCopies);
+  assert.equal(forced.id, m.gd.item(id).goldenId);
+  assert.equal(forced.adminStockCopies, 2, 'merge preserves the two authorized copies');
+  assert.equal(ps.funds, funds);
+  checkInvariants(m);
+  m.round = round + 1;
+  m.prepSnapshots.set(m.round, capturePrep(m));
+  assert.deepEqual(handleAction(lobby, { room: 'TEST', action: 'pieceRemove', playerId: ps.playerId, value: forced.uid }), { ok: true });
+  assert.equal(m.itemPool.held(id), 2);
+  assert.deepEqual(rewindToPrep(m, round + 1), { ok: true, round: round + 1 });
+  assert.equal(m.itemPool.held(id), 4, 'snapshot restores forced pieces and markers');
+  checkInvariants(m);
+  assert.deepEqual(rewindToPrep(m, round), { ok: true, round });
+  assert.equal(m.itemPool.held(id), 2, 'earlier snapshot removes overrides');
+  assert.ok(ps.hand.filter(Boolean).every(p => !p.adminStockCopies));
+  assert.match(act({ id: 'missing', force: true }).error, /没有这个道具/);
+  const owner = ps.acquireChess(m.gd.visibleChess.find(id => m.gd.tierOf(id) === 1));
+  assert.ok(owner);
+  const equip = value => handleAction(lobby, { room: 'TEST', action: 'pieceEquip', playerId: ps.playerId, value });
+  const before = owner.items.length;
+  assert.equal(equip({ target: owner.uid, item: id }).code, 'ITEM_STOCK_CONFIRM');
+  assert.equal(owner.items.length, before);
+  assert.deepEqual(equip({ target: owner.uid, item: id, force: true }), { ok: true });
+  assert.equal(owner.items.at(-1).adminStockCopies, 1);
+  assert.equal(m.itemPool.held(id), 3, 'direct equipment occupies shared stock');
+  checkInvariants(m);
+  assert.deepEqual(equip({ target: owner.uid, item: id, force: true }), { ok: true });
+  assert.equal(m.itemPool.held(id), 4);
+  assert.ok(ps.hand.some(p => p?.adminStockCopies === 2), 'an equipped forced twin merges with its incoming copy');
+  checkInvariants(m);
+  // A forced grant still cannot exceed hand + temporary capacity.
+  while (ps.hand.some(p => !p) || ps.temp.some(p => !p)) {
+    if (!ps.acquireItem('chess_item_6_09_e_a', { fixedGift: true })) break;
+  }
+  assert.match(act({ id, force: true }).error, /都满了/);
+});
 
 test('console: bond layers (add / set) and count bonus', () => {
   const h = harness({ seed: 11 });

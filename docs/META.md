@@ -426,7 +426,7 @@ Writes (all validated, never throw on bad input, never make funds / pools negati
 | `addFunds(n, reason?)` / `addPendingFunds(n)` / `spendFunds(n)` | funds now / at the next round start / pay (false when short) |
 | `addLayers(bondId, n, { requireActive })` | layer gain (`requireActive` = "使已激活的…"); returns layers added — at most the room left under `BOND_LAYER_CAP` (999, shared/constants.js `layerGainRoom`; the battle gains merged at SETTLE too); fires onLayers unless it added 0 |
 | `grantChess(id, { toTemp, golden, requirePool=true, fromPool=true })` | acquire a chess (takes pool copies; with `requirePool` a pool chess with no copy left fails → `null`); merges; fires onGain. `toTemp` puts it into temp, but a free hand slot pulls it in at the next recompute (temp holds overflow only, `PlayerState._fillHandFromTemp`) |
-| `grantItem(id, { toTemp })` | acquire an item (merges with an identical normal item); `toTemp` as for grantChess |
+| `grantItem(id, { toTemp, fixedGift })` | acquire an item (merges with an identical normal item); `toTemp` as for grantChess; `fixedGift` bypasses exhaustion only for data-defined fixed trait equipment (DESIGN §29.17) |
 | `rollChess({ maxTier, tier, bond, filter })` / `rollItem({ pool, tier, maxTier })` | copy-weighted chess id from the shared pool / item id (choices.json pools) |
 | `grantFreeRefresh(n)` | free refreshes (stack) |
 | `modifyPrice(delta)` / `setPrice(v)` | onPrice only: edit `ev.price` |
@@ -948,7 +948,32 @@ normal and the charge remains.
 `m.public.sp.cards[].soldOut` disables duplicates when a preceding choice used the final copy; timer/bot choices
 use the same availability. Non-shop effect-only equipment is unlimited.
 
+`GameData.isTraitFixedItem(id)` derives fixed production identities from official `SERVER_GAIN_EQUIP` records,
+including their upgraded forms. These traits and fixed-round strategies granting the same equipment use
+`grantItem(..., { fixedGift: true })`; `acquireItem` checks the identity before bypassing exhaustion. The flag does
+not exempt ordinary equipment such as 商业包装方案, and `requirePool: false` is not forwarded to item acquisition.
+[ASSUMED] Gifts still count in `SharedItemPool.held`, including merged golden pieces and equipped / temporary
+copies. These fixed identities may exceed capacity in the invariant audit; availability stays clamped at zero.
+Shop/reward/draft acquisition and 整备 checks are unchanged (DESIGN §29.17, GitHub #488 / #491 / #495).
+
 Operator capacities use measured single-player exceptions and twice those counts in co-op; DIY remains private.
 `take(..., { overdraw: true })` records full occupation of a granted/promoted elite or a Mimic copy beyond capacity;
 normal takes remain bounded. Negative internal balance is a deficit, never negative available stock. Existing
 item selection probabilities and explicit grant weights remain unchanged.
+
+### Host equipment override and round history (DESIGN §29.18–19)
+
+The authenticated local console's `item` action retains string IDs. Exhausted stock returns
+`code: ITEM_STOCK_CONFIRM` without granting; the console opens a Yes/No dialog (Escape cancels). Yes retries with
+`value: { id, force: true }`. Direct `pieceEquip` uses the same confirmation and retries with
+`{ target, item, force: true }`, preserving its target. Only the item admin route supplies `acquireItem(..., { forceStock: true })`; game clients
+cannot request it. Confirmed excess copies carry `adminStockCopies`, propagated by item merges and rewind snapshots.
+All copies still occupy shop stock; the audit excludes only explicitly authorized copies from the excess check.
+Hand/temporary limits and normal purchase/reward/strategy checks still apply. This is a maintainer-requested custom rule.
+
+`history.js recordRound` runs after normal settlement and `_finishFinal`, before the Final Assault / Hidden Core
+transition changes `round`, the wave and `lastResults`. Its round key prevents a duplicate in `finish()`.
+Both solo and co-op terminal leader rounds retain their units; the hidden round's damage delta starts after the
+Final Assault. `finish` excludes battle detail for an unsettled interrupted round, since bot planning deliberately
+retains the previous battle results during prep. Console views and saved records share this history. Old missing
+unit data cannot be recovered from aggregate totals; no migration invents them.

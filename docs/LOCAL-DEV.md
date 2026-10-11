@@ -145,7 +145,7 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 | `GET /` | 控制台页面 |
 | `GET /api/rooms` | 所有房间：对局阶段、玩家数据、`history`、`enemyPlan`；房间级的 `log`（操作日志）和 `lastMatch`（没有进行中的对局时，上一局的统计） |
 | `GET /api/catalog?room=` | 当前模式可发放的干员、道具、机变卡 |
-| `POST /api/action` | `{ room, action, playerId?, value? }` → `{ ok }` 或 `{ error }` |
+| `POST /api/action` | `{ room, action, playerId?, value? }` → `{ ok }` 或 `{ error, code? }` |
 | `GET /api/results` | 对局记录列表（新的在前，只有摘要） |
 | `GET /api/result?id=` | 一条记录全文。`id` 必须是 `logs/results/` 里的文件名（`^[\w-]+\.json$`），防路径穿越 |
 | `GET /api/settings` | 当前的休整期设置 `{ prep }`、设置文件路径，以及各同盟模式每回合的默认秒数 |
@@ -160,7 +160,9 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 ### 统计与记录
 
-- **每回合记录**：`history.js` 的 `recordRound(m)` 在 `settle()` 结尾写一条 `{ round, enemy, players: [...] }`。`enemy` 是这回合的敌人组合（类型、特殊 / 普通 / 精英的名字、是否控制台指定）。每个玩家有 LP、剩余金币、商店等级、累计花费 / 伤害 / 漏怪 / 击杀，以及本回合的扣血、漏怪、击杀、伤害、是否无伤、每个造成伤害的干员（来自 `lastResults` 的 `unitStats`，召唤物不算）。领袖战回合不经过 `settle()`，由 `finish()` 补记。`history` 在 `MATCH_KEYS` 里，回档时自动截断，被放弃的回合不保留。
+- **装备超库存确认（extended.4）**：`item` 仍支持字符串 ID；库存不足返回 `ITEM_STOCK_CONFIRM`，没有状态变化。页面弹出「是，强制加入 / 否」确认框，Esc 取消；只有点是才重发 `{ id, force: true }`。`pieceEquip` 直接装备也使用相同确认码，保留 `{ target, item }` 并在确认后补 `force: true`；不允许未经确认绕过库存。此入口仅在已鉴权的本机控制台，普通游戏协议不能调用。`acquireItem.forceStock` 给实际超限的装备记 `adminStockCopies`，合成累加授权份数，回档随棋子快照恢复；库存仍按全部普通 1 / 进阶 2 计数，审计只扣除明确授权的份数，普通装备超限仍报错。容量已满仍拒绝，操作日志区分首次拒绝和确认后的发放。
+
+- **每回合记录**：`history.js` 的 `recordRound(m)` 在 `settle()` 结尾写一条 `{ round, enemy, players: [...] }`。`enemy` 是这回合的敌人组合（类型、特殊 / 普通 / 精英的名字、是否控制台指定）。每个玩家有 LP、剩余金币、商店等级、累计花费 / 伤害 / 漏怪 / 击杀，以及本回合的扣血、漏怪、击杀、伤害、是否无伤、每个造成伤害的干员（来自 `lastResults` 的 `unitStats`，召唤物不算）。领袖战回合不经过 `settle()`，在 `_finishFinal()` 完成结果统计后、进入下一回合前立即记录，避免第 14 回合进入隐秘核心时漏记；`finish()` 按回合去重补记。未结算的休整期 / 作战期手动终止不复用上一回合明细。旧记录的缺失逐干员数据不能由总伤害推回。`history` 在 `MATCH_KEYS` 里，回档时自动截断，被放弃的回合不保留。
 - **伤害的含义**：模拟器记的是实际从敌人身上扣掉的生命值（减防、减抗、护盾之后，不算溢出，`server/sim/damage.js` 的 `applyHpLoss`）。同一波怪全部击杀时，几个玩家的伤害基本相同，等于这波怪的总血量；差别来自漏怪、悬赏怪、敌人回血或召唤。元素损伤不扣血，不计入。联防里的伤害只进累计数，不分干员。游戏结算页的「造成伤害」是同一个数。
 - **累计数据**：直接读 `ps.stats`（`statsOf()`），实时。`gold` 是花掉的金币，`fundsGained` 含利息、悬赏和控制台加的。
 - **操作日志**：`handleAction` 每次执行后写进 `room.adminLog`（最多 100 条，失败的也记，`closeRoom` 不记），跨对局保留到房间关闭。
@@ -225,7 +227,7 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 ## 6. 测试
 
-- 全量：当前推荐 `node --test --test-concurrency=4`。2026-10-10 在 Node 24.19 下是 6026 项，6013 通过、13 跳过、0 失败，约 5 分钟。一次只开一份，否则性能用例会超时。Node 22.14 下的首轮 47 项控制台、回档、数据专项也全部通过。
+- 全量：当前推荐 `node --test --test-concurrency=4`。2026-10-11 的 extended.4 在 Node 24.19 下全量 6161 项，6144 通过、17 跳过、0 失败，约 8 分钟。定向 92 项、真实浏览器库存确认 1 项均通过；启动、lint、导入、类型、四个语言包及文档检查通过。一次只开一份，否则性能用例会超时。Node 22.14 下的首轮 47 项控制台、回档、数据专项也全部通过。
 - 单个文件：`node --test test/match/rewind.test.js`。
 - 对局测试用 `test/match/harness.js` 的 `makeMatch()`：虚拟时钟（`VirtualScheduler`），完全确定。常用 `h.toPrep(r)`、`h.drive(pred)`（自动替真人确认、选策略、就绪）。注意 `h.runToEnd()` **不会**替真人操作，有真人座位时要用 `h.drive(() => h.ended != null)`。
 - `node tools/matchrun.mjs --check` 可以跑整局并检查不变量。

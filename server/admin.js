@@ -143,6 +143,13 @@ export function catalogView(lobby, code) {
   };
 }
 
+function itemStockConfirmation(m, id, force) {
+  return !m.itemPool.canGain(id) && !force ? {
+    error: `「${m.gd.item(id).name}」装备库存不足，是否强制加入？强制加入后仍占用库存，商店可用量最低为 0。`,
+    code: 'ITEM_STOCK_CONFIRM',
+  } : null;
+}
+
 // Player actions: (m, ps, value) → OK | { error }. They change the state directly (no shop price, no onLevelUp effects).
 const PLAYER_ACTIONS = {
   funds: (m, ps, v) => {
@@ -183,8 +190,13 @@ const PLAYER_ACTIONS = {
   // the same value: only the skill / module of the slot that holds the operator (its pieces change with it)
   diySkill: (m, ps, v) => grantDiy(m, ps, { ...obj(v), grant: false }),
   item: (m, ps, v) => {
-    if (!m.gd.item(String(v))) return { error: `没有这个道具：${v}` };
-    return ps.acquireItem(String(v)) ? OK : { error: '手牌和整备区都满了' };
+    const id = String(typeof v === 'object' && v ? v.id : v);
+    const rec = m.gd.item(id);
+    if (!rec) return { error: `没有这个道具：${id}` };
+    const force = obj(v).force === true;
+    const confirmation = itemStockConfirmation(m, id, force);
+    if (confirmation) return confirmation;
+    return ps.acquireItem(id, { source: 'admin', forceStock: force }) ? OK : { error: '手牌和整备区都满了' };
   },
 
   // ---- bonds: value { bond, n }
@@ -282,7 +294,11 @@ const PLAYER_ACTIONS = {
     const rec = m.gd.item(id);
     if (!rec || rec.itemType !== 'EQUIP') return { error: `不是装备：${id}` };
     if (typeof rec.kind === 'string' && rec.kind.startsWith('consume_on_equip')) return { error: '消耗型装备请用「发放道具」，再在游戏里使用' };
+    const force = obj(v).force === true;
+    const confirmation = itemStockConfirmation(m, id, force);
+    if (confirmation) return confirmation;
     const item = ps.newPiece('item', id);
+    if (force && !m.itemPool.canGain(id)) item.adminStockCopies = m.itemPool.need(id);
     // an owned twin completes a merge: the elite item goes to the hand, as equip() does
     if (ps.completesItemMerge(id) && ps._mergeItem(id, item)) { ps.recompute(); return OK; }
     ps._attach(tloc.piece, item);

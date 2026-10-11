@@ -184,19 +184,21 @@ export class SharedPool {
 
 /** Shared equipment stock, derived from actual ownership. Merges, equips and returns cannot lose a reservation:
  * normal equipment occupies one, upgraded equipment two. Shop/choice displays reserve nothing. Source: the original
- * experiment BV1eLXXBqEgF, 1:30 and 2:30. [ASSUMED] An item that is consumed/destroyed or removed by elimination no
+ * experiment BV1eLXXBqEgF, 1:30 and 2:30. Fixed trait gifts are unlimited production but still occupy stock:
+ * [ASSUMED] apply the video's all-source occupation rule to them too (#488; DESIGN §29.17).
+ * Availability clamps excess ownership to zero. [ASSUMED] An item that is consumed/destroyed or removed by elimination no
  * longer occupies stock, consistently with the video's ownership model; this is not a per-match purchase limit. */
 export class SharedItemPool {
   constructor(gd, players) { this.gd = gd; this.players = players; }
   cap(id) { return this.gd.itemPoolCopies(id); }
   need(id) { return this.gd.isGolden(id) ? 2 : 1; }
-  held(id) {
+  held(id, { ignoreAdmin = false } = {}) {
     const base = this.gd.baseIdOf(id);
     let count = 0;
     const see = p => {
       if (!p) return;
-      if (p.kind === 'item' && this.gd.baseIdOf(p.id) === base) count += this.need(p.id);
-      for (const item of p.items || []) if (this.gd.baseIdOf(item.id) === base) count += this.need(item.id);
+      if (p.kind === 'item' && this.gd.baseIdOf(p.id) === base) count += this.need(p.id) - (ignoreAdmin ? p.adminStockCopies || 0 : 0);
+      for (const item of p.items || []) if (this.gd.baseIdOf(item.id) === base) count += this.need(item.id) - (ignoreAdmin ? item.adminStockCopies || 0 : 0);
     };
     for (const ps of this.players()) {
       for (const p of ps.hand) see(p);

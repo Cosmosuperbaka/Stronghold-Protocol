@@ -12,6 +12,7 @@ import { waveSource } from '../enemyPicks.js';
 import { pairPlayers, bossPoolHp, SharedBossPool, CreditPool, hiddenEligible, BOSS_HIT_STEPS } from '../finalAssault.js';
 import { FieldRunner, HeadlessPacer, syntheticResult, BOSS_SILENCE_MS, CATCHUP_TICKS_PER_INTERVAL } from '../fields.js';
 import { FLOW_TICKER_PRIORITY, BOSS_CLOCK_MS, DELAYS } from './common.js';
+import { recordRound } from '../history.js';
 
 /** b.pool broadcasts at most this often (ms). */
 const POOL_MIN_GAP_MS = 250;
@@ -539,6 +540,9 @@ export class MatchBoss {
       }
     }
     this._syncTeamLp();
+    // Save the leader round before Hidden Core replaces its round, wave and lastResults. finish() alone misses
+    // the Final Assault when the hidden round is unlocked; recordRound is idempotent for terminal paths.
+    try { recordRound(this); } catch (e) { this.reportError('recordRound', e); }
     this.deadline = 0;
     this.overtimeAt = 0;
     this.markPublic();

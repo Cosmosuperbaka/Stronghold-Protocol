@@ -124,6 +124,7 @@ export class MatchSettle {
 
   finish({ victory, hiddenCleared = false, reason = 'defeat' }) {
     if (this.ended || this.disposed) return;
+    const settledBattle = [PHASE.SETTLE, PHASE.FINAL_ASSAULT, PHASE.HIDDEN_CORE].includes(this.phase);
     this.ended = true;
     if (this.runner) { try { this.runner.stop(); } catch { /* ignore */ } this.runner = null; }
     this._stopClientCombat();
@@ -135,8 +136,8 @@ export class MatchSettle {
     this.deadline = 0;
     for (const f of this.fields) f.live = false;
     this.outcome = { victory: !!victory, hiddenReached: this.hiddenReached, hiddenCleared: !!hiddenCleared, reason };
-    // local console: a round that ended without a SETTLE (Final Assault / Hidden Core) — a no-op after settle()
-    try { recordRound(this); } catch (e) { this.reportError('recordRound', e); }
+    // A no-op after settlement. An interrupted prep must not borrow lastResults retained for bot planning.
+    try { recordRound(this, { includeBattleResults: settledBattle }); } catch (e) { this.reportError('recordRound', e); }
     let result;
     try {
       result = buildResult(this, this.outcome);

@@ -115,10 +115,28 @@ function say(text, err = false) {
 }
 
 async function act(room, action, playerId, value, label) {
-  const r = await api('/api/action', { room, action, playerId, value }).catch(() => ({ error: '连接服务器失败' }));
+  const send = (v) => api('/api/action', { room, action, playerId, value: v }).catch(() => ({ error: '连接服务器失败' }));
+  let r = await send(value);
+  if ((action === 'item' || action === 'pieceEquip') && r.code === 'ITEM_STOCK_CONFIRM') {
+    if (!await confirmStock(r.error)) { say('已取消发放装备'); return; }
+    r = await send(action === 'item' ? { id: value, force: true } : { ...value, force: true });
+  }
   if (r.ok) say(`${label || action}：完成${r.round ? `（第 ${r.round} 回合）` : ''}`);
   else say(`${label || action}失败：${r.error}${r.detail ? `（${r.detail}）` : ''}`, true);
   refresh();
+}
+
+function confirmStock(message) {
+  return new Promise((resolve) => {
+    const dialog = document.createElement('dialog');
+    dialog.dataset.stockConfirm = '';
+    dialog.setAttribute('aria-labelledby', 'stock-confirm-title');
+    dialog.innerHTML = `<form method="dialog"><h3 id="stock-confirm-title">装备库存不足</h3><p>${esc(message)}</p><button value="no" autofocus>否</button> <button value="yes">是，强制加入</button></form>`;
+    dialog.style.cssText = 'max-width:min(480px,85vw);background:#141816;color:#eee;border:1px solid #657269;border-radius:8px;padding:20px';
+    dialog.addEventListener('close', () => { const yes = dialog.returnValue === 'yes'; dialog.remove(); resolve(yes); }, { once: true });
+    document.body.append(dialog);
+    dialog.showModal();
+  });
 }
 
 function loadCatalog(room) {
