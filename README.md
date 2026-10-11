@@ -8,7 +8,7 @@ A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance
 
 [下载本库整合包](https://github.com/zhewang448/Stronghold-Protocol/releases/latest) · [扩展更新记录](docs/LOCAL-CHANGELOG.md) · [玩法指南](docs/PLAYING.md) · [反馈问题](https://github.com/zhewang448/Stronghold-Protocol/issues)
 
-> 当前扩展版为 `v0.2.4-extended.4`，修复缪尔赛思固定装备断供和第 14 回合伤害漏记，控制台支持确认后强制发放超库存装备。游戏内基础版本显示 `0.2.4`，扩展修订号请以下载页的标签和附件文件名为准。
+> 当前扩展版为 `v0.2.4-extended.5`，完整素材包补齐官方 3D 棋盘、40 组召唤物模型、灼热 / 炽焰源石虫模型与部分界面图标，保留上一版的装备库存确认和第 14 回合伤害统计修复。游戏内基础版本显示 `0.2.4`，扩展修订号请以下载页的标签和附件文件名为准。
 >
 > 非官方、非商业同人项目，与《明日方舟》官方无隶属或授权关系。游戏名称、美术、音频、文本与数据的权利归原权利人；仅供学习和个人非商业使用。
 
@@ -22,8 +22,8 @@ A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance
 
 | 附件 | 适合的情况 |
 | --- | --- |
-| `*-assets.zip` | 带游戏代码、运行依赖与素材；当前发布包也包含 174 套可选皮肤，适合希望直接启动的玩家 |
-| `*-lite.zip` | 带同版代码与运行依赖，首次启动时联网下载素材 |
+| `*-assets.zip` | 带游戏代码、运行依赖、官方 3D 棋盘等本地素材与 174 套可选皮肤，适合希望直接启动的玩家 |
+| `*-lite.zip` | 带同版代码与运行依赖，首次启动时联网下载默认素材；官方棋盘等本地素材和可选皮肤需另行导入 / 安装 |
 | `SHA256SUMS.txt` | 用于核对安装包的 SHA-256 校验值 |
 
 - **Windows**：双击 `scripts/start-windows.bat`。
@@ -31,7 +31,9 @@ A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance
 
 脚本会检查环境与素材、启动服务器并打开浏览器。默认游戏地址为 `http://localhost:3000`，主机控制台地址见启动日志的 `Console:` 行，默认是 `http://127.0.0.1:3100`。
 
-更新时先停止服务器，保留旧目录中的 `logs/`，再解压新包并迁移需要的记录和设置。停止服务器会结束正在进行的对局。当前整合包没有官方 3D 棋盘、部分召唤物、源石虫与界面图标素材，游戏使用替代显示；本机客户端素材提取方法见[部署说明](docs/DEPLOY.md)。
+更新时先停止服务器，保留旧目录中的 `logs/`，再解压新包并迁移需要的记录和设置。停止服务器会结束正在进行的对局。
+
+从 `extended.5` 起，`*-assets.zip` 已从上游 `v0.2.4` 完整包补齐官方 3D 棋盘、部分召唤物模型、灼热 / 炽焰源石虫模型与部分界面图标。`extended.4` 及更早附件保持原样；旧包补齐方法见[部署说明 §6](docs/DEPLOY.md#6-本地客户端素材可选)。
 
 ### 从源码运行
 
@@ -57,7 +59,7 @@ node tools/install-skins.mjs --all
 
 安装选项、失败重试与资源范围见[皮肤说明](docs/SKINS.md)。启动有问题时运行 `npm run doctor`，检查 Node 版本、素材、端口与网络配置。
 
-表情和「玩法说明」的教程图随上面的素材一起从公开镜像下载。服务器没有本地客户端时，可在另一台电脑提取缺失素材，再复制到**同一版本**的整合包；具体目录和版本校验见[部署说明](docs/DEPLOY.md)。
+表情和「玩法说明」的教程图随上面的素材一起从公开镜像下载。源码和轻量包的默认下载流程不含上述官方棋盘等素材；可从**同一基础版本**的上游完整包复制 `public/assets/local/` 和 `data/local-assets.json`，或从本机游戏客户端提取，具体见[部署说明](docs/DEPLOY.md)。
 
 ## 本库特色
 

@@ -13,6 +13,7 @@
 - 合并上游新版本时从 `main` 开功能分支，完成适配与测试后再合并回 `main`。
 - 同步上游：`git fetch upstream` → `git merge upstream/master` → `npm install` → `npm run setup`（上游常会加素材）→ `node --test`。
 - 素材 `public/assets/`、`.cache/`、`.claude/` 都在 `.gitignore` 里，不进仓库。新机器 clone 后要先 `npm install && npm run setup`。
+- 后续完整素材包还需导入同一基础版本上游完整包中的 `public/assets/local/` 和 `data/local-assets.json`（当前为 `v0.2.4`，来源和 SHA-256 见 DEPLOY §6）。发布预检与构建都加 `--require-local-art`；只有默认 `setup` 的机器会被拒绝，不能将缺本地素材的包标为补齐后的完整素材包。lite 仍不含官方本地素材。素材不随 Git 分支移动，切换旧代码版本时也要注意素材版本匹配。
 
 ## 2. 本地新增了什么
 

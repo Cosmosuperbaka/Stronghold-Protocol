@@ -8,7 +8,7 @@
 //                          → Stronghold-Protocol-v<version>-update.zip  only the files that differ from the earlier full
 //                            zips given as bases, to extract over an install of one of them (server/update.js)
 //   node tools/package.mjs [--lite | --update --from <bases>] [--dry-run [--list]] [--out <dir>] [--force] [--keep-stage]
-//                          [--no-install] [--allow-dirty] [--allow-dev] [--root <dir>]
+//                          [--no-install] [--allow-dirty] [--allow-dev] [--require-local-art] [--root <dir>]
 //
 // The zips hold one folder, Stronghold-Protocol/, with only what a player runs — an allowlist over `git ls-files`, so
 // untracked work, caches, logs and per-machine config never get in: server/, shared/, data/, public/ (not public/dev/),
@@ -359,7 +359,7 @@ function groupOf(rel) {
  * scan and `measure: false` the node_modules / public/vendor sizes (tests that only want the selection).
  * @param {string} root
  * @param {{ lite?: boolean, paths?: string[], allowDirty?: boolean, env?: object, scan?: boolean, measure?: boolean,
- *   jpVoice?: boolean }} [opts] jpVoice: the full zip's JP dub (default FULL_ZIP_JP_VOICE)
+ *   jpVoice?: boolean, requireLocalArt?: boolean }} [opts] jpVoice: the full zip's JP dub (default FULL_ZIP_JP_VOICE)
  */
 export function plan(root, opts = {}) {
   const lite = !!opts.lite;
@@ -371,6 +371,14 @@ export function plan(root, opts = {}) {
   const generated = shipsPacks(keep) ? [GENERATED_PACK_INDEX] : [];
   const files = [...keep, ...art.files, ...generated];
   const problems = [];
+  if (opts.requireLocalArt) {
+    const localManifest = readJson(path.join(root, 'data', 'local-assets.json'));
+    const localFiles = manifestFiles(localManifest?.groups ?? {});
+    if (lite) problems.push('--require-local-art cannot be used with --lite');
+    else if (!art.local || ![...localFiles].some((f) => f.startsWith('public/assets/local/'))) {
+      problems.push('local-client art required: import public/assets/local/ and data/local-assets.json from the same upstream version full zip, or run node tools/setup.mjs --local');
+    }
+  }
   for (const f of files) if (isRefused(f) || isJunk(f)) problems.push(`refused: ${f}`);
   const byCase = new Map();
   for (const f of files) {
@@ -673,13 +681,13 @@ export function formatUpdate(r, version) {
   return lines.join('\n') + '\n';
 }
 
-const USAGE = 'usage: node tools/package.mjs [--lite | --update --from <base zip or folder>[,<…>]] [--dry-run [--list]] [--out <dir>] [--force] [--keep-stage] [--no-install] [--allow-dirty] [--allow-dev] [--root <dir>]';
+const USAGE = 'usage: node tools/package.mjs [--lite | --update --from <base zip or folder>[,<…>]] [--dry-run [--list]] [--out <dir>] [--force] [--keep-stage] [--no-install] [--allow-dirty] [--allow-dev] [--require-local-art] [--root <dir>]';
 
 /** Whether `version` is a development (pre-release) version, e.g. 0.2.0-dev. */
 export const isDevVersion = (version) => /-/.test(String(version || ''));
 
 export function parseArgs(argv) {
-  const o = { lite: false, update: false, from: [], dryRun: false, list: false, out: '', force: false, keepStage: false, install: true, allowDirty: false, allowDev: false, root: REPO, help: false };
+  const o = { lite: false, update: false, from: [], dryRun: false, list: false, out: '', force: false, keepStage: false, install: true, allowDirty: false, allowDev: false, requireLocalArt: false, root: REPO, help: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--lite') o.lite = true;
@@ -691,6 +699,7 @@ export function parseArgs(argv) {
     else if (a === '--no-install') o.install = false;
     else if (a === '--allow-dirty') o.allowDirty = true;
     else if (a === '--allow-dev') o.allowDev = true;
+    else if (a === '--require-local-art') o.requireLocalArt = true;
     else if (a === '--help' || a === '-h') o.help = true;
     else if (a === '--from') {
       const v = argv[++i];
@@ -706,6 +715,7 @@ export function parseArgs(argv) {
     if (o.from.length && !o.update) throw new Error(`--from goes with --update\n${USAGE}`);
     if (o.update && !o.from.length) throw new Error(`--update needs --from <earlier full zip or folder>[,<…>]\n${USAGE}`);
     if (o.update && o.lite) throw new Error(`--update is compared from the full stage: no --lite\n${USAGE}`);
+    if (o.requireLocalArt && o.lite) throw new Error(`--require-local-art cannot be used with --lite\n${USAGE}`);
   }
   return o;
 }
@@ -715,7 +725,7 @@ function main(argv) {
   try { o = parseArgs(argv); } catch (e) { console.error(`package: ${e.message}`); return 2; }
   if (o.help) { console.log(USAGE); return 0; }
   let p;
-  try { p = plan(o.root, { lite: o.lite, allowDirty: o.allowDirty }); } catch (e) { console.error(`package: ${e.message}`); return 1; }
+  try { p = plan(o.root, { lite: o.lite, allowDirty: o.allowDirty, requireLocalArt: o.requireLocalArt }); } catch (e) { console.error(`package: ${e.message}`); return 1; }
   process.stdout.write(formatSummary(p));
   let bases = [];
   if (o.update) {

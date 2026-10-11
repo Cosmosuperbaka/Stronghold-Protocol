@@ -302,11 +302,15 @@ services:
 | 官方 3D 棋盘（贴图、模型、地图特效） | 2D 棋盘，地块由程序绘制 |
 | 部分官方界面图标与底板：交流按钮和表情面板的边框、暂停面板、装备替换窗口、干员调配界面、队友状态与漏怪标记、模组类型图标等 | 样式相近的替代图形、图标或文字 |
 | 灼热 / 炽焰源石虫的官方模型 | 染成橙色 / 红橙色的普通源石虫 |
-| 39 个召唤物的官方模型（多数自选召唤物，以及凯瑟琳的爬行号·防护单元、凛御银灰的风雪之眼；公开镜像没有） | 召唤物头像（菱形底板） |
+| 40 个召唤物的官方模型（多数自选召唤物，以及凯瑟琳的爬行号·防护单元、凛御银灰的风雪之眼；公开镜像没有） | 召唤物头像（菱形底板） |
 
 表情（6 套 × 6 个）和「玩法说明」的 19 页教程图公开镜像也有：`node tools/setup.mjs` 会和其他素材一起下载（约 21 MB），不需要客户端；有本地素材时优先显示本地的。
 
 **没有客户端的服务器**想要上表中的官方素材：从**同一版本**的完整包（[Releases](https://github.com/sganggs/Stronghold-Protocol/releases)）里，把 `public/assets/local/` 文件夹和 `data/local-assets.json` 复制到服务器项目目录下的相同位置。服务器每次请求都会重新读取这两处，不必重启，玩家刷新页面即可。一定要用与服务器代码相同版本的完整包：各版本提取的内容和清单可能不同（例如灼热 / 炽焰源石虫的模型是 0.1.0 之后才加入的，召唤物模型是 0.2.0 加入的），混用其他版本的文件会缺图或用错图。复制后 `node tools/doctor.mjs` 会显示本地素材的条目数和「3D 棋盘可用」。
+
+**本库扩展版的素材基线**：当前基础版本为 `0.2.4`，`extended.5` 起的完整素材包收录上游 [v0.2.4 完整包](https://github.com/sganggs/Stronghold-Protocol/releases/tag/v0.2.4)中的这套素材（不是 lite / update 包）。官方美术和 `data/local-assets.json` 仍不进入 Git，换打包机器时需重新复制；源码和 lite 的默认 `setup` 不会下载这套素材。已经发布的 `extended.4` 及更早附件保持原样。
+
+维护者导入时，先核对 `Stronghold-Protocol-v0.2.4.zip` 的 SHA-256：`0ec5781b8ac04e9134d07c82b03911eefbfc3f840dd090e92a115b5a89d39f72`，仅复制上述两处，不覆盖本库代码和 `data/assets.json`。本次导入包含 1,614 个素材文件和一份原始清单；清单列出 1,601 项，包括 40 组召唤物模型、两组特殊源石虫模型，以及棋盘、界面、模组图标、表情和教程素材。升级基础版本时重新核对对应上游完整包，不能沿用旧包哈希。
 
 **0.2.0 之前提取过的**：召唤物模型是 0.2.0 新增的提取项，旧的提取结果里没有（`node tools/setup.mjs` 会提示「缺少新版的自选召唤物模型」）。有客户端的电脑运行 `node tools/setup.mjs --local` 重新提取即可，只想补这一项也可以在提取用的 Python 环境里运行 `tools/local-extract/extract.py --only spine/token`（新文件写入 `public/assets/local/spine/token/`，清单里其他条目保持不变）。
 
@@ -319,9 +323,12 @@ Releases 的 zip（完整包、精简包，0.2.1 起还有更新包）由 `tools
 ```bash
 npm run package -- --dry-run --list   # 只检查：列出每个文件和大小，不写任何文件（精简包加 --lite）
 npm run package -- --out <目录>        # 完整包 Stronghold-Protocol-v<版本>.zip
+npm run package -- --require-local-art --out <目录> # 本库后续完整素材包：要求已导入官方本地素材
 npm run package:lite -- --out <目录>   # 精简包 Stronghold-Protocol-v<版本>-lite.zip
 npm run package -- --update --from <旧版本的完整包>[,<…>] --out <目录>   # 更新包 Stronghold-Protocol-v<版本>-update.zip
 ```
+
+本库后续完整素材包使用 `--require-local-art`（预检也加此参数）：缺少、损坏或为空的 `data/local-assets.json` 会拒绝打包，清单引用的文件缺失同样拒绝。它可用于完整包或更新包，不能与 `--lite` 同用。完整包会自动收录 `public/assets/local/` 和清单；精简包仍不含它们。
 
 - **打进去的**：`git ls-files` 里的 `server/`、`shared/`、`data/`、`public/`（不含 `public/dev/`）、`packs/`（随仓库提交的内容包；只在本机安装、没提交的不打进去）、启动脚本、玩家会运行的工具（setup、vendor、fetch-assets 与 `tools/assets/`、doctor，以及 setup 调用的 `tools/local-extract/` 和 `crop-board-atlas.mjs`）、服务器和 fetch-assets 读取的 4 张研究数据表（`docs/research/` 的 `03-operators`、`05-enemies`、`05-maps`、`07-assets` 四个 JSON）、`package.json` / `package-lock.json`、许可证与说明（`LICENSE`、`NOTICE.md`、`THIRD-PARTY-NOTICES.md`、`README.md`、`CHANGELOG.md`）、`docs/PLAYING.md` 和本文；然后在临时目录里生成 `packs/index.json`（打进去的语言包和内容包的列表，供纯静态托管使用；服务器自己会实时列出，见 [PACKS.md](PACKS.md)），再 `npm ci --omit=dev` 装上运行依赖和 `public/vendor`。完整包再加上 `data/assets.json` 列出的素材、`public/fonts`，以及本地提取的 `public/assets/local/` 和 `data/local-assets.json`。磁盘上有、清单却没列出的文件不打进去（例如 0.2.0 移出自选的焰狐龙梓兰的旧素材）。日文干员语音（`audio.voiceJp`，`public/assets/audio/voice/jp/` 的 2674 个文件，约 85 MB，zip 后约 76 MB）默认也打进完整包；`tools/package.mjs` 里的开关 `FULL_ZIP_JP_VOICE` 改成 `false` 时，完整包（以及由它比较出的更新包）不带这些文件：玩家首次启动时 setup 会像精简包那样下载它们，下载完成前选「日本語」会播中文语音，更新包也不会删除玩家已有的日文语音。
 - **本库扩展整合包**还包含 `docs/SKINS.md`、`docs/LOCAL-CHANGELOG.md`、`docs/LOCAL-DEV.md`、`docs/PRIVACY.md`、`scripts/README.md`、README 引用的 `docs/img/features/` 界面截图，以及 `scripts/start-tunnel.bat` / `.mjs`、`scripts/stop-server.bat`、`scripts/free-port.mjs`。两种包都带这些文件；开发指南从 README 的在线链接访问。皮肤目录 `docs/research/operator-skins.json` 与安装器 `tools/install-skins.mjs` 也随包提供。扩展发布附件按完整修订标签命名为 `Stronghold-Protocol-v0.2.4-extended.N-assets.zip` 和 `Stronghold-Protocol-v0.2.4-extended.N-lite.zip`，附 `SHA256SUMS.txt`；包内游戏基础版本仍为 `0.2.4`。

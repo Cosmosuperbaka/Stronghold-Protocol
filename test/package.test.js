@@ -198,6 +198,33 @@ const SHIPPED_TRACKED = ['CHANGELOG.md', 'LICENSE', 'NOTICE.md', 'README.md', 'T
 const ART = ['data/local-assets.json', 'public/assets/char/a.png', 'public/assets/local/g/x.png', 'public/assets/local/g/x.webp',
   'public/assets/local/spine/token/token_x/token_x.skel', 'public/assets/ui/b c.png', 'public/fonts/fonts.css', 'public/fonts/x.woff2'];
 
+test('required local art: full includes it; lite, missing/empty/broken manifests and missing files refuse', () => {
+  const { dir, put, rm } = fakeCheckout();
+  const args = ['--root', dir, '--dry-run', '--allow-dirty', '--require-local-art'];
+  try {
+    const full = runTool([...args, '--list']);
+    assert.equal(full.status, 0, full.stdout + full.stderr);
+    assert.ok(listed(full.stdout).includes('data/local-assets.json'));
+    assert.ok(listed(full.stdout).includes('public/assets/local/spine/token/token_x/token_x.skel'));
+    const lite = runTool([...args, '--lite']);
+    assert.equal(lite.status, 2);
+    assert.match(lite.stderr, /cannot be used with --lite/);
+    rm('public/assets/local/g/x.webp');
+    const missing = runTool(args);
+    assert.equal(missing.status, 1);
+    assert.match(missing.stdout, /missing art: public\/assets\/local\/g\/x.webp/);
+    for (const value of [null, '{}', '{broken', '{"path":"/assets/local/g/x.png"}', '{"groups":{"x":{"path":"/assets/char/a.png"}}}']) {
+      if (value === null) rm('data/local-assets.json');
+      else put('data/local-assets.json', value);
+      const refused = runTool(args);
+      assert.equal(refused.status, 1);
+      assert.match(refused.stdout, /local-client art required/);
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('dry-run on a temporary checkout: the full and the lite file lists, the summary, nothing written', () => {
   const { dir } = fakeCheckout();
   try {
