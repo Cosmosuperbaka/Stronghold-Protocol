@@ -101,6 +101,7 @@ test('docs and messages say what falls back without the local art and how a serv
   const readme = read('README.md');
   assert.match(readme, /召唤物/);
   assert.match(readme, /表情和「玩法说明」的教程图随上面的素材一起从公开镜像下载/);
-  assert.match(readme, /\*\*同一版本\*\*的整合包/);
+  assert.match(readme, /\*\*同一基础版本\*\*的上游完整包/);
+  assert.match(readme, /复制 `public\/assets\/local\/` 和 `data\/local-assets\.json`/);
   assert.ok(!/需本地提取/.test(read('docs/PLAYING.md')), 'PLAYING: the 玩法说明 pages come with the download');
 });
