@@ -9,6 +9,10 @@ Optional cosmetics: lobby `room.skins` stores a catalogue-filtered operator map 
 PlayerState takes a frozen copy; `Match.setSkins` can update it during any active phase and flush the public
 player's non-empty `skins` map. No gameplay state or battle input changes. See [SKINS.md](SKINS.md).
 
+Room creation accepts optional `code` (DESIGN §29.15): exactly `ROOM_CODE_LEN` ASCII letters or digits,
+normalized to uppercase. Omit it for the existing random generator. An occupied code returns `ROOM_CODE_TAKEN`
+before leaving the current room; normal room disposal releases it. The co-op lobby exposes this as an optional field.
+
 ```
 server/match/
   Match.js         state machine, timers, round loop, co-op orchestration, views (the lobby⇄match interface is at the top)

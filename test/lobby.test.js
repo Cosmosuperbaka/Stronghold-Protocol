@@ -535,6 +535,39 @@ describe('websocket lobby', () => {
     assert.equal(info.code, 1008);
   });
 
+  test('custom room codes normalize case, support joins, reject collisions without leaving, and can be reused after disposal', async () => {
+    const host = await pool.player('CustomHost');
+    const guest = await pool.player('CustomGuest');
+    const previous = await createRoom(guest);
+    await expectOk(host, { t: 'room.create', mode: 'coop', difficulty: 'NORMAL', code: 'a1i0' });
+    const room = await host.waitFor('room.state', (s) => s.code === 'A1I0');
+    assert.equal(room.hostId, host.id);
+    await expectError(guest, { t: 'room.create', mode: 'coop', difficulty: 'NORMAL', code: 'A1i0' }, ERR.ROOM_CODE_TAKEN);
+    assert.equal(srv.registry.byId(guest.id).roomCode, previous.code);
+    assert.ok(srv.lobby.rooms.has(previous.code));
+    assert.equal(srv.lobby.rooms.get('A1I0').hostId, host.id);
+    const joined = await joinRoom(guest, 'a1i0');
+    assert.equal(seatOf(joined, guest.id).seat, 1);
+    await expectOk(guest, { t: 'room.leave' });
+    await expectOk(host, { t: 'room.leave' });
+    assert.equal(srv.lobby.rooms.has('A1I0'), false);
+    await expectOk(guest, { t: 'room.create', mode: 'coop', difficulty: 'HARD', code: 'A1I0' });
+    const reused = await guest.waitFor('room.state', (s) => s.code === 'A1I0' && s.hostId === guest.id);
+    assert.equal(reused.difficulty, 'HARD');
+    await expectOk(guest, { t: 'room.leave' });
+  });
+
+  test('invalid custom codes are refused before touching the current room', async () => {
+    const host = await pool.player('InvalidCode');
+    const room = await createRoom(host);
+    for (const code of ['', 'ABC', 'ABCDE', 'AB C', 'AB-C', 'ＡＢＣＤ', '同盟密钥', null, 1234, {}]) {
+      await expectError(host, { t: 'room.create', mode: 'coop', difficulty: 'NORMAL', code }, ERR.BAD_MSG);
+      assert.equal(srv.registry.byId(host.id).roomCode, room.code);
+      assert.ok(srv.lobby.rooms.has(room.code));
+    }
+    await expectOk(host, { t: 'room.leave' });
+  });
+
   test('create / join / leave', async () => {
     const host = await pool.player('Host');
     const st = await createRoom(host, 'coop', 'HARD');

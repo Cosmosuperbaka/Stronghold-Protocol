@@ -250,6 +250,7 @@ export function LobbyScreen() {
     return DIFFICULTIES.includes(d) ? d : 'FUNNY';
   });
   const [code, setCode] = useState('');
+  const [customCode, setCustomCode] = useState('');
   const [busy, setBusy] = useState(null);
   const [recent] = useState(recentRooms);
   const alive = useRef(true);
@@ -258,6 +259,7 @@ export function LobbyScreen() {
 
   const online = conn.status === 'online';
   const codeOk = CODE_RE.test(code);
+  const customCodeOk = !customCode || CODE_RE.test(customCode);
 
   const pickMode = (m) => { setRoomMode(m); savePref('lobby.mode', m); };
   const pickDifficulty = (d) => { setDifficulty(d); savePref('lobby.difficulty', d); };
@@ -272,7 +274,15 @@ export function LobbyScreen() {
       if (alive.current) setBusy(null);
     }
   };
-  const create = () => run('create', () => net.request('room.create', { mode: roomMode, difficulty }));
+  const create = () => {
+    if (roomMode === 'coop' && !customCodeOk) {
+      toast(t('同盟密钥为 {ROOM_CODE_LEN} 位字母或数字', { ROOM_CODE_LEN }), 'warn');
+      return;
+    }
+    run('create', () => net.request('room.create', {
+      mode: roomMode, difficulty, ...(roomMode === 'coop' && customCode ? { code: customCode } : {}),
+    }));
+  };
   const join = (c = code) => {
     // `onClick=${join}` hands the click EVENT as the first argument, and a default parameter only applies to
     // `undefined` — codeArg keeps an event target out of the key and falls back to the input field
@@ -366,9 +376,14 @@ export function LobbyScreen() {
         <div class="diff-list">
           ${DIFFICULTIES.map((d) => html`<${DifficultyCard} key=${d} roomMode=${roomMode} difficulty=${d} selected=${difficulty === d} onSelect=${pickDifficulty} />`)}
         </div>
-        <div class="create-box">
+        <div class=${`create-box${roomMode === 'coop' ? ' create-box--custom' : ''}`}>
+          ${roomMode === 'coop' ? html`<${TextField} label=${t('自定义同盟密钥（可选）')} icon="key" name="custom-room-code"
+            value=${customCode} placeholder=${t('留空自动生成')}
+            hint=${t('同盟密钥为 {ROOM_CODE_LEN} 位字母或数字', { ROOM_CODE_LEN })}
+            invalid=${!!customCode && !customCodeOk} disabled=${!!busy}
+            transform=${(v) => v.trim().toUpperCase()} onInput=${setCustomCode} onEnter=${create} />` : null}
           <${Tooltip} block=${true} text=${online ? null : t('正在连接服务器…')}>
-            <${Button} variant="primary" size="xl" block=${true} iconRight="chevrons" loading=${busy === 'create'} disabled=${!online} onClick=${create}>
+            <${Button} variant="primary" size="xl" block=${true} iconRight="chevrons" loading=${busy === 'create'} disabled=${!online || (roomMode === 'coop' && !customCodeOk)} onClick=${create}>
               ${roomMode === 'solo' ? t('开始独立模拟') : t('创建同盟')}
             <//>
           <//>

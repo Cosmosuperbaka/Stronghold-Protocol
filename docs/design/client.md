@@ -2,6 +2,11 @@
 
 Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 
+Custom alliance keys (§29.15): the co-op lobby's create section has an optional labelled input. Empty means random;
+otherwise require four ASCII letters or digits, uppercase the input, and preserve invalid characters / excess length
+so an unintended key is never silently created. Show the format hint, disable creation for invalid input, and report
+occupied keys through the existing localized error toast. The solo create flow omits this field and the custom code.
+
 Local optional cosmetic extension (owner request, 2026-10-10): roster and DIY operator details select outfits
 by charId, persisted separately from gameplay loadouts. A roster toolbar action randomizes all supported operators'
 installed non-default outfits (including DIY); operators without an available outfit use the default.

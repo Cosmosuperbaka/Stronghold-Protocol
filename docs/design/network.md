@@ -28,6 +28,12 @@ stamp than the attached holder causes `SESSION_IN_USE` before the old socket is 
 can still replace its previous socket. Omitted hints retain legacy behavior; they are not authentication. Client
 selection/stamp rules live in design/client.md. In-flight protection requires the updated server as well as client.
 
+Custom room codes (remake feature requested by the maintainer, §29.15): `room.create` additionally accepts optional
+`code`, exactly `ROOM_CODE_LEN` (4) ASCII letters or digits, case-insensitive and stored uppercase. Omitting it
+retains random generation. Invalid values return `BAD_MSG`; an existing room with that code returns
+`ROOM_CODE_TAKEN` before the creator leaves their current room. Codes remain reserved until room disposal;
+creation, joining, spectating and invitation links use the same room code.
+
 ### 8.2 Match
 C→S (all carry `rid`): `g.infoReady {setupRevision?}` · `g.band {bandId}` · `g.bandSkip` · `g.bandFocus {bandId?}` (the strategy highlighted in the draft screen — what a timed-out turn takes; absent / null clears it; `WRONG_PHASE` outside BAND_DRAFT, `ALREADY` after the pick, `BAD_TARGET` for a band not allowed; §18.2) · `g.buy {slot}` · `g.refresh` · `g.freeze` · `g.levelUp` · `g.sell {uid}` · `g.move {uid, to:{area:'board', row, col}|{area:'hand', idx}, dir?}` · `g.equip {itemUid, targetUid, replaceUid?}` (`replaceUid`: which equipped item a third one replaces, §6.2) · `g.art {itemUid, row, col, dir?}` (`dir` ∈ UP|RIGHT|DOWN|LEFT from the deploy wheel, §3; absent ⇒ `to.dir`, then RIGHT; `g.move` onto the piece's own tile re-orients it; board pieces in `m.private` / `m.field {prep:true}` carry `dir`) · `g.destroy {uid}` (hand / temp items only; equipped items are locked, §6.2) · `g.reward {idx}` · `g.choice {idx, choiceId?}` (with an ID: the recipient's PREP personal choice; without one: the public SP_DRAFT; stale or wrong IDs never fall through to the public draft) · `g.ready {ready}` · `g.emote {id}` · `g.watch {fieldId, playerId?}` (`playerId`: the player tapped — a shared 联防 / boss pair field shows two; what an eliminated viewer follows, §25) · `g.autoplay {on}` · `g.pause {on}` (solo battles only, §14 Solo pause) · `g.unitStats {seq?}` (ROUND_START / SP_DRAFT / PREP, else `WRONG_PHASE`; eliminated: `ELIMINATED`) → push `m.unitStats` (§18.5) · `g.leave`
 S→C:
