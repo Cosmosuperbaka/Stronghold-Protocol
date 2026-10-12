@@ -59,7 +59,7 @@ test('fixed gifts count equipped and temporary copies, and stock only reopens be
   const first = a.acquireItem(ISO), second = b.acquireItem(ISO), third = b.acquireItem(ISO);
   assert.ok(a.equip(first.uid, owner.uid).ok);
   while (b.hand.some(p => !p)) assert.ok(b.acquireItem('chess_item_2_03_e_b'));
-  const extra = b.acquireItem(ISO, { fixedGift: true });
+  const extra = b.acquireItem(ISO, { requirePool: false });
   assert.ok(extra);
   assert.equal(b.find(extra.uid).area, 'temp');
   assert.equal(m.itemPool.held(ISO), 4);
@@ -86,7 +86,7 @@ test('Damatzi fixed-round gifts survive exhaustion; ordinary strategy gifts cann
   }
   assert.ok(ps.acquireItem(PACK));
   assert.ok(ps.acquireItem(PACK));
-  assert.equal(ps.acquireItem(PACK, { fixedGift: true }), null, 'the flag cannot exempt ordinary equipment');
+  assert.equal(ps.acquireItem(PACK, { requirePool: false }), null, 'the flag cannot exempt ordinary equipment');
   ps.bandId = 'band_malkie'; m.round = 1;
   m.dispatch(ps, 'onRoundStart');
   assert.equal(m.itemPool.held(PACK), 2);
@@ -99,10 +99,10 @@ test('Damatzi fixed-round gifts survive exhaustion; ordinary strategy gifts cann
 test('every data-defined fixed equipment trait produces at exhausted stock, including merged golden gifts', t => {
   for (const g of Object.values(DATA.garrisons).filter(g => g.effectType === 'SERVER_GAIN_EQUIP' && g.bb.count === 1)) {
     const h = prep(t), m = h.m, ps = h.ps('p_0'), id = g.bbStr.chess;
-    assert.ok(m.gd.isTraitFixedItem(id));
+    assert.ok(m.gd.isUnlimitedGiftItem(id));
     const golden = m.gd.item(id).goldenId;
-    assert.ok(m.gd.isTraitFixedItem(golden));
-    assert.equal(m.gd.isTraitFixedItem('missing'), false);
+    assert.ok(m.gd.isUnlimitedGiftItem(golden));
+    assert.equal(m.gd.isUnlimitedGiftItem('missing'), false);
     const cap = m.itemPool.cap(id);
     for (let i = 0; i < cap; i++) assert.ok(ps.acquireItem(id));
     assert.equal(m.itemPool.left(id), 0);

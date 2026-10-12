@@ -456,6 +456,20 @@ export function importRefusal(kind, ready, status = data.status) {
   return null;
 }
 
+/**
+ * A loadout payload that carries `ops` (including empty `ops`) replaces 潜能 / 练度. 自选 operators are in that list
+ * and only backups.json names them, so the refusal is the 自选编队 one: chess.json and backups.json both loaded.
+ * Null when the payload has no `ops` (an older file leaves the current 练度 alone) or that data is ready (GitHub #538).
+ * @param {Record<string, any> | null | undefined} ops
+ * @param {boolean} ready
+ * @param {(name: string) => string} [status]
+ * @returns {{ text: string, tone: 'warn'|'error' } | null}
+ */
+export function loadoutOpsImportRefusal(ops, ready, status = data.status) {
+  if (ops == null) return null;
+  return importRefusal('diy', ready, status);
+}
+
 /** In place of a tab whose game data did not load (missingGameData): which files, and what to try (GitHub #173). */
 export function DataMissing({ files }) {
   const urls = files.map((name) => `/data/${DATA_FILES[name] || `${name}.json`}`);
@@ -595,6 +609,10 @@ function LoadoutScreen({ st }) {
     }
     const res = parseImport(ioText);
     if (!res.ok) { toast(t('导入失败：{error}', { error: res.error }), 'error'); return; }
+    // ops replaces 潜能 / 练度, including 自选 operators that only backups.json names. Missing data used to drop
+    // them and still save, clearing a 练度 the file did not mean to erase (GitHub #538).
+    const opsRefused = loadoutOpsImportRefusal(res.ops, ready);
+    if (opsRefused) { toast(opsRefused.text, opsRefused.tone); return; }
     // 0.2.2: a payload with `ops` replaces the 潜能 / 练度 too (an older export leaves them alone)
     const opIds = res.ops ? cultivationCharIds(data.get('chess'), data.get('backups')) : null;
     const r = applyLoadoutEntries(res.entries, getChess, res.ops ? { ops: res.ops, isOperator: (id) => opIds.has(id) } : {});
@@ -690,7 +708,7 @@ function LoadoutScreen({ st }) {
         ${nSkins ? html`<span class="lo-count">${t('皮肤 {n}', { n: nSkins })}</span>` : null}
         <${Button} variant="ghost" size="sm" icon="refresh" data-testid="skins-random" disabled=${!ready}
           title=${t('随机装备皮肤')} onClick=${() => setSkins(randomSkins(data.get('skins'), data.get('assets')))}>${t('随机装备皮肤')}<//>
-        <${Button} variant="ghost" size="sm" data-testid="loadout-export" disabled=${!nChanged && !nSkins} onClick=${openExport} title=${t('导出当前调配（可复制或下载）')}>${t('导出')}<//>
+        <${Button} variant="ghost" size="sm" data-testid="loadout-export" disabled=${!nChanged && !nSkins && !Object.keys(st.ops || {}).length} onClick=${openExport} title=${t('导出当前调配（可复制或下载）')}>${t('导出')}<//>
         <${Button} variant="ghost" size="sm" data-testid="loadout-import" disabled=${!ready} onClick=${openImport} title=${t('导入调配（粘贴或选择文件）')}>${t('导入')}<//>
         <${Button} variant="secondary" size="sm" icon="refresh" disabled=${!nChanged && !nSkins} onClick=${resetAll}>${t('全部恢复默认')}<//>
       </div>`}

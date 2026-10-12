@@ -1,6 +1,6 @@
 # 卫戍协议：盟约 · Stronghold Protocol: Alliance
 
-![基础版本](https://img.shields.io/badge/version-0.2.4-blue) · 扩展版
+![扩展版本](https://img.shields.io/badge/version-0.2.5--extended.1-blue)
 
 A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance*, with host tools, collab operators and optional skins.
 
@@ -8,9 +8,13 @@ A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance
 
 [下载本库整合包](https://github.com/zhewang448/Stronghold-Protocol/releases/latest) · [扩展更新记录](docs/LOCAL-CHANGELOG.md) · [玩法指南](docs/PLAYING.md) · [反馈问题](https://github.com/zhewang448/Stronghold-Protocol/issues)
 
-> 当前扩展版为 `v0.2.4-extended.5`，完整素材包补齐官方 3D 棋盘、40 组召唤物模型、灼热 / 炽焰源石虫模型与部分界面图标，保留上一版的装备库存确认和第 14 回合伤害统计修复。游戏内基础版本显示 `0.2.4`，扩展修订号请以下载页的标签和附件文件名为准。
+> 当前版本为 **`v0.2.5-extended.1`**，基于上游 `0.2.5`。完整素材包包含 11 个官方战场场景、官方 3D 棋盘、40 组召唤物模型、中文 / 日文语音和 174 套可选皮肤。游戏内基础版本显示 `0.2.5`，扩展修订号以下载页标签和附件文件名为准。
 >
 > 非官方、非商业同人项目，与《明日方舟》官方无隶属或授权关系。游戏名称、美术、音频、文本与数据的权利归原权利人；仅供学习和个人非商业使用。
+
+本次更新整合上游战斗与共享库存修复：首领搭档每局随机配对，隐秘核心保留原搭档；固定装备赠品和已展示的干员牌不再因库存耗尽而丢失；修正驭械术师本体攻击与浮游单元行为。设置中新增「官方伤害数字」（默认关闭），完整包按战场显示官方场景。
+
+本地主机控制台、回档、逐回合统计、7 名联动自选干员、自定义同盟密钥和皮肤功能继续保留。回档会恢复首领搭档和左右半场；只改潜能 / 练度也能导出调配。完整记录见[扩展更新记录](docs/LOCAL-CHANGELOG.md)。
 
 ## 开始运行
 
@@ -22,8 +26,8 @@ A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance
 
 | 附件 | 适合的情况 |
 | --- | --- |
-| `*-assets.zip` | 带游戏代码、运行依赖、官方 3D 棋盘等本地素材与 174 套可选皮肤，适合希望直接启动的玩家 |
-| `*-lite.zip` | 带同版代码与运行依赖，首次启动时联网下载默认素材；官方棋盘等本地素材和可选皮肤需另行导入 / 安装 |
+| `*-assets.zip` | 带游戏代码、运行依赖、11 个官方战场场景、官方 3D 棋盘等本地素材与 174 套可选皮肤，适合希望直接启动的玩家 |
+| `*-lite.zip` | 带同版代码与运行依赖，首次启动时联网下载默认素材；官方战场场景、棋盘等本地素材和可选皮肤需另行导入 / 安装 |
 | `SHA256SUMS.txt` | 用于核对安装包的 SHA-256 校验值 |
 
 - **Windows**：双击 `scripts/start-windows.bat`。
@@ -33,7 +37,7 @@ A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance
 
 更新时先停止服务器，保留旧目录中的 `logs/`，再解压新包并迁移需要的记录和设置。停止服务器会结束正在进行的对局。
 
-从 `extended.5` 起，`*-assets.zip` 已从上游 `v0.2.4` 完整包补齐官方 3D 棋盘、部分召唤物模型、灼热 / 炽焰源石虫模型与部分界面图标。`extended.4` 及更早附件保持原样；旧包补齐方法见[部署说明 §6](docs/DEPLOY.md#6-本地客户端素材可选)。
+`v0.2.5-extended.1` 完整包使用上游同版本完整包的官方本地素材，新增 11 个战场场景；缺少场景时 3D 棋盘自动回退为金属地块。旧版本附件保持原样，源码 / 轻量包补齐方法见[部署说明 §6](docs/DEPLOY.md#6-本地客户端素材可选)。
 
 ### 从源码运行
 
@@ -135,7 +139,7 @@ winget install Cloudflare.cloudflared
 
 ## 操作
 
-休整期招募、配装与部署，作战期自动迎敌；漏怪时顶栏的目标生命值实时减少。点击干员按地上的方格定位。
+休整期招募、配装与部署，作战期自动迎敌；漏怪时顶栏用红字 + 「−N」标记待扣的目标生命值，结算时才显示扣除后的数值。点击干员按地上的方格定位。
 
 | 操作 | 方法 |
 | --- | --- |
@@ -189,7 +193,7 @@ npm start
 | [贡献指南](https://github.com/zhewang448/Stronghold-Protocol/blob/main/CONTRIBUTING.md) / [助手指引](https://github.com/zhewang448/Stronghold-Protocol/blob/main/AGENTS.md) | 环境准备、改动与验证要求（在线开发文档） |
 
 ```powershell
-npm test             # 单元与集成测试，约 6100 项
+npm test             # 单元与集成测试，约 6400 项
 npm run ci           # 测试、启动 smoke、lint、导入边界与类型检查
 npm run golden       # 确定性战斗与整局黄金结果
 ```

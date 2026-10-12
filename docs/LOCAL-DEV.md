@@ -13,7 +13,7 @@
 - 合并上游新版本时从 `main` 开功能分支，完成适配与测试后再合并回 `main`。
 - 同步上游：`git fetch upstream` → `git merge upstream/master` → `npm install` → `npm run setup`（上游常会加素材）→ `node --test`。
 - 素材 `public/assets/`、`.cache/`、`.claude/` 都在 `.gitignore` 里，不进仓库。新机器 clone 后要先 `npm install && npm run setup`。
-- 后续完整素材包还需导入同一基础版本上游完整包中的 `public/assets/local/` 和 `data/local-assets.json`（当前为 `v0.2.4`，来源和 SHA-256 见 DEPLOY §6）。发布预检与构建都加 `--require-local-art`；只有默认 `setup` 的机器会被拒绝，不能将缺本地素材的包标为补齐后的完整素材包。lite 仍不含官方本地素材。素材不随 Git 分支移动，切换旧代码版本时也要注意素材版本匹配。
+- 当前版本为 `v0.2.5-extended.1`，基于上游 `v0.2.5`（`cf7a9400`）。完整素材包使用同一基础版本上游完整包中的 `public/assets/local/` 和 `data/local-assets.json`，包括 11 个官方战场场景；来源和固定 SHA-256 见 DEPLOY §6。发布预检与构建都加 `--require-local-art`，同时核对场景清单为 11 个、所有文件哈希与源包一致；该参数只保证存在有效本地素材清单，不替代场景完整性验证。lite 不含官方本地素材。素材不随 Git 分支移动，切换旧代码版本时也要注意素材版本匹配。
 
 ## 2. 本地新增了什么
 
@@ -54,7 +54,7 @@
 | 生成的数据 | `data/backups.json`、`data/assets.json`、`data/i18n/*.json`、`test/golden/diy.json`：合并上游时按第 8 节重新生成，不要手工合 |
 | 测试里写死的数量 | `test/backups.test.js`、`diy.test.js`、`assets-diy.test.js`、`full-potential.test.js`、`potential.test.js`、`i18n-data.test.js`、`feedback7-voices.test.js`、`content/feedback5-we2-summon-hand.test.js`、`render/issue25-downback.test.js`：自选池 71 → 78、单位形态 256 → 277、有语音的干员 191 → 198 等，改动处都标了 `local-tools` |
 
-当前 v0.2.4 的自选池为 79 名（上游 72 + 本地 7），单位形态 280 个，有语音的干员 199 名。上表的 71 → 78、256 → 277 等是 v0.2.2 的历史数量。上游自己的文档仍描述排除联动的官方分支，以本节为准。
+当前 v0.2.5 的自选池为 79 名（上游 72 + 本地 7），单位形态 280 个，有语音的干员 199 名。上表的 71 → 78、256 → 277 等是 v0.2.2 的历史数量。上游自己的文档仍描述排除联动的官方分支，以本节为准。
 
 0.2.0 起上游把 `Match` 的方法拆到了 `server/match/match/*.js`，启动代码从 `server/index.js` 拆到了 `server/http/`。
 
@@ -95,6 +95,7 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 - v0.2.3 新增的 AI 表情计数 `_botEmotesSettledRound`、`_botEmotesMerges`，避免废弃时间线抑制回档后的反应。开局重刷字段在开局后锁定，保留当前重刷结果。
 - 共享卡池 `m.pool.entries`
 - v0.2.4 的首领超时阈值 `bossOvertimeStartReal` 随快照恢复；共享装备库存按玩家当前持有的道具和配装实时计算，恢复玩家状态后自动恢复，无须单独快照。
+- v0.2.5 的随机首领配对 `bossPairs` 与 `bossWaves` 一并恢复，保留队友和左右半场；回到首领配对生成前的休整期时清空废弃时间线的配对。
 - 六条 rng 的状态
 - `bossPool`、`_uniteBounds` 这类类实例或含 `PlayerState` 引用的对象，按引用保存（它们只会被替换，不会被原地修改）
 
@@ -284,7 +285,7 @@ fork 文档里列的未完成项（§F6.4）：Fever 槽、她的粉色技力条
 
 ### 加一名（或合并上游后）重新生成
 
-1. **游戏数据**：`.cache/gamedata` 要和上游构建 `data/` 时用的 ArknightsGameData 版本一致，否则别的干员的数字也会变。0.2.3 / 0.2.4 用的是 `17759cc8cdf37388414145d16262a3a06f3ab25e`（2026-10-08，Client 2.7.81；见上游 `docs/history/0.2.3.md`）；0.2.2 曾用 `a550f5e`（Client 2.7.71）。先备份旧缓存、把指定版本下载到独立缓存，再用上游原版构建脚本生成到临时目录，与上游发布的 `data/` 逐项比较；确认一致才替换缓存并运行本地构建脚本。不要用本地已经放行联动的脚本验证上游数据。
+1. **游戏数据**：`.cache/gamedata` 要和上游构建 `data/` 时用的 ArknightsGameData 版本一致，否则别的干员的数字也会变。0.2.3 / 0.2.4 / 0.2.5 用的是 `17759cc8cdf37388414145d16262a3a06f3ab25e`（2026-10-08，Client 2.7.81；见上游 `docs/history/0.2.3.md`）；0.2.2 曾用 `a550f5e`（Client 2.7.71）。先备份旧缓存、把指定版本下载到独立缓存，再用上游原版构建脚本生成到临时目录，与上游发布的 `data/` 逐项比较；确认一致才替换缓存并运行本地构建脚本。不要用本地已经放行联动的脚本验证上游数据。
 2. `node tools/build-data.mjs --offline`：改写 `data/backups.json`。
 3. `node tools/fetch-assets.mjs --add-only`：下载新干员的美术和语音，并改写 `data/assets.json`。网络不稳时可以重跑，会续传。
 4. 数据翻译：`node tools/build-i18n.mjs`（en），以及 `--lang ja` / `ko` / `zh-TW`。下载失败就用 curl 把表预先放进 `.cache/gamedata-<lang>/`（`excel/` 下 8 张表，加上 `levels/enemydata/enemy_database.json`），再加 `--offline`。和旧文件做 JSON 比较：差异应该只有新干员、`_h` 和 `meta` 的覆盖率。2026-10-09 的 zh-TW 还顺带补上了怒潮凛冬的译名（源数据比上游构建时更新）。

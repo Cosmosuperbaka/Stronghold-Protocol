@@ -34,6 +34,7 @@ describe('3D board in headless Chrome', { skip }, () => {
     const { startServer } = await import('../../server/index.js');
     srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
     browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-first-run',
+      ...(process.platform === 'win32' ? ['--no-sandbox'] : []),
       ...(process.platform === 'darwin' ? ['--use-angle=metal'] : []), '--enable-gpu', '--ignore-gpu-blocklist'] });
     mkdirSync(OUT, { recursive: true });
   });

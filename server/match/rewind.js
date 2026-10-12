@@ -20,7 +20,7 @@
 const PS_SKIP = new Set(['m', 'gd', 'playerId', 'seat', 'name', 'isBot', 'connected', 'left', 'autoplay', 'lastEmoteAt',
   'loadout', 'ops', '_deployMap', '_deployField', '_legalityStale', '_lastPriv', '_botPrepToken',
   'diy', '_diyRecords', 'diyBanned', 'diyStock', 'standIns', '_standInSet']);
-const MATCH_KEYS = ['round', 'wave', 'bossWaves', 'lastResults', 'draft', 'teamLp', 'hiddenLayerSum', 'hiddenReached', 'overtimeApplied', 'history', 'adminPicks',
+const MATCH_KEYS = ['round', 'wave', 'bossWaves', 'bossPairs', 'lastResults', 'draft', 'teamLp', 'hiddenLayerSum', 'hiddenReached', 'overtimeApplied', 'history', 'adminPicks',
   '_botEmotesSettledRound', '_botEmotesMerges', 'bossOvertimeStartReal'];
 const RNGS = ['rngSetup', 'rngShop', 'rngWaves', 'rngDraft', 'rngBots', 'rngMeta'];
 

@@ -138,7 +138,7 @@ K.preparation_start_gain_chess_from_round = (ps) => ({
       if (ctx.round !== int(p.round, -1) || !id) continue;
       // Only fixed trait-item identities (not every requirePool:false strategy gift) may exceed equipment stock.
       for (let k = 0; k < Math.max(1, int(p.count, 1)); k++) grant(ctx, id, {
-        requirePool: false, source: 'band', fixedGift: ctx.gd.isTraitFixedItem(id),
+        requirePool: false, source: 'band',
       });
     }
   },
