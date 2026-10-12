@@ -175,7 +175,7 @@ test('console item stock: confirmation, forced merge, occupancy, removal and rew
   checkInvariants(m);
   // A forced grant still cannot exceed hand + temporary capacity.
   while (ps.hand.some(p => !p) || ps.temp.some(p => !p)) {
-    if (!ps.acquireItem('chess_item_6_09_e_a', { fixedGift: true })) break;
+    if (!ps.acquireItem('chess_item_6_09_e_a', { requirePool: false })) break;
   }
   assert.match(act({ id, force: true }).error, /都满了/);
 });

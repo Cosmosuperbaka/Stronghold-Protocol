@@ -21,6 +21,33 @@ function fingerprint(m) {
 
 const play = (seed) => makeMatch({ mode: 'coop', humans: 1, bots: 3, seed }).start().autoHumans();
 
+test('0.2.5: rewind restores boss partners and sides, or clears pairing before the boss round', t => {
+  const h = makeMatch({ mode: 'coop', humans: 4, seed: 77, fake: true, clientCombat: true }).start().toPrep();
+  const m = h.m;
+  t.after(() => m.dispose());
+  const firstRound = m.round;
+  assert.equal(m.bossPairs, null);
+  m.round = m.gd.bossRound;
+  m._planBossWaves();
+  m.enterPrep();
+  const pairs = structuredClone(m.bossPairs);
+  const waves = structuredClone(m.bossWaves);
+  assert.equal(pairs.length, 2);
+  // A later timeline can redraw different partners after elimination or seat changes.
+  m.bossPairs = pairs.map(g => g.slice().reverse()).reverse();
+  assert.notDeepEqual(m.bossPairs, pairs);
+  assert.deepEqual(rewindToPrep(m, m.gd.bossRound), { ok: true, round: m.gd.bossRound });
+  assert.deepEqual(m.bossPairs, pairs, 'partners and left/right sides match the restored board preview');
+  assert.deepEqual(m.bossWaves, waves);
+  m.startFinalAssault();
+  assert.deepEqual(m.fields.map(f => f.players), pairs, 'combat follows the restored preview');
+  assert.deepEqual(rewindToPrep(m, firstRound), { ok: true, round: firstRound });
+  assert.equal(m.bossPairs, null, 'an earlier prep does not retain partners from the abandoned timeline');
+  assert.equal(m.bossWaves, null);
+  checkInvariants(m);
+  assert.equal(m.errorCount, 0, JSON.stringify(m.errors));
+});
+
 test('0.2.3: rewind restores AI reaction counters from the abandoned timeline', () => {
   const h = makeMatch({ mode: 'coop', humans: 1, bots: 1, seed: 11, fake: true }).start().autoHumans();
   const m = h.m;
