@@ -13,7 +13,7 @@
 - 合并上游新版本时从 `main` 开功能分支，完成适配与测试后再合并回 `main`。
 - 同步上游：`git fetch upstream` → `git merge upstream/master` → `npm install` → `npm run setup`（上游常会加素材）→ `node --test`。
 - 素材 `public/assets/`、`.cache/`、`.claude/` 都在 `.gitignore` 里，不进仓库。新机器 clone 后要先 `npm install && npm run setup`。
-- 当前版本为 `v0.2.5-extended.1`，基于上游 `v0.2.5`（`cf7a9400`）。完整素材包使用同一基础版本上游完整包中的 `public/assets/local/` 和 `data/local-assets.json`，包括 11 个官方战场场景；来源和固定 SHA-256 见 DEPLOY §6。发布预检与构建都加 `--require-local-art`，同时核对场景清单为 11 个、所有文件哈希与源包一致；该参数只保证存在有效本地素材清单，不替代场景完整性验证。lite 不含官方本地素材。素材不随 Git 分支移动，切换旧代码版本时也要注意素材版本匹配。
+- 当前版本为 `v0.2.5-extended.2`，基于上游 `v0.2.5`（`cf7a9400`），新增控制台 Release 更新。完整素材包沿用 extended.1 的同一基础版本上游完整包中的 `public/assets/local/` 和 `data/local-assets.json`，包括 11 个官方战场场景；来源和固定 SHA-256 见 DEPLOY §6。发布预检与构建都加 `--require-local-art`，同时核对场景清单为 11 个、所有文件哈希与源包一致；该参数只保证存在有效本地素材清单，不替代场景完整性验证。lite 不含官方本地素材。素材不随 Git 分支移动，切换旧代码版本时也要注意素材版本匹配。
 
 ## 2. 本地新增了什么
 
@@ -134,7 +134,7 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 - **房间**：每个房间一张卡片，含对局操作、玩家表和「详情」，下面是可折叠的统计面板：本局统计（对局结束后变成「上一局统计」）、敌人日程（剧透，默认折叠）、控制台操作日志。
 - **对局记录**：`logs/results/` 里保存的每一局，点开看结算详情。
-- **设置**：休整期时长，对所有房间、所有对局生效。
+- **设置**：版本更新、联防叠层和休整期时长。
 
 ### 安全
 
@@ -152,6 +152,14 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 | `GET /api/result?id=` | 一条记录全文。`id` 必须是 `logs/results/` 里的文件名（`^[\w-]+\.json$`），防路径穿越 |
 | `GET /api/settings` | 当前的休整期设置 `{ prep }`、设置文件路径，以及各同盟模式每回合的默认秒数 |
 | `POST /api/settings` | `{ prep }`：校验、写文件，然后生效 |
+| `GET /api/update` | 更新状态：当前 / 最新扩展标签、`versions`（`new/current/old`、附件及不可安装原因）、`hasMore`、网络配置、请求来源、下载字节数、错误和是否支持重启 |
+| `POST /api/update` | `open`：每个 updater 生命周期仅首次自动检查，只有首次调用返回新版 `notify`；`check`：刷新正式 Release 列表；`more`：获取下一页（每页 30）；`network`：保存 `{ network: { proxy, mirror } }`；`install`：按已查询的 `tag` 后台下载，旧版需 `allowDowngrade:true`，活动对局需 `force:true` |
+
+首次打开行为由服务端消费，刷新和多页并发不会重复检查或提醒；检查请求并发合并。查询正式版本按数值排序，过滤草稿、预发布和无法识别的标签；当前版本没有远程附件时仍显示。当前版本不可重复安装，旧版回退和活动对局分别确认。网络配置保存在 `logs/release-network.json`；运行时使用 undici 的 HTTP/HTTPS `ProxyAgent`，兼容 Node 22.14，不依赖启动时环境变量。先代理 / 直连 GitHub，失败后绕过该代理直接访问镜像（默认复用素材工具的 `https://gh-proxy.com/` 前缀）。整个响应消费含 JSON、校验文本、流下载、SHA-256 与程序清单验证均可回退，更新忙碌或已有待安装包时拒绝修改网络配置。
+
+更新只访问 `zhewang448/Stronghold-Protocol` 的正式 Release，优先 lite 附件，回退 assets 附件；不接受源码或增量包。先验证附件的 GitHub digest / `SHA256SUMS.txt`，再检查包内程序 `MANIFEST.json`，拒绝路径穿越、重名及清单外程序文件。原服务下载期间继续运行；安装器握手成功才安排优雅停服。替换前备份到 `logs/update-backups/`，复制失败恢复旧文件；恢复失败保留安装锁、阻止重启并提示备份路径。日志在 `logs/release-update-status.json`，直接重启的输出在 `logs/release-restart.log`。
+
+`package.json` 是上游游戏版本，扩展标签由 `server/release-version.js` 的 `RELEASE_TAG` 记录，**每次扩展发布必须更新**。安装器另在 `logs/release-version.json` 写入实际安装标签与源码指纹（优先扩展版本文件，无该文件时使用入口文件）；指纹和基础版本均匹配时允许记录较旧标签，正确识别回退。手动替换源码使指纹失效后使用源码声明，兼容旧标记时仍不让较旧标签覆盖声明。打包必须包含 `scripts/apply-release-update.mjs`、运行依赖 undici 和复用的 `tools/assets/sources.mjs`；ZIP 读取器放在 `server/` 与打包器共用。启动时看到安装锁会等复制完成后退出，让 supervisor 再启动一份读取新文件的进程。
 
 对局操作：`rewind`（`value` 为回合数，空则最新）、`endPrep`、`pause`（仅独立模拟）、`endMatch`、`enemyPick`（`{ round, id }`，指定某回合的敌人组合，`id` 为空恢复原定）、`battleWin` / `battleLose`（`{ field, n? }`，仅客户端战斗）、`timerScale`（0.1–10）。
 

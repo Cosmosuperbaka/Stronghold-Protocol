@@ -11,6 +11,7 @@ import { TestClient } from './helpers/wsClient.js';
 import { makeMatch, checkInvariants } from './match/harness.js';
 import { getPrep, setPrep, resetHostSettings, prepSecondsFor, getUniteLayerGains } from '../server/match/hostSettings.js';
 import { capturePrep, rewindToPrep } from '../server/match/rewind.js';
+import { releaseFor, tag, until } from './helpers/release-fixture.js';
 
 let srv = null;
 let admin = null;
@@ -108,6 +109,39 @@ test('console: localhost only, token required, actions change the running match'
 });
 
 // ---- the second batch on harness matches (virtual clock), through the same handleAction / roomsView
+
+test('console update API: token/Host required, validated actions, active-match confirmation and duplicate installs', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-admin-update-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(root, 'package.json'), '{"version":"0.2.5"}');
+  const lobby = { rooms: new Map([['TEST', { match: { ended: false, disposed: false } }]]), onMatchEnd() {} };
+  let downloads = 0;
+  const a = await startAdmin({ lobby, port: 0, root, resultsDir: root, settingsFile: path.join(root, 'settings.json'), onUpdateReady() {},
+    updateOptions: { fetchImpl: async () => new Response(JSON.stringify([releaseFor()])),
+      stageRelease: async () => { downloads++; throw new Error('测试下载失败'); } } });
+  t.after(() => a.close());
+  const auth = { 'x-admin-token': a.token };
+  const post = (body, headers = auth) => req(a.port, '/api/update', { method: 'POST', headers, body });
+  assert.equal((await req(a.port, '/api/update')).status, 403);
+  assert.equal((await post({ action: 'check' }, {})).status, 403);
+  assert.equal((await post({ action: 'open' }, {})).status, 403);
+  assert.equal((await post({ action: 'network', network: { proxy: 'http://127.0.0.1:7890' } }, {})).status, 403);
+  assert.equal((await post({ action: 'check' }, { ...auth, host: 'evil.example' })).status, 403);
+  assert.equal((await req(a.port, '/api/update', { headers: auth })).json.state, 'idle');
+  assert.equal((await post({ action: 'unknown' })).status, 400);
+  assert.equal((await post([])).status, 400);
+  assert.equal((await post({ action: 'network', network: { proxy: '', mirror: '' } })).json.saved, true);
+  assert.equal((await post({ action: 'open' })).json.notify, true);
+  assert.equal((await post({ action: 'open' })).json.notify, undefined);
+  assert.equal((await post({ action: 'check' })).json.state, 'available');
+  assert.equal((await post({ action: 'install', tag, force: 'true' })).json.state, 'active-matches');
+  assert.equal(downloads, 0);
+  await post({ action: 'install', tag, force: true });
+  await until(() => downloads === 1);
+  assert.equal(downloads, 1);
+  const state = (await req(a.port, '/api/update', { headers: auth })).json;
+  assert.equal(state.state, 'error'); assert.match(state.error, /下载失败/);
+});
 
 /** A lobby stand-in holding one harness match as room TEST. */
 function harness(o) {

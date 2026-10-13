@@ -7,6 +7,7 @@ cd /d "%~dp0.."
 set "NODE_EXE=node"
 rem Dual-stack default (IPv6 and IPv4 on one socket). scripts\service.env.cmd may override HOST.
 set "HOST=::"
+set "SP_UPDATE_RESTART=supervisor"
 if exist "%~dp0service.env.cmd" call "%~dp0service.env.cmd"
 if not exist "logs" mkdir "logs"
 

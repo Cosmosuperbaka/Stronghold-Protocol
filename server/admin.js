@@ -31,6 +31,7 @@ import { syntheticResult } from './match/fields.js';
 import { GameData } from './match/gamedata.js';
 import { getPrep, setPrep, normalizePrep, getUniteLayerGains, setUniteLayerGains } from './match/hostSettings.js';
 import { diyCatalog, grantDiy } from './match/adminDiy.js';
+import { createReleaseUpdater } from './release-update.js';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const OK = { ok: true };
@@ -562,8 +563,11 @@ function readJson(req, limit = 8192) {
 
 /** @returns {Promise<{ url: string, port: number, token: string, close: () => Promise<void> }>} */
 export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log = console, resultsDir = path.join(DIR, '..', 'logs', 'results'),
-  settingsFile = path.join(DIR, '..', 'logs', 'admin-settings.json') }) {
+  settingsFile = path.join(DIR, '..', 'logs', 'admin-settings.json'), root = path.join(DIR, '..'), onUpdateReady,
+  updateOptions = {} }) {
   loadSettings(settingsFile, log);
+  const updater = createReleaseUpdater({ ...updateOptions, root, log, onReady: onUpdateReady,
+    hasActive: () => [...lobby.rooms.values()].some((r) => r.match && !r.match.ended && !r.match.disposed) });
   const token = randomBytes(16).toString('hex');
   const page = fs.readFileSync(path.join(DIR, 'admin.html'), 'utf8').replace('__TOKEN__', token);
   const tokenBuf = Buffer.from(token);
@@ -578,12 +582,28 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
       res.end(typeof body === 'string' ? body : JSON.stringify(body));
     };
     try {
-      const p = server.address().port;
+      const address = server.address();
+      if (!address) {
+        res.setHeader('Connection', 'close');
+        return send(503, { error: '控制台正在关闭，请稍后重试' });
+      }
+      const p = address.port;
       if (req.headers.host !== `127.0.0.1:${p}` && req.headers.host !== `localhost:${p}`) return send(403, { error: 'forbidden host' });
       const url = new URL(req.url || '/', 'http://localhost');
       if (req.method === 'GET' && url.pathname === '/') return send(200, page, 'text/html; charset=utf-8');
       if (!url.pathname.startsWith('/api/')) return send(404, { error: 'not found' });
       if (!authed(req)) return send(403, { error: 'bad token' });
+      if (req.method === 'GET' && url.pathname === '/api/update') return send(200, updater.status());
+      if (req.method === 'POST' && url.pathname === '/api/update') {
+        const body = await readJson(req);
+        if (!body || typeof body !== 'object' || Array.isArray(body)) return send(400, { error: '请求格式错误' });
+        if (body.action === 'check') return send(200, await updater.check());
+        if (body.action === 'open') return send(200, await updater.open());
+        if (body.action === 'more') return send(200, await updater.check(true));
+        if (body.action === 'network') return send(200, updater.configure(body.network));
+        if (body.action === 'install') return send(200, updater.install({ tag: body.tag, force: body.force === true, allowDowngrade: body.allowDowngrade === true }));
+        return send(400, { error: '未知更新操作' });
+      }
       if (req.method === 'GET' && url.pathname === '/api/rooms') return send(200, { rooms: roomsView(lobby) });
       if (req.method === 'GET' && url.pathname === '/api/catalog') return send(200, catalogView(lobby, url.searchParams.get('room')));
       if (req.method === 'GET' && url.pathname === '/api/results') return send(200, { records: listRecords(resultsDir) });
@@ -639,6 +659,7 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
     close: () => new Promise((r) => {
       if (hadOwn) lobby.onMatchEnd = onMatchEnd; else delete lobby.onMatchEnd;
       server.close(() => r());
+      server.closeIdleConnections?.();
     }),
   };
 }

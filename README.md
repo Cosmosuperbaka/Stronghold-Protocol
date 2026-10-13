@@ -1,6 +1,6 @@
 # 卫戍协议：盟约 · Stronghold Protocol: Alliance
 
-![扩展版本](https://img.shields.io/badge/version-0.2.5--extended.1-blue)
+![扩展版本](https://img.shields.io/badge/version-0.2.5--extended.2-blue)
 
 A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance*, with host tools, collab operators and optional skins.
 
@@ -8,11 +8,11 @@ A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance
 
 [下载本库整合包](https://github.com/zhewang448/Stronghold-Protocol/releases/latest) · [扩展更新记录](docs/LOCAL-CHANGELOG.md) · [玩法指南](docs/PLAYING.md) · [反馈问题](https://github.com/zhewang448/Stronghold-Protocol/issues)
 
-> 当前版本为 **`v0.2.5-extended.1`**，基于上游 `0.2.5`。完整素材包包含 11 个官方战场场景、官方 3D 棋盘、40 组召唤物模型、中文 / 日文语音和 174 套可选皮肤。游戏内基础版本显示 `0.2.5`，扩展修订号以下载页标签和附件文件名为准。
+> 当前版本为 **`v0.2.5-extended.2`**，基于上游 `0.2.5`。完整素材包包含 11 个官方战场场景、官方 3D 棋盘、40 组召唤物模型、中文 / 日文语音和 174 套可选皮肤。游戏内基础版本显示 `0.2.5`，扩展修订号以下载页标签和附件文件名为准。
 >
 > 非官方、非商业同人项目，与《明日方舟》官方无隶属或授权关系。游戏名称、美术、音频、文本与数据的权利归原权利人；仅供学习和个人非商业使用。
 
-本次更新整合上游战斗与共享库存修复：首领搭档每局随机配对，隐秘核心保留原搭档；固定装备赠品和已展示的干员牌不再因库存耗尽而丢失；修正驭械术师本体攻击与浮游单元行为。设置中新增「官方伤害数字」（默认关闭），完整包按战场显示官方场景。
+本次更新新增控制台 Release 更新：每次启动后首次打开自动检查，有新版弹窗提醒；在「设置 → 版本更新」选择新 / 当前 / 旧版本，点击后自动下载、校验、备份、安装并重启，回退旧版须确认。可保存 HTTP/HTTPS 代理，访问失败自动走备用镜像，查询与下载均适用。
 
 本地主机控制台、回档、逐回合统计、7 名联动自选干员、自定义同盟密钥和皮肤功能继续保留。回档会恢复首领搭档和左右半场；只改潜能 / 练度也能导出调配。完整记录见[扩展更新记录](docs/LOCAL-CHANGELOG.md)。
 
@@ -35,9 +35,9 @@ A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance
 
 脚本会检查环境与素材、启动服务器并打开浏览器。默认游戏地址为 `http://localhost:3000`，主机控制台地址见启动日志的 `Console:` 行，默认是 `http://127.0.0.1:3100`。
 
-更新时先停止服务器，保留旧目录中的 `logs/`，再解压新包并迁移需要的记录和设置。停止服务器会结束正在进行的对局。
+从旧版首次升级到本版时，先停止服务器，保留旧目录中的 `logs/`，再解压新包并迁移需要的记录和设置。之后可在本机控制台选择版本自动更新；有正在进行的对局时需确认结束对局。自动更新保留本机素材，新增素材需另行补齐，详见[部署说明](docs/DEPLOY.md#本库拓展版控制台下载并安装)。
 
-`v0.2.5-extended.1` 完整包使用上游同版本完整包的官方本地素材，新增 11 个战场场景；缺少场景时 3D 棋盘自动回退为金属地块。旧版本附件保持原样，源码 / 轻量包补齐方法见[部署说明 §6](docs/DEPLOY.md#6-本地客户端素材可选)。
+本版沿用 `v0.2.5-extended.1` 的完整素材，含 11 个官方战场场景；缺少场景时 3D 棋盘自动回退为金属地块。旧版本附件保持原样，源码 / 轻量包补齐方法见[部署说明 §6](docs/DEPLOY.md#6-本地客户端素材可选)。
 
 ### 从源码运行
 
