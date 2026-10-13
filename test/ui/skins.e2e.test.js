@@ -52,6 +52,7 @@ test('outfit selection persists, synchronizes, draws real front/back models and 
     });
     assert.ok(randomButtonFits, 'mobile random button stays clear of tabs');
     await c.page.setViewport({ width: 1280, height: 720 }); await c.page.keyboard.press('Escape');
+    await c.page.waitForFunction(() => !document.documentElement.classList.contains('sp-loadout-open'));
     await c.click('.lobby-screen [data-testid="settings-btn"]');
     await c.page.waitForSelector('[data-testid="preload-section"]');
     await c.page.$eval('[data-testid="preload-section"]', (e) => e.scrollIntoView({ block: 'center' }));
