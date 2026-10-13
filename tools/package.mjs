@@ -93,6 +93,7 @@ export const PLAYER_DOC_DIRS = ['docs/img/features/'];
 export const RUNTIME_RESEARCH = ['docs/research/03-operators.json', 'docs/research/05-enemies.json', 'docs/research/05-maps.json', 'docs/research/07-assets.json', 'docs/research/operator-skins.json'];
 /** The start scripts (scripts/make-windows-bundle.mjs is the maintainer's Windows pack, docs/WINDOWS.md). */
 export const PLAYER_SCRIPTS = ['scripts/install-service-windows.ps1', 'scripts/launch.mjs', 'scripts/open-browser.mjs',
+  'scripts/apply-release-update.mjs',
   'scripts/run-server.cmd', 'scripts/start-windows.bat', 'scripts/start-windows.ps1', 'scripts/start.sh',
   'scripts/start-tunnel.bat', 'scripts/start-tunnel.mjs', 'scripts/stop-server.bat', 'scripts/free-port.mjs'];
 /** The tools a player runs (npm run setup / doctor / assets, the postinstall) and the ones setup starts. */
