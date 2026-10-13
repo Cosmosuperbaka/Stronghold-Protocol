@@ -1,6 +1,6 @@
 # 卫戍协议：盟约 · Stronghold Protocol: Alliance
 
-![扩展版本](https://img.shields.io/badge/version-0.2.5--extended.3-blue)
+![扩展版本](https://img.shields.io/badge/version-0.2.6--extended.1-blue)
 ![上游基础版本](https://img.shields.io/badge/version-0.2.6-2ea44f)
 
 A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance*, with host tools, collab operators and optional skins.
@@ -9,7 +9,7 @@ A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance
 
 [下载本库整合包](https://github.com/zhewang448/Stronghold-Protocol/releases/latest) · [扩展更新记录](docs/LOCAL-CHANGELOG.md) · [玩法指南](docs/PLAYING.md) · [反馈问题](https://github.com/zhewang448/Stronghold-Protocol/issues)
 
-> 当前源码已合入上游 **`0.2.6`**，游戏内基础版本显示 `0.2.6`；当前版本为 **`v0.2.5-extended.3`**（已发布整合包，基于上游 `0.2.5`），扩展修订号以下载页标签和附件文件名为准。完整素材包包含 11 个官方战场场景、官方 3D 棋盘、40 组召唤物模型、中文 / 日文语音和 174 套可选皮肤。
+> 当前版本为 **`v0.2.6-extended.1`**，基于上游 `0.2.6`，游戏内基础版本显示 `0.2.6`，扩展修订号以下载页标签和附件文件名为准。完整素材包包含 11 个官方战场场景、官方 3D 棋盘、40 组召唤物模型、中文 / 日文语音和 174 套可选皮肤。
 >
 > 非官方、非商业同人项目，与《明日方舟》官方无隶属或授权关系。游戏名称、美术、音频、文本与数据的权利归原权利人；仅供学习和个人非商业使用。
 

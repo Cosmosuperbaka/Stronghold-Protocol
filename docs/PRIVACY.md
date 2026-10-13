@@ -13,6 +13,7 @@
 | 调配、皮肤、偏好与恢复身份 | 玩家浏览器本地存储；皮肤为 `sp.pref.skins` | 不属于仓库文件 |
 | 手动导出的统计与调配文件 | `stronghold-stats-*.json`、`stronghold-loadout-*.json`、`stronghold-ownership-*.json`、`stronghold-diy-*.json` | 对应文件名被忽略；改名后需另行检查 |
 | 素材与缓存 | `public/assets/`、`public/fonts/`、`public/vendor/`、`data/local-assets.json`、`.cache/` | 被忽略；生成的数据表与源码仍保留 |
+| 本机界面审查产物 | `.impeccable/` 中的截图与报告 | 整个目录被忽略，不进入发布包 |
 | 本机配置与凭据 | `.env`、`.env.*`、`scripts/service.env.cmd`、frp 配置、密钥、`.npmrc`、`.cloudflared/`、shell 历史等 | 被忽略；已审核的 `.env.example` 与 `.env.*.example` 可提交 |
 | 私人笔记、快捷方式与浏览器资料 | 根目录 `private/`、`local/`、`secrets/`、`handoff/`，`*.lnk`、`*.url`、浏览器 profile、HAR、认证缓存 | 被忽略 |
 
