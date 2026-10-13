@@ -46,6 +46,7 @@ import { RoomScreen } from './screens/room.js';
 import { GameScreen } from './screens/game.js';
 import { audio, installAudio } from './audio.js';
 import { settingsStore } from './ui/settings.js';
+import { battleRunner } from './battle/runner.js';
 import { GuideHost } from './ui/guide.js';
 import { installDeviceSupport } from './ui/device.js';
 import { LoadoutHost } from './screens/loadout.js';
@@ -446,6 +447,9 @@ async function boot() {
   wireNet();
   installStatsRecorder(store); // follows the match on screen, so a 放弃模拟 can be recorded (ui/stats.js)
   installLoadoutSync({ net });
+  // 战斗倍速 (battleSpeed mod): a settings change applies to the running battle at once (runner.setSpeed keeps the
+  // battle clock); new battles pick the pref up in runner onStart.
+  settingsStore.subscribe((s) => { try { battleRunner?.setSpeed(s.battleSpeed); } catch { /* ignore */ } });
   installSkinsSync({ net });
   installOwnershipSync({ net });
   installDiySync({ net });

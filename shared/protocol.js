@@ -1,7 +1,7 @@
 // Normative message catalogue (DESIGN §8). Used by server (validation) and client (building requests).
 // Every client→server message is `{ t, rid?, ...fields }`. Unknown `t` or invalid fields ⇒ ERR.BAD_MSG.
 
-import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, MAX_SEATS, EMOTES, GEO } from './constants.js';
+import { ROOM_EXTENSIONS,  DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, MAX_SEATS, EMOTES, GEO } from './constants.js';
 import { isDroppableChess } from './standIn.js';
 import { isSkinSelection } from './skins.js';
 import { diySlotIds, validateDiyPicks } from './diy.js';
@@ -391,6 +391,10 @@ export const C2S = {
   // the co-op room option 「AI 队友最后选择」 (GitHub #338; host, before the match): the strategy and 机变 drafts order every
   // human seat before every AI seat (server/match/match/phases.js humansFirst); room.state.aiPicksLast
   'room.setAiPicksLast': { on: isBool },
+  // 玩法扩展 (room.setExtensions, host-only, before the match): the room's rule switches (shared/constants.js
+  // ROOM_EXTENSIONS) — 重复策略 / DPS面板 / 取消部署上限. room.state.extensions, m.public.extensions.
+  'room.setExtensions': { extensions: (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
+    && Object.entries(v).every(([k, x]) => ROOM_EXTENSIONS.includes(k) && typeof x === 'boolean') },
   'room.addBot': {},
   'room.removeBot': { seat: (v) => isInt(v, 0, MAX_SEATS - 1) },
   // the host removes another human before the match (server/lobby.js kick; community report #17); playerId = the one the

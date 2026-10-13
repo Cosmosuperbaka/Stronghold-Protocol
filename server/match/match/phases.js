@@ -125,8 +125,8 @@ export class MatchPhases {
       if (!ps || !ps.botControlled) return;
       // a strategy a teammate already took is not selectable (队友已选): the bot re-draws, else the first free one
       let id = botPickBand(this, ps);
-      for (let k = 0; k < 8 && this.bandTaken(id, ps.playerId); k++) id = botPickBand(this, ps);
-      if (this.bandTaken(id, ps.playerId)) id = this.gd.bandIds().find((b) => !this.bandTaken(b, ps.playerId)) || id;
+      for (let k = 0; !this.ext?.dupBand && k < 8 && this.bandTaken(id, ps.playerId); k++) id = botPickBand(this, ps); // 玩法扩展 dupBand (重复策略): an AI seat may take a teammate's strategy too
+      if (!this.ext?.dupBand && this.bandTaken(id, ps.playerId)) id = this.gd.bandIds().find((b) => !this.bandTaken(b, ps.playerId)) || id;
       this._applyBand(ps, id, { dedupe: true });
     });
   }
@@ -152,6 +152,8 @@ export class MatchPhases {
    */
   defaultBand(playerId) {
     const def = this.gd.bandDraft.timeoutBandId;
+    // 玩法扩展 dupBand (重复策略): duplicates allowed — the default strategy needs no 队友已选 avoidance
+    if (this.ext?.dupBand) return def;
     if (!this.bandTaken(def, playerId)) return def;
     return this.gd.bandIds().find((b) => !this.bandTaken(b, playerId)) || def;
   }
@@ -164,6 +166,8 @@ export class MatchPhases {
    */
   timeoutBand(playerId) {
     const f = this.draft && this.draft.focus instanceof Map ? this.draft.focus.get(playerId) : null;
+    // 玩法扩展 dupBand (重复策略): the highlighted strategy is taken even when a teammate holds it
+    if (this.ext?.dupBand && typeof f === 'string' && this.gd.bandAllowed(f)) return f;
     if (typeof f === 'string' && this.gd.bandAllowed(f) && !this.bandTaken(f, playerId)) return f;
     return this.defaultBand(playerId);
   }
@@ -188,7 +192,7 @@ export class MatchPhases {
     if (this.draft.picks[ps.playerId]) return fail(ERR.ALREADY);
     if (this.draftTurn() !== ps.playerId) return fail(ERR.NOT_YOUR_TURN);
     if (typeof bandId !== 'string' || !this.gd.bandAllowed(bandId)) return fail(ERR.BAD_TARGET);
-    if (this.bandTaken(bandId, ps.playerId)) return fail(ERR.BAD_TARGET, '队友已选'); // i18n-ignore: developer detail (players see ERR_TEXT)
+    if (!this.ext?.dupBand && this.bandTaken(bandId, ps.playerId)) return fail(ERR.BAD_TARGET, '队友已选'); // i18n-ignore: developer detail (players see ERR_TEXT) — 玩法扩展 dupBand (重复策略) lifts the check
     this._applyBand(ps, bandId);
     return OK;
   }
@@ -197,7 +201,7 @@ export class MatchPhases {
     const d = this.draft;
     if (!d || !ps || d.picks[ps.playerId]) return;
     let id = this.gd.bandAllowed(bandId) ? bandId : this.defaultBand(ps.playerId);
-    if (dedupe && this.bandTaken(id, ps.playerId)) id = this.gd.bandIds().find((b) => !this.bandTaken(b, ps.playerId)) || id;
+    if (dedupe && !this.ext?.dupBand && this.bandTaken(id, ps.playerId)) id = this.gd.bandIds().find((b) => !this.bandTaken(b, ps.playerId)) || id; // 玩法扩展 dupBand (重复策略) lifts the dedupe
     d.picks[ps.playerId] = id;
     ps.bandId = id;
     ps.lp = this.gd.startLp(id);

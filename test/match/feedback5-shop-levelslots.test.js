@@ -13,7 +13,7 @@ const ids = (slots) => slots.map((s) => (s ? `${s.kind}:${s.id}${s.sold ? '(sold
 const tierOf = (id) => DATA.chess[id]?.tier ?? 0;
 
 test('a level-up opens the new level\'s operator slot EMPTY; the cards shown stay in place; a refresh fills it', () => {
-  const h = makeMatch({ mode: 'solo', difficulty: 'NORMAL', seed: 7, fake: true }).start();
+  const h = makeMatch({ mode: 'solo', difficulty: 'NORMAL', seed: 7, fake: true, extensions: { upgradeFill: false } }).start();
   h.toPrep(1);
   const ps = h.ps('p_0');
   ps.funds = 200;
@@ -52,7 +52,7 @@ test('a level-up opens the new level\'s operator slot EMPTY; the cards shown sta
 });
 
 test('a bought card stays sold; the empty new slot has nothing to freeze; the round start fills the shop to the new level', () => {
-  const h = makeMatch({ mode: 'solo', difficulty: 'NORMAL', seed: 11, fake: true }).start();
+  const h = makeMatch({ mode: 'solo', difficulty: 'NORMAL', seed: 11, fake: true, extensions: { upgradeFill: false } }).start();
   h.toPrep(1);
   const ps = h.ps('p_0');
   ps.funds = 200;
@@ -77,7 +77,7 @@ test('a bought card stays sold; the empty new slot has nothing to freeze; the ro
 
 test('every mode\'s slot table: a level-up opens exactly the new positions, empty (标准: 3,4,4,4,4,5)', () => {
   for (const [mode, difficulty] of [['solo', 'FUNNY'], ['solo', 'NORMAL'], ['coop', 'FUNNY'], ['coop', 'ABYSS']]) {
-    const h = makeMatch({ mode, difficulty, seed: 3, fake: true, humans: 1, bots: mode === 'coop' ? 1 : 0 }).start();
+    const h = makeMatch({ mode, difficulty, seed: 3, fake: true, humans: 1, bots: mode === 'coop' ? 1 : 0, extensions: { upgradeFill: false } }).start();
     h.toPrep(1);
     const ps = h.ps('p_0');
     const gd = h.m.gd;

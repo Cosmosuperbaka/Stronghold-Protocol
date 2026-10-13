@@ -19,7 +19,7 @@ import { useLayoutEffect, useRef, useState } from '../../vendor/hooks.module.js'
 import { html, Modal, Button, Icon, MicroLabel } from './components.js';
 import { GIcon } from './gameComponents.js';
 import { createStore, useStore, loadPref, savePref, store } from '../store.js';
-import { sanitizeSettings, HOTKEY_ACTIONS, DEFAULT_HOTKEYS, hotkeyLabel, rebindHotkey, isDefaultHotkeys, captureHotkey, VOICE_LANGS, TEXT_SIZES } from './gameLogic.js';
+import { sanitizeSettings, HOTKEY_ACTIONS, DEFAULT_HOTKEYS, hotkeyLabel, rebindHotkey, isDefaultHotkeys, captureHotkey, VOICE_LANGS, TEXT_SIZES, BATTLE_SPEEDS } from './gameLogic.js';
 import { audio } from '../audio.js';
 import { openGuide } from './guide.js';
 import { detectFeatures } from './device.js';
@@ -269,6 +269,14 @@ export function SettingsModal({ open, onClose }) {
       <p class="set-hint">${t('只显示达到官方暴击条件的红色数字。关闭时仍显示每一次命中。')}</p>
       <${Toggle} label=${t('弹药数量')} micro="AMMO COUNT" value=${s.ammoCount} onChange=${(v) => updateSettings({ ammoCount: v })} />
       <p class="set-hint">${t('弹药类技能开启时，在弹药条下方显示剩余弹药 / 总弹药数（如 13/14）。官方界面没有这个数字。')}</p>
+      <div class="set-row">
+        <span class="set-row__label">${t('战斗倍速')}<${MicroLabel}>BATTLE SPEED<//></span>
+        <div class="set-seg" role="radiogroup" aria-label=${t('战斗倍速')} data-testid="battle-speed">
+          ${BATTLE_SPEEDS.map((v) => html`<button key=${v} type="button" role="radio" aria-checked=${s.battleSpeed === v ? 'true' : 'false'}
+            class=${s.battleSpeed === v ? 'is-on' : ''} onClick=${() => updateSettings({ battleSpeed: v })}>${v}x</button>`)}
+        </div>
+      </div>
+      <p class="set-hint">${t('自己模拟的战斗的播放速度（官方为固定 2 倍速）。1x 官方原速 · 2x 官方默认 · 4x 更快。对局中修改立即生效，观战与服务器演算的战斗不受影响。')}</p>
       <div class="set-row">
         <span class="set-row__label">${t('画面质量')}<${MicroLabel}>QUALITY<//></span>
         <div class="set-seg" role="radiogroup">

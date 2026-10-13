@@ -12,12 +12,13 @@
 // Texts go through t() (docs/I18N.md).
 
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
-import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS, MAX_SEATS, MAX_SPECTATORS } from '../../../shared/constants.js';
+import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS, MAX_SEATS, MAX_SPECTATORS, ROOM_EXTENSIONS, ROOM_EXTENSIONS_DEFAULT, extensionsAreDefault } from '../../../shared/constants.js';
 import {
   html, Button, Icon, MicroLabel, PingPill, AvatarFrame, DifficultyTag, DifficultyIcon, Tooltip, confirmDialog, doctorNo,
 } from '../ui/components.js';
 import { toast, toastError } from '../ui/toasts.js';
 import { copyText } from '../ui/clipboard.js';
+import { GIcon } from '../ui/gameComponents.js';
 import { GuideButton } from '../ui/guide.js';
 import { openStats } from './stats.js';
 import { SettingsButton } from '../ui/settings.js';
@@ -188,6 +189,54 @@ function InviteBox({ code, name, difficulty }) {
   </div>`;
 }
 
+/** 玩法扩展 labels (shared/constants.js ROOM_EXTENSIONS). */
+const EXT_LABEL = { dupBand: '重复策略', bossPanel: 'DPS面板', deployCapOff: '取消部署上限', upgradeFill: '升本补卡' };
+/** The rules note of each extension, under the switches. */
+const EXT_TIP = {
+  dupBand: t('重复策略的规则：开局选择策略时不再限制「队友已选」，多名博士可以选到同一个策略。'),
+  bossPanel: t('DPS面板：右上角显示我棋盘上每名干员本回合造成的伤害与每秒伤害（DPS），可点击收缩，全阶段可见。'),
+  deployCapOff: t('取消部署上限的规则：不再限制同时部署的干员数量，棋盘放得下就可以继续部署（官方上限 8，加成后封顶 12）。'),
+  upgradeFill: t('升本补卡的规则：升级调度中心时，新栏位立刻补上新干员卡（官方为新栏位空着，等下一次刷新）。'),
+};
+
+/**
+ * 玩法扩展 (this deployment's mods, room.setExtensions): a compact trigger in the room bar that opens a floating popover
+ * with the optional rules (shared/constants.js ROOM_EXTENSIONS); the host toggles them, other members see them read-only.
+ * @param {{ room: any, isHost: boolean, busy: string | null, onSet: (patch: object) => void }} props
+ */
+function RoomOptionsButton({ room, isHost, busy, onSet }) {
+  const [open, setOpen] = useState(false);
+  // outside press / Esc closes the floating panel
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => { if (!(e.target instanceof Element) || !e.target.closest('.ropts-pop')) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('keydown', onKey);
+    return () => { window.removeEventListener('pointerdown', onDown, true); window.removeEventListener('keydown', onKey); };
+  }, [open]);
+  const ext = { ...ROOM_EXTENSIONS_DEFAULT, ...(room.extensions || {}) };
+  return html`<div class="ropts-pop">
+    <${Button} variant="secondary" size="lg" icon="bolt" active=${open} aria-expanded=${open ? 'true' : 'false'}
+      onClick=${() => setOpen((v) => !v)}>${t('玩法扩展')}<//>
+    ${open ? html`<div class="ropts" role="dialog" aria-label=${t('玩法扩展')}>
+      <div class="ropts__head"><${GIcon} name="bolt" /><span>${t('玩法扩展')}</span><${MicroLabel}>GAME OPTIONS<//></div>
+      ${ROOM_EXTENSIONS.map((k) => {
+        const on = ext[k] !== false;
+        return html`<div class="ropts__row" key=${k}>
+          <span class="ropts__label">${t(EXT_LABEL[k] || k)}</span>
+          ${isHost ? html`<label class="ropts__check">
+              <input type="checkbox" checked=${on} disabled=${!!busy} onChange=${(e) => onSet({ [k]: e.target.checked })} />
+              <span>${on ? t('已开启') : t('已关闭')}</span>
+            </label>`
+            : html`<span class=${`ropts__state${on ? ' is-on' : ' is-off'}`}>${on ? t('已开启') : t('未开启')}</span>`}
+        </div>`;
+      })}
+      ${ROOM_EXTENSIONS.map((k) => (EXT_TIP[k] ? html`<p class="ropts__tip" key=${`tip-${k}`}>${EXT_TIP[k]}</p>` : null))}
+    </div>` : null}
+  </div>`;
+}
+
 function DifficultyPicker({ room, isHost, busy, onPick }) {
   if (!isHost) {
     return html`<div class="dpick dpick--ro">
@@ -260,6 +309,8 @@ export function RoomScreen() {
   };
   const setDifficulty = (difficulty) => run('diff', () => net.request('room.setDifficulty', { difficulty }));
   const setAiLast = (on) => run('ailast', () => net.request('room.setAiPicksLast', { on }));
+  // 玩法扩展 (room.setExtensions): one key per toggle, merged over the room's current switches
+  const setExtensions = (patch) => run('ext', () => net.request('room.setExtensions', { extensions: { ...room.extensions, ...patch } }));
   // spectator seats: the host frees one; a spectator takes a free player seat with room.join of this room
   const removeSpectator = (playerId) => run(`rs${playerId}`, () => net.request('room.removeSpectator', { playerId }));
   const sit = () => run('sit', () => net.request('room.join', { code: room.code }));
@@ -343,6 +394,9 @@ export function RoomScreen() {
         <div class="room-bar__opts">
           <${DifficultyPicker} room=${room} isHost=${facts.isHost} busy=${busy} onPick=${setDifficulty} />
           <${AiLastToggle} option=${aiLastOption(room, me.playerId)} busy=${busy} onToggle=${setAiLast} />
+        </div>
+        <div class="room-bar__opts">
+          <${RoomOptionsButton} room=${room} isHost=${facts.isHost} busy=${busy} onSet=${setExtensions} />
         </div>
       </div>
       <div class="room-bar__center">

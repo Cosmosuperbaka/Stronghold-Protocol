@@ -79,6 +79,8 @@ export function makeMatch(o = {}) {
     verify: o.verify ?? 'off',
     headlessSliceMs: o.headlessSliceMs,
     aiPicksLast: o.aiPicksLast,
+    // 玩法扩展 (room.setExtensions): a test pins the room's switches here — default = all defaults
+    extensions: o.extensions,
   });
   const m = h.m;
   if (m.clientCombat && o.clients !== false) {

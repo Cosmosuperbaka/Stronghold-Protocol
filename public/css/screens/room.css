@@ -313,3 +313,23 @@
 .ready-count__icons .icon.is-on { color: var(--mint-400); filter: drop-shadow(0 0 4px var(--mint-glow)); }
 
 .room-bar .btn--xl { min-width: 3.2rem; letter-spacing: .2em; }
+
+/* 玩法扩展 (this deployment's mods, screens/room.js RoomOptionsButton): a compact trigger in the room bar with a
+   floating popover of the optional rules (重复策略 / DPS面板 / 取消部署上限); the host toggles, others read. */
+.ropts-pop { position: relative; display: inline-flex; }
+.ropts {
+  position: absolute; left: 0; bottom: calc(100% + .12rem); z-index: 40; width: 17rem; max-width: 82vw;
+  padding: .12rem .14rem; display: flex; flex-direction: column; gap: .08rem;
+  background: rgba(16, 20, 19, .98); border: 1px solid var(--line-2); border-radius: .1rem;
+  box-shadow: 0 .12rem .4rem rgba(0, 0, 0, .55);
+}
+.ropts__head { display: flex; align-items: center; gap: .06rem; font-size: .16rem; letter-spacing: .04em; color: var(--text-hi); }
+.ropts__head .icon { width: .2rem; height: .2rem; color: var(--amber); }
+.ropts__row { display: flex; align-items: center; gap: .1rem; font-size: .15rem; }
+.ropts__label { min-width: .9rem; color: var(--text-lo); }
+.ropts__check { display: inline-flex; align-items: center; gap: .06rem; cursor: pointer; color: var(--text-hi); }
+.ropts__check input { width: .18rem; height: .18rem; accent-color: var(--mint-500); }
+.ropts__state { font-size: .14rem; }
+.ropts__state.is-on { color: var(--mint-400); }
+.ropts__state.is-off { color: var(--text-dim); }
+.ropts__tip { margin: 0; font-size: .13rem; line-height: 1.5; color: var(--text-dim); }

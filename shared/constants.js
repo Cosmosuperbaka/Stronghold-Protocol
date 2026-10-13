@@ -21,6 +21,41 @@ export const MAX_SPECTATORS = 2;
 export const ROOM_CODE_LEN = 4;
 export const NAME_MAX_LEN = 12;
 
+// ---- 玩法扩展 (room extensions, this deployment's mods; the room extension keys of the community server's 玩法扩展
+// panel, room.setExtensions) ------------------------------------------------------------------------------------------------
+/**
+ * The room extension switches a co-op room's host may flip (room.setExtensions; room.state.extensions, the match's
+ * m.public.extensions). `revive` (复活队友) and `sharedLp` (共享血条) are planned but not implemented yet — not offered
+ * here until they are (the community server's full set is ['revive', 'sharedLp', 'dupBand', 'bossPanel', 'deployCapOff']).
+ *   `dupBand` = 重复策略: the opening strategy draft no longer marks a teammate's pick as 队友已选 — two or more players
+ *              may take the same strategy (the automatic assignments may repeat too).
+ *   `bossPanel` = DPS面板: the top-right DPS panel (ui/dpsPanel.js) shows for the room's players (default on).
+ *   `deployCapOff` = 取消部署上限: the board's deploy cap (economy.deployCap, base 8 + grants, official grants cap 12)
+ *              is lifted — a player may deploy as many operators as the board holds.
+ *   `upgradeFill` = 升本补卡 (this deployment's default-on mod): a 调度中心 upgrade draws a fresh card into each new slot
+ *              at the new level (following the freeze toggle), instead of the official 「只开位，空着等下一次刷新」
+ *              (GitHub #332 / PR #333).
+ */
+export const ROOM_EXTENSIONS = Object.freeze(['dupBand', 'bossPanel', 'deployCapOff', 'upgradeFill']);
+/** Default of each room extension (a new room starts with these). */
+export const ROOM_EXTENSIONS_DEFAULT = Object.freeze({ bossPanel: true, dupBand: false, deployCapOff: false, upgradeFill: true });
+/** Validated copy of a room.setExtensions payload (unknown keys dropped, non-booleans → default). */
+export function normalizeExtensions(v) {
+  const e = v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+  const out = {};
+  for (const k of ROOM_EXTENSIONS) out[k] = typeof e[k] === 'boolean' ? e[k] : !!ROOM_EXTENSIONS_DEFAULT[k];
+  return out;
+}
+/** Whether a room's extensions are all at their defaults (a non-default match is 非正规 — no leaderboard writes). */
+export function extensionsAreDefault(ext) {
+  const e = ext || {};
+  return ROOM_EXTENSIONS.every((k) => {
+    const d = !!ROOM_EXTENSIONS_DEFAULT[k];
+    const v = e[k] === undefined ? d : !!e[k];
+    return v === d;
+  });
+}
+
 export const DIFFICULTIES = ['FUNNY', 'NORMAL', 'HARD', 'ABYSS'];
 export const DIFFICULTY_NAMES = { FUNNY: N_('标准模拟'), NORMAL: N_('险境模拟'), HARD: N_('绝境模拟'), ABYSS: N_('终极模拟') };
 export const DIFFICULTY_COLORS = { FUNNY: '#f6a329', NORMAL: '#e85a1a', HARD: '#e73118', ABYSS: '#ff0024' };

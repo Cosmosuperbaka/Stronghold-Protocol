@@ -143,6 +143,8 @@ export class PlayerState {
   constructor(m, seat) {
     this.m = m;
     this.gd = m.gd;
+    /** 玩法扩展 (room.setExtensions → Match opts.extensions): this match's rule switches. */
+    this.ext = m.ext || null;
     this.playerId = seat.playerId;
     this.seat = seat.seat;
     this.name = seat.name;

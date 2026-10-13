@@ -106,15 +106,24 @@ export class PlayerEconomy {
    * 2026-10-06, 「升级商店获得新的商店位时用新卡补上，而不是空着」, one uncorroborated remark; its follow-on, that the new card
    * follows the freeze toggle, was [ASSUMED]); until then the extra slots waited for the next roll as well.
    */
+  /**
+   * The 调度中心's upgrade opens the new level's extra slots at once — with a fresh card drawn into each at the new
+   * level (this.ext.upgradeFill, this deployment's default-on 玩法扩展: 升本补卡), or empty (`null`, the official ruling:
+   * GitHub #332 / PR #333 — the new slot is filled by the next roll, a manual refresh or the round start). The cards
+   * already shown stay where they are either way (chess slots keep their index, the item slot stays after them).
+   * A drawn card follows the freeze toggle, like the cards of a manual refresh (as 0.2.0's 464a823 did).
+   */
   _openLevelSlots() {
+    const fill = this.ext?.upgradeFill !== false;
     const { chess: nChess, item: nItem } = this.gd.shopSlots(this.shop.level);
     const old = this.shop.slots;
     const layout = this.shop.layout || { chess: old.length, item: 0 };
     if (nChess <= layout.chess && nItem <= layout.item) return;
     const chess = old.slice(0, layout.chess);
     const items = old.slice(layout.chess);
-    while (chess.length < nChess) chess.push(null);
-    while (items.length < nItem) items.push(null);
+    while (chess.length < nChess) chess.push(fill ? this._rollChessSlot() : null);
+    while (items.length < nItem) items.push(fill ? this._rollItemSlot() : null);
+    for (const s of [...chess.slice(layout.chess), ...items.slice(layout.item)]) if (s) s.frozen = this.shop.frozen;
     this.shop.slots = [...chess, ...items];
     this.shop.layout = { chess: chess.length, item: items.length };
   }

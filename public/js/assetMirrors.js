@@ -91,8 +91,32 @@ export function isAssetPath(path) {
 }
 
 /**
+ * The mirror form of an asset path: the content-hash segment 0.2.6's served manifests carry
+ * (`/assets/~0123456789abcdef/x.png`, shared/assetPaths.js) names the file for the browser cache but does not exist on
+ * a mirror's tree — mirrors serve the plain upstream layout, so the segment comes off before a mirror URL is built
+ * (`/assets/x.png`). A path without a segment comes back unchanged.
+ * @param {string} path site-root-relative, e.g. '/assets/~0123456789abcdef/char/avatar/x.png'
+ * @returns {string}
+ */
+export function unhashedMirrorPath(path) {
+  const p = String(path ?? '');
+  for (const root of ['/assets/', '/fonts/']) {
+    if (!p.startsWith(root)) continue;
+    const slash = p.indexOf('/', root.length);
+    if (slash < 0) break;
+    const seg = p.slice(root.length, slash);
+    if (/^~[0-9a-f]{16}$/.test(seg)) return root + p.slice(slash + 1);
+    break;
+  }
+  return p;
+}
+
+/**
  * Ordered download candidates for a path: every mirror + path first (in order), then the origin path last. A path
  * that is not a site-root asset (an absolute URL, a /media route, …) is returned alone.
+ *
+ * The content-hash segment (0.2.6 served manifests) comes off the mirror URLs (unhashedMirrorPath) — mirrors host the
+ * plain tree — while the origin fallback keeps the original path (the game server strips the segment itself).
  *
  * `direct = false` is the 严格镜像模式 (`data/asset-mirrors.json` `directFallback: false`): the origin is NEVER a
  * candidate — asset traffic must not touch the game server (its uplink is tiny). Asset paths then list the mirrors
@@ -105,7 +129,8 @@ export function isAssetPath(path) {
  */
 export function mirrorCandidates(path, mirrors, direct = true) {
   if (!isAssetPath(path)) return direct ? [path] : [];
-  const list = (Array.isArray(mirrors) ? mirrors : []).map((m) => m + path);
+  const plain = unhashedMirrorPath(path);
+  const list = (Array.isArray(mirrors) ? mirrors : []).map((m) => m + plain);
   return direct ? [...list, path] : list;
 }
 

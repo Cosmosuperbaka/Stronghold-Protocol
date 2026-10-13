@@ -195,6 +195,16 @@ export function createBattleRunner(deps) {
   const doc = deps.doc !== undefined ? deps.doc : (typeof document !== 'undefined' ? document : null);
   const loadSim = deps.loadSim || (() => loadBrowserSim());
   const logger = deps.logger || SIM_LOGGER;
+  // 战斗倍速 (battleSpeed mod): the playback speed of the player's own client-side battle — the official pacing is a
+  // fixed 2×; the settings' 战斗倍速 (sp.pref.settings.battleSpeed, 1|2|4) overrides msg.speed for own client battles
+  // only (never authoritative / watched ones). Read straight from localStorage: this module stays below the UI layer.
+  const speedPref = deps.speedPref || (() => {
+    try {
+      const v = JSON.parse(globalThis.localStorage?.getItem('sp.pref.settings') || 'null');
+      const n = Number(v?.battleSpeed);
+      return n === 1 || n === 2 || n === 4 ? n : null;
+    } catch { return null; }
+  });
 
   const listeners = new Map();
   const emit = (type, payload) => {
@@ -637,7 +647,10 @@ export function createBattleRunner(deps) {
 
   async function onStart(msg) {
     if (!msg || typeof msg !== 'object' || !msg.spec || typeof msg.battleId !== 'string') return;
-    const speed = Number(msg.speed) > 0 ? Number(msg.speed) : 2;
+    // own client battle → the settings' 战斗倍速 wins over the server's 2× default (battleSpeed mod); an authoritative
+    // (server-simulated) or watched battle keeps the server's pacing — its frames come from the socket, not this sim.
+    const pref = !msg.authoritative && !msg.watch ? speedPref() : null;
+    const speed = pref || (Number(msg.speed) > 0 ? Number(msg.speed) : 2);
     const seq = ++startSeq;
     const prep = pending.get(msg.battleId);
     const existing = entries.get(msg.battleId) || prep;

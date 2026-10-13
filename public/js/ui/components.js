@@ -71,6 +71,7 @@ export const ICONS = {
   info: { d: 'M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm-1 8v7h2v-7zm0-3v2h2V7z', eo: true },
   warn: { d: 'M12 2 1 21h22zm-1 7v6h2V9zm0 7.5v2h2v-2z', eo: true },
   play: { d: 'M7 4v16l13-8z' },
+  warn: { d: 'M12 2 1 21h22zm-1 7v6h2V9zm0 7.5v2h2v-2z' },
   // 预载资源 (ui/preload.js): the widget / manager actions (ported with the preload panel)
   download: { d: 'M11 3h2v9.2l3.3-3.4 1.4 1.5L12 16.1 6.3 10.3l1.4-1.5L11 12.2zM4 18h2v2h12v-2h2v4H4z' },
   pause: { d: 'M7 4h3.6v16H7zM13.4 4H17v16h-3.6z' },
