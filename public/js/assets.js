@@ -42,6 +42,8 @@
 // so it can be unit tested without a browser. Helpers never throw on unknown ids — they return null and the
 // caller falls back (docs/ASSETS.md "Other fallbacks").
 
+import { cachedObjectUrl } from './preload/cache.js';
+
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const str = (v) => (typeof v === 'string' && v ? v : null);
 const get = (o, k) => (isObj(o) && Object.hasOwn(o, k) ? o[k] : undefined);
@@ -858,7 +860,7 @@ export function createAssets(options) {
     now: opts.spineNow,
   });
 
-  /** Image element (cached; failures resolve to null). */
+  /** Image element (cached; failures resolve to null). 预载资源: the local cache first (preload/cache.js), network else. */
   function image(u, { retry = false } = {}) {
     const s = str(u);
     if (!s) return Promise.resolve(null);
@@ -866,10 +868,19 @@ export function createAssets(options) {
     if (retry && e?.done && !e.value) { images.delete(s); e = null; }
     if (!e) {
       e = { value: null, done: false, promise: null };
-      e.promise = Promise.resolve().then(() => loadImage(s)).then(
-        (img) => { e.value = img; e.done = true; return img; },
-        () => { e.done = true; return null; },
-      );
+      e.promise = (async () => {
+        const hit = await cachedObjectUrl(s);
+        try {
+          const img = await loadImage(hit ? hit.src : s);
+          e.value = img; e.done = true;
+          return img;
+        } catch {
+          e.done = true;
+          return null;
+        } finally {
+          if (hit) hit.revoke(); // the <img> keeps its decoded bitmap
+        }
+      })();
       images.set(s, e);
     }
     return e.promise;

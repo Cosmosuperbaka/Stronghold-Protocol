@@ -25,6 +25,7 @@ import { LangToggle, useLang } from '../ui/lang.js';
 import { t, N_ } from '../../../shared/i18n.js';
 import { scriptOf } from '../../../shared/i18nPacks.js';
 import { GIcon } from '../ui/gameComponents.js';
+import { PreloadWidget } from '../ui/preload.js';
 import { SettingsModal } from '../ui/settings.js';
 
 // Same character classes as server/net.js sanitizeName (control, zero-width, bidi, BOM), so a name
@@ -286,6 +287,8 @@ export function TitleScreen() {
     </main>
 
     <${SettingsModal} open=${settingsOpen} onClose=${() => setSettingsOpen(false)} />
+
+    <${PreloadWidget} />
 
     <footer class="title-foot">
       <${ResumeMatchButton} />

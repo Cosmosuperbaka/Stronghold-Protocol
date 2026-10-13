@@ -358,10 +358,42 @@
 .pavatar__x .icon, .pavatar__door .icon { width: 60%; height: 60%; filter: drop-shadow(0 0 4px #000); }
 
 /* ---- effects ---------------------------------------------------------------------------------------------- */
-.gm__effects { position: absolute; right: .3rem; top: 2.4rem; }
+/* ---- top-right column: DPS 面板 (ui/dpsPanel.js) + the 机变 effects -------------------------------- */
+/* The column leads with the DPS card, the effects follow (ported from the community build's stylesheet, class names
+   kept). In an in-battle phase the column starts BELOW the whole top-right stack — the countdown / ready toggle and the
+   red 生命值 −1/秒 overtime warning that appears under them once the level time runs out (ui/hud.js; its box reaches
+   ~1.53rem). 1.6rem clears it at every viewport scale. */
+.gm__right { position: absolute; right: .3rem; top: 2.4rem; display: flex; flex-direction: column; align-items: flex-end; gap: .12rem; }
+.gm.has-dps .gm__right { top: 1.6rem; }
 /* 准备就绪 refused (the temp row holds pieces): its reason shows under the button and pushes the ready count down —
    the effects column follows, or the count runs into it on phones */
-.gm.has-readywhy .gm__effects { top: calc(2.4rem + max(.3rem, 16px)); }
+.gm.has-readywhy .gm__right { top: calc(2.4rem + max(.3rem, 16px)); }
+.gm__effects { display: flex; flex-direction: column; align-items: flex-end; }
+/* DPS 面板 (ui/dpsPanel.js) — the own board's operators; the header is the collapse toggle */
+.dpspanel {
+  width: 3.2rem; padding: .1rem .12rem;
+  display: flex; flex-direction: column; gap: .06rem;
+  background: linear-gradient(180deg, rgba(10, 14, 12, .92), rgba(10, 14, 12, .72));
+  border: 1px solid rgba(255, 122, 51, .38); border-right: 3px solid var(--orange-hi);
+  box-shadow: 0 .08rem .28rem rgba(0, 0, 0, .5);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
+.dpspanel__head { display: flex; align-items: center; gap: .06rem; width: 100%; padding: 0; margin: 0; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.dpspanel__icon { width: .2rem; height: .2rem; color: var(--orange-hi); flex: none; }
+.dpspanel__title { font-size: .15rem; font-weight: 700; color: var(--text-hi); letter-spacing: .04em; }
+.dpspanel__total { margin-left: auto; font-size: .16rem; font-weight: 700; color: var(--orange-hi); }
+.dpspanel__chev { flex: none; font-size: .13rem; color: var(--text-dim); }
+.dpspanel__body { display: flex; flex-direction: column; gap: .06rem; }
+.dpspanel__list { display: flex; flex-direction: column; gap: .04rem; margin: 0; padding: 0; list-style: none; }
+.dpspanel__row { display: grid; grid-template-columns: .24rem minmax(0, 1fr) .62rem auto .5rem; align-items: center; gap: .06rem; }
+.dpspanel__row .uthumb { --ut: .24rem; }
+.dpspanel__who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .14rem; color: var(--text-md); }
+.dpspanel__track { position: relative; height: .1rem; background: rgba(0, 0, 0, .55); border: 1px solid rgba(255, 122, 51, .25); overflow: hidden; }
+.dpspanel__track i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #7a2a10, var(--orange-hi)); transition: width 260ms var(--ease-out); }
+.dpspanel__num { font-size: .14rem; color: var(--text-hi); text-align: right; }
+.dpspanel__dps { font-size: .12rem; color: var(--orange-hi); text-align: right; }
+.dpspanel__empty { font-size: .14rem; color: var(--text-dim); }
 .effects { display: flex; flex-direction: column; align-items: flex-end; gap: .08rem; }
 .effect {
   position: relative; width: .5rem; height: .5rem; display: grid; place-items: center;

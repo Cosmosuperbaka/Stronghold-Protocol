@@ -65,6 +65,8 @@
 //                           operators in the battle on screen with their equipment (a teammate's bond popup: the members in
 //                           play, DESIGN §20.15, 变形同构体 wearers included; a 补位 stand-in names the replaced charId,
 //                           a 自选 operator carries its pick like UnitInfo) | []
+//   battleRunner.damageOf(fieldId?) → { damage: { [boardUid]: 本战场造成的伤害 }, elapsed } of the battle on screen — the
+//                           DPS 面板's local source (ui/dpsPanel.js); null without a battle | null
 //
 // createBattleRunner(deps) builds an instance with injectable net / store / clock / frame scheduler / sim loader
 // (test/match/runner.test.js and test/match/runner-pending.test.js drive it under Node).
@@ -858,6 +860,27 @@ export function createBattleRunner(deps) {
       try { return unitStatsEntry(u, u._s || null); } catch { return null; }
     },
     /**
+     * DPS 面板 (ui/dpsPanel.js): the battle ON SCREEN's per-ally damage this battle + its game clock. `damage` maps each
+     * ally unit's board uid (UnitInfo.uid) to the damage it dealt so far (unit.stats.dmg — the same number the result
+     * screen's 造成伤害 reads), so the panel joins it with m.private's board pieces; `elapsed` is the battle's game time
+     * (seconds), the DPS denominator. Null without a battle on screen (or `fieldId` names another field). Local, read-only.
+     * @param {string|null} [fieldId]
+     * @returns {{ damage: Record<string, number>, elapsed: number } | null}
+     */
+    damageOf(fieldId = null) {
+      const e = cur;
+      if (!e || (fieldId != null && e.fieldId !== fieldId)) return null;
+      const damage = {};
+      try {
+        for (const u of e.battle.allyUnits || []) {
+          if (u.uid == null) continue;
+          const d = Math.round(Number(u.stats && u.stats.dmg) || 0);
+          if (d > 0) damage[u.uid] = d;
+        }
+        return { damage, elapsed: Math.max(0, Number(e.battle.time) || 0) };
+      } catch { return null; }
+    },
+    /**
      * The unit id of the board piece `uid` owned by `ownerId` in the battle on screen (an own operator's card opened in
      * prep and left open into the battle turns live); null when that battle has no such unit.
      * @param {number} uid @param {string} ownerId @param {string|null} [fieldId]
@@ -890,6 +913,23 @@ export function createBattleRunner(deps) {
     },
     /** Re-show the current battle (the game screen remounted). */
     reshow() { if (cur) show(cur); },
+    /**
+     * 输出统计用：本地已构建 Battle 的每场战斗（只读）——自己的战斗（authoritative）与观战 / 联防 / Boss 搭档的
+     * 显示复本。battle/damageLedger.js 按 1 Hz 对这些 battle 采样 Battle.damageRows()。
+     * @returns {Array<{battleId: string, fieldId: string, kind: string, round: number, members: string[], authoritative: boolean, own: boolean, done: boolean, battle: object}>}
+     */
+    damageSources() {
+      const out = [];
+      for (const e of entries.values()) {
+        if (!e.battle) continue;
+        out.push({
+          battleId: e.battleId, fieldId: e.fieldId, kind: e.kind,
+          round: Number.isInteger(e.spec?.round) ? e.spec.round : 0,
+          members: e.members || [], authoritative: !!e.authoritative, own: !!e.own, done: !!e.done, battle: e.battle,
+        });
+      }
+      return out;
+    },
     /** Test / debug hooks. */
     _entries: entries,
     _frame: frame,

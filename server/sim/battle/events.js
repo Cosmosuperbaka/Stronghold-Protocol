@@ -5,6 +5,7 @@
 import { EVENT_BUFFER_CAP } from '../constants.js';
 import { elementView } from '../damage.js';
 import { unitInfo, snapshotUnits, ammoView, wolfView, negView, coinView } from '../snapshot.js';
+import { damageRows } from '../damageBoard.js';
 
 export class BattleEvents {
   fx(kind, params = {}) {
@@ -124,4 +125,11 @@ export class BattleEvents {
       units: this.units.filter((u) => (u.alive && u.deployed && !u.hidden) || this.isDown(u)).map(unitInfo),
     };
   }
+
+  /**
+   * 输出统计（伤害统计）行：本场各玩家「实际扣除的生命值」按干员分组（damageBoard.js）。
+   * 只读现有计数（unit stats.dmg / perPlayer.damageDealt），不改变战斗状态；召唤物归其 root 干员，
+   * 装置与无归属伤害单列 otherDamage。客户端账本（public/js/battle/damageLedger.js）采样本方法。
+   */
+  damageRows() { return damageRows(this); }
 }

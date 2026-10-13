@@ -68,6 +68,7 @@
 import { sanitizeVoiceOverrides, voiceLangFor } from './voicePrefs.js';
 import { PHASE } from '../../shared/constants.js';
 import { mediaUrl } from './media.js';
+import { cachedBlob } from './preload/cache.js';
 
 const MAX_VOICES = 8;
 const UNIT_COOLDOWN_MS = 160;
@@ -706,16 +707,24 @@ export class AudioManager {
     }
     const p = (async () => {
       try {
-        // Extension-less URL first so download managers leave the BGM alone; a host without /media/ still works.
-        const media = mediaUrl(url);
-        let res = await fetch(media);
-        if (media !== url && !isAudioResponse(res)) {
-          // Drop the unusable response (404, or a 200 that is really index.html) before trying the original URL.
-          try { await res.body?.cancel?.(); } catch { /* the fallback request matters more than draining this one */ }
-          res = await fetch(url);
+        // 预载资源: the local cache first (preload/cache.js) — the preloaded bytes are the same file the network would
+        // hand out, and the decode below is identical either way.
+        const cached = await cachedBlob(url);
+        let ab;
+        if (cached) {
+          ab = await cached.arrayBuffer();
+        } else {
+          // Extension-less URL first so download managers leave the BGM alone; a host without /media/ still works.
+          const media = mediaUrl(url);
+          let res = await fetch(media);
+          if (media !== url && !isAudioResponse(res)) {
+            // Drop the unusable response (404, or a 200 that is really index.html) before trying the original URL.
+            try { await res.body?.cancel?.(); } catch { /* the fallback request matters more than draining this one */ }
+            res = await fetch(url);
+          }
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          ab = await res.arrayBuffer();
         }
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const ab = await res.arrayBuffer();
         return await new Promise((resolve) => {
           try {
             const r = this.ctx.decodeAudioData(ab, resolve, () => resolve(null));

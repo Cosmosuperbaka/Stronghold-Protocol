@@ -54,6 +54,8 @@ import { recordResult, installStatsRecorder } from './ui/stats.js';
 import { installLoadoutSync, installOwnershipSync, installDiySync } from './ui/loadoutSync.js';
 import { installSkinsSync } from './ui/skins.js';
 import { startBuildGuard } from './ui/buildGuard.js';
+import { PreloadHost, installPreload } from './ui/preload.js';
+import { assetMirrors, isAssetPath } from './assetMirrors.js';
 import { initLang, useLang, tickerText } from './ui/lang.js';
 import { t, N_, translateWire } from '../../shared/i18n.js';
 import { recordError } from './diag.js';
@@ -310,6 +312,7 @@ function App() {
     <${GuideHost} />
     <${LoadoutHost} />
     <${StatsHost} />
+    <${PreloadHost} />
   </div>`;
 }
 
@@ -345,6 +348,81 @@ function installGlobalErrorHandlers() {
   });
 }
 
+/**
+ * 素材镜像 (ported): an asset `<img>` is loaded from the first mirror (from `/data/asset-mirrors.json`) and falls back
+ * to the next candidate — the other mirrors, then the game's own server LAST — when a load fails. The `src` setter is
+ * wrapped so the switch happens before any request (no wasted origin load). Non-asset images (blob:, data:, another
+ * origin, /media) and images with no mirror configured pass through untouched.
+ */
+function installImageMirrorFallback() {
+  const H = globalThis.HTMLImageElement;
+  const desc = H && H.prototype && Object.getOwnPropertyDescriptor(H.prototype, 'src');
+  if (!desc || typeof desc.set !== 'function' || typeof desc.get !== 'function') return;
+  const state = new WeakMap(); // img → { cands, abs }
+  const abs = (u) => { try { return new URL(String(u), location.href).href; } catch { return String(u); } };
+  const pathOf = (v) => {
+    try {
+      const u = new URL(String(v), location.href);
+      return u.origin === location.origin && isAssetPath(u.pathname) ? u.pathname : null;
+    } catch { return null; }
+  };
+  try {
+    Object.defineProperty(H.prototype, 'src', {
+      configurable: true,
+      get() { return desc.get.call(this); },
+      set(v) {
+        const cands = typeof v === 'string' && pathOf(v) ? assetMirrors.candidates(pathOf(v)) : null;
+        // `length > 0` (not `> 1`): in 严格镜像模式 the list is mirrors-only, so a single mirror must still be used
+        if (cands && cands.length > 0) {
+          state.set(this, { cands, abs: cands.map(abs) });
+          desc.set.call(this, cands[0]); // mirrors first
+          return;
+        }
+        state.delete(this);
+        desc.set.call(this, v);
+      },
+    });
+  } catch { return; }
+  window.addEventListener('error', (e) => {
+    const el = e.target;
+    if (!el || el.tagName !== 'IMG') return;
+    const st = state.get(el);
+    if (!st) return;
+    const i = st.abs.indexOf(abs(el.getAttribute('src')));
+    const next = (i >= 0 ? i : 0) + 1;
+    if (next >= st.cands.length) { state.delete(el); return; } // every candidate failed → leave it
+    desc.set.call(el, st.cands[next]);
+  }, true);
+}
+
+/**
+ * 严格镜像模式（`directFallback:false`）：把**走 `globalThis.fetch` 的同源 `/assets`、`/fonts` 请求**统一改由镜像
+ * 解析，绝不落到游戏服务器（本部署的 asset-mirrors.json 保持兜底模式时，这里不改变原行为）。PIXI 的 Spine
+ * 加载器（`PIXI.Assets.load(entry.skel)`，.skel/.atlas 走 fetch）因此也走镜像。DOM `<img>`（含 atlas 贴图页）由
+ * installImageMirrorFallback 处理；音频由 audio.js 处理；预载本来就走镜像。只拦 GET + 同源 + 资源路径，其余一律原样透传。
+ */
+function installStrictAssetFetch() {
+  const orig = globalThis.fetch;
+  if (typeof orig !== 'function' || orig.__mirrorPatched) return;
+  const patched = async function (input, init) {
+    let path = null;
+    try {
+      const method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+      const u = typeof input === 'string' ? input : (input && input.url);
+      if (method === 'GET' && typeof u === 'string') {
+        const abs = new URL(u, location.href);
+        if (abs.origin === location.origin && isAssetPath(abs.pathname)) path = abs.pathname;
+      }
+    } catch { path = null; }
+    if (!path) return orig.call(this, input, init);
+    await assetMirrors.load().catch(() => {});   // the strict flag comes from /data/asset-mirrors.json
+    if (assetMirrors.directFallback()) return orig.call(this, input, init);
+    return assetMirrors.fetch(path, init);       // mirrors only; every mirror down ⇒ it throws (never the origin)
+  };
+  patched.__mirrorPatched = true;
+  globalThis.fetch = patched;
+}
+
 async function boot() {
   installGlobalErrorHandlers();
   // touch / hover / fullscreen classes, zoom-gesture blocking, rotation re-layout (ui/device.js, css/devices.css)
@@ -369,6 +447,12 @@ async function boot() {
   installSkinsSync({ net });
   installOwnershipSync({ net });
   installDiySync({ net });
+  // 素材镜像 (ported): load /data/asset-mirrors.json; asset loads go through the mirrors (the game server is last).
+  assetMirrors.load().catch(() => {});
+  installImageMirrorFallback();
+  installStrictAssetFetch();
+  // 预载资源 (ported): download the match assets into the local cache in the background (ui/preload.js). Never blocks boot.
+  installPreload().catch((err) => console.warn('[preload] install failed', err));
   net.attachBrowserHooks();
   // Audio: unlock on first gesture, BGM follows the route / match phase (js/audio.js).
   installAudio({ getManifest: () => data.get('assets'), subscribe: store.subscribe, getState: store.get, selectRoute, settings: settingsStore.get() });
