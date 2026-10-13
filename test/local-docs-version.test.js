@@ -13,7 +13,8 @@ test('README, HANDOFF, LOCAL-DEV and LOCAL-CHANGELOG name RELEASE_TAG as the cur
   assert.ok(readme.includes(`当前版本为 **\`${RELEASE_TAG}\`**`), 'README 当前版本');
   assert.ok(read('docs/HANDOFF.md').includes(`当前发布为 \`${RELEASE_TAG}\``), 'HANDOFF §2 当前发布');
   assert.ok(read('docs/LOCAL-DEV.md').includes(`当前版本为 \`${RELEASE_TAG}\``), 'LOCAL-DEV §1 当前版本');
-  const newest = read('docs/LOCAL-CHANGELOG.md').split('\n').find((line) => line.startsWith('## '));
+  // Source integrations can precede the latest release without inventing a published extension tag.
+  const newest = read('docs/LOCAL-CHANGELOG.md').split('\n').find((line) => /^## .* — v\d+\.\d+\.\d+-extended\.\d+：/.test(line));
   assert.ok(newest?.includes(` ${RELEASE_TAG}：`), `LOCAL-CHANGELOG newest entry: ${newest}`);
 });
 

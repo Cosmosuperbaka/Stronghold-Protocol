@@ -7,11 +7,12 @@ import { spawn } from 'node:child_process';
 import http from 'node:http';
 import net from 'node:net';
 import { RELEASE_TAG } from '../server/release-version.js';
+import { APP_VERSION } from '../shared/constants.js';
 import { createReleaseUpdater, compareReleaseTags, installedTag, installedIdentity, normalizeUpdateNetwork, createUpdateRequest, pickReleaseAsset, downloadAndStage, stageZip, scheduleInstall, updatePaths } from '../server/release-update.js';
 import { freePort } from './e2e/client.mjs';
 import { applyReleaseStage } from '../server/release-install.js';
 import { archive, releaseFor, files, manifest, put, read, tag, sha, signRelease, tick, until } from './helpers/release-fixture.js';
-const temp = (t) => { const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-release-')); t.after(() => fs.rmSync(root, { recursive: true, force: true })); put(root, 'package.json', '{"version":"0.2.5"}'); return root; };
+const temp = (t) => { const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-release-')); t.after(() => fs.rmSync(root, { recursive: true, force: true })); put(root, 'package.json', JSON.stringify({ version: APP_VERSION })); return root; };
 const fetchRelease = async () => new Response(JSON.stringify([releaseFor()]));
 
 test('first console open checks once per server launch, concurrent check shares request and only first opener is notified', async (t) => {
@@ -36,15 +37,15 @@ test('first console open checks once per server launch, concurrent check shares 
 });
 
 test('Release list: numeric ordering, version relations, missing assets, explicit downgrade confirmation and pagination', async (t) => {
-  const root = temp(t), current = RELEASE_TAG, older = 'v0.2.5';
+  const root = temp(t), current = RELEASE_TAG, older = 'v0.2.5', base = `v${APP_VERSION}`;
   const list = [releaseFor(undefined, older), releaseFor(), releaseFor(undefined, current),
-    { tag_name: 'v0.2.5-extended.10', assets: [] }, { tag_name: 'v0.2.5-extended.11', prerelease: true }, { tag_name: 'other' }];
+    { tag_name: `${base}-extended.10`, assets: [] }, { tag_name: `${base}-extended.11`, prerelease: true }, { tag_name: 'other' }];
   let installed;
   const updater = createReleaseUpdater({ root, fetchImpl: async () => new Response(JSON.stringify(list)), onReady() {},
     stageRelease: async ({ release }) => { installed = release.tag_name; throw new Error('stop before restart'); }, log: { warn() {} } });
   const d = await updater.check();
   assert.deepEqual(d.versions.map((r) => [r.tag, r.relation]), [
-    ['v0.2.5-extended.10', 'new'], [tag, 'new'], [current, 'current'], [older, 'old'],
+    [`${base}-extended.10`, 'new'], [tag, 'new'], [current, 'current'], [older, 'old'],
   ]);
   assert.equal(d.versions[0].installable, false);
   assert.match(d.versions[0].reason, /没有/);
@@ -57,18 +58,19 @@ test('Release list: numeric ordering, version relations, missing assets, explici
   const pages = [];
   const paged = createReleaseUpdater({ root, fetchImpl: async (url) => {
     const page = Number(new URL(url).searchParams.get('page')); pages.push(page);
-    return new Response(JSON.stringify(page === 1 ? Array.from({ length: 30 }, (_, i) => releaseFor(undefined, `v0.2.5-extended.${i + 2}`)) : [releaseFor(undefined, older)]));
+    return new Response(JSON.stringify(page === 1 ? Array.from({ length: 30 }, (_, i) => releaseFor(undefined, `${base}-extended.${i + 2}`)) : [releaseFor(undefined, older)]));
   } });
   assert.equal((await paged.check()).hasMore, true);
   const second = await paged.check(true);
   assert.equal(second.hasMore, false);
   assert.ok(second.versions.some((r) => r.tag === older));
-  assert.equal(second.versions[0].tag, 'v0.2.5-extended.31');
+  assert.equal(second.versions[0].tag, `${base}-extended.31`);
   await paged.check(true); assert.deepEqual(pages, [1, 2]);
 });
 
 test('downgraded version marker matches installed code; a manual replacement invalidates the old marker', (t) => {
   const root = temp(t);
+  put(root, 'package.json', '{"version":"0.2.5"}');
   put(root, 'server/release-version.js', "export const RELEASE_TAG = 'v0.2.5';");
   put(root, 'logs/release-version.json', JSON.stringify({ app: '0.2.5', tag: 'v0.2.5', sourceHash: installedIdentity(root) }));
   assert.equal(installedTag(root), 'v0.2.5');
@@ -164,7 +166,7 @@ test('release identity: extension revisions sort numerically, app version stays 
   assert.equal(compareReleaseTags('v0.2.6-extended.1', 'v0.2.5-extended.10'), 1);
   assert.equal(compareReleaseTags(tag, tag), 0);
   assert.throws(() => compareReleaseTags('latest', tag));
-  put(root, 'logs/release-version.json', JSON.stringify({ app: '0.2.5', tag }));
+  put(root, 'logs/release-version.json', JSON.stringify({ app: APP_VERSION, tag }));
   assert.equal(installedTag(root), tag);
   const updater = createReleaseUpdater({ root, fetchImpl: fetchRelease, onReady() {} });
   assert.equal((await updater.check()).state, 'up-to-date');

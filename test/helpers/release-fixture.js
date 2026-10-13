@@ -3,13 +3,14 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import zlib from 'node:zlib';
 import { RELEASE_TAG } from '../../server/release-version.js';
+import { APP_VERSION } from '../../shared/constants.js';
 export const sha = (data) => crypto.createHash('sha256').update(data).digest('hex');
 export const put = (root, rel, text) => {
   const file = path.join(root, rel);
   fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, text);
 };
 export const read = (root, rel) => fs.readFileSync(path.join(root, rel), 'utf8');
-export function manifest(files, app = '0.2.5') {
+export function manifest(files, app = APP_VERSION) {
   return JSON.stringify({ format: 1, app, files: Object.fromEntries(Object.entries(files).map(([name, data]) => [name, { size: Buffer.byteLength(data), sha256: sha(data) }])) });
 }
 export function storedZip(entries) {
@@ -31,7 +32,7 @@ export function storedZip(entries) {
   return Buffer.concat([...locals, cd, end]);
 }
 export const tag = RELEASE_TAG.replace(/\d+$/, (revision) => String(Number(revision) + 1));
-export const files = { 'package.json': '{"version":"0.2.5","type":"module"}', 'server/index.js': '// new server', 'server/new.js': '// new file' };
+export const files = { 'package.json': JSON.stringify({ version: APP_VERSION, type: 'module' }), 'server/index.js': '// new server', 'server/new.js': '// new file' };
 export const archive = (extra = []) => storedZip([...Object.entries({ ...files, 'MANIFEST.json': manifest(files) }).map(([name, body]) => [`Stronghold-Protocol/${name}`, body]), ...extra]);
 export function releaseFor(zip = archive(), version = tag) {
   const name = `Stronghold-Protocol-${version}-lite.zip`;

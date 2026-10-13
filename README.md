@@ -1,6 +1,7 @@
 # 卫戍协议：盟约 · Stronghold Protocol: Alliance
 
-![扩展版本](https://img.shields.io/badge/version-0.2.5--extended.3-blue)
+![扩展版本](https://img.shields.io/badge/version-0.2.6--extended.1-blue)
+![上游基础版本](https://img.shields.io/badge/version-0.2.6-2ea44f)
 
 A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance*, with host tools, collab operators and optional skins.
 
@@ -8,11 +9,13 @@ A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance
 
 [下载本库整合包](https://github.com/zhewang448/Stronghold-Protocol/releases/latest) · [扩展更新记录](docs/LOCAL-CHANGELOG.md) · [玩法指南](docs/PLAYING.md) · [反馈问题](https://github.com/zhewang448/Stronghold-Protocol/issues)
 
-> 当前版本为 **`v0.2.5-extended.3`**，基于上游 `0.2.5`。完整素材包包含 11 个官方战场场景、官方 3D 棋盘、40 组召唤物模型、中文 / 日文语音和 174 套可选皮肤。游戏内基础版本显示 `0.2.5`，扩展修订号以下载页标签和附件文件名为准。
+> 当前版本为 **`v0.2.6-extended.1`**，基于上游 `0.2.6`，游戏内基础版本显示 `0.2.6`，扩展修订号以下载页标签和附件文件名为准。完整素材包包含 11 个官方战场场景、官方 3D 棋盘、40 组召唤物模型、中文 / 日文语音和 174 套可选皮肤。
 >
 > 非官方、非商业同人项目，与《明日方舟》官方无隶属或授权关系。游戏名称、美术、音频、文本与数据的权利归原权利人；仅供学习和个人非商业使用。
 
-本次更新新增整局回放：默认录制并保留最近 50 局，在控制台按回合查看阵容、敌人和结果，播放普通战斗与联防。记录页可删除单局，设置页可清理对局结果、回放及控制台操作日志。发布包新增 Ed25519 签名，控制台更新可核验经镜像下载的安装包。
+上游 0.2.6 更新减轻开服流量：静音时不下载背景音乐、WebSocket 消息压缩、素材内容哈希长期缓存、brotli 压缩和 WebP 教程图；修复拥挤场景下的模型裁切与残影、官方战场光照和装置平台，加入每回合入场动画及「弹药数量」选项，并修复魂灵之影落点。详见 [CHANGELOG.md](CHANGELOG.md)。
+
+扩展整局回放默认录制并保留最近 50 局，在控制台按回合查看阵容、敌人和结果，播放普通战斗与联防。记录页可删除单局，设置页可清理对局结果、回放及控制台操作日志。发布包支持 Ed25519 签名，控制台更新可核验经镜像下载的安装包。
 
 本地主机控制台、回档、逐回合统计、7 名联动自选干员、自定义同盟密钥和皮肤功能继续保留。回档会恢复首领搭档和左右半场；只改潜能 / 练度也能导出调配。完整记录见[扩展更新记录](docs/LOCAL-CHANGELOG.md)。
 
@@ -173,6 +176,7 @@ winget install Cloudflare.cloudflared
 | `HOST` | `::` | 游戏监听地址，支持 IPv4 / IPv6；仅本机使用可设为 `127.0.0.1` |
 | `SP_ADMIN_PORT` | 游戏端口 + 100 | 本机控制台端口 |
 | `SP_ADMIN` | `1` | 设为 `0` 关闭控制台 |
+| `SP_ASSET_INDEX` | 开启 | 素材地址带内容哈希并长期缓存；设为 `0` 关闭，哈希缓存保存在 `.cache/asset-hashes.json` |
 
 游戏默认端口为 `3000`。例如在 PowerShell 中改为 `8080`：
 
