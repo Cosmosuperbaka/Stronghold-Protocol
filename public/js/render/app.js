@@ -188,6 +188,7 @@ export async function createFieldView(host, options = {}) {
   // dispose only the resources acquired by this attempt, never another view's host contents.
   const setupCleanup = [];
   let destroyed = false;
+  let renderPaused = false;
   let view = null;
   let onAbort;
   try {
@@ -1772,6 +1773,8 @@ export async function createFieldView(host, options = {}) {
     const target = targetCamera(camKind, camOpts);
     if (camTo) camTo = target; else cam = target;
     tiles.project(cam, true);
+    // Resizing clears both canvases even when the replay ticker is stopped.
+    if (renderPaused) { frameBody(lastNow); app.render(); }
   }
   let ro = null;
   if (typeof ResizeObserver === 'function') {
@@ -1815,6 +1818,14 @@ export async function createFieldView(host, options = {}) {
   // ---- public API ---------------------------------------------------------------------------------------------
 
   view = {
+    /** Freeze the standalone replay's render ticker alongside its simulation clock. */
+    setPaused(value) {
+      if (destroyed) return false;
+      renderPaused = !!value;
+      if (value) app.ticker.stop();
+      else { lastNow = performance.now(); app.ticker.start(); }
+      return true;
+    },
     setStage,
     setCamera,
     setPrep,

@@ -17,6 +17,8 @@
 // entries are cloned like the shared pool's, the DiyStock instance itself stays.
 // Connection state (connected, left, autoplay) and the locked loadout and 潜能 / 练度 (`ops`) stay as they are now.
 
+import { truncateReplay } from './replay.js';
+
 const PS_SKIP = new Set(['m', 'gd', 'playerId', 'seat', 'name', 'isBot', 'connected', 'left', 'autoplay', 'lastEmoteAt',
   'loadout', 'ops', '_deployMap', '_deployField', '_legalityStale', '_lastPriv', '_botPrepToken',
   'diy', '_diyRecords', 'diyBanned', 'diyStock', 'standIns', '_standInSet']);
@@ -79,6 +81,7 @@ export function rewindToPrep(m, round) {
     m.pool.entries = pool;
     // the timeline after round r is gone; r itself is re-captured by enterPrep below
     for (const k of [...m.prepSnapshots.keys()]) if (k > r) m.prepSnapshots.delete(k);
+    truncateReplay(m, r);
     RNGS.forEach((k, i) => m[k].setState(rng[i]));
     for (const ps of m.players.values()) {
       const o = players[ps.playerId];

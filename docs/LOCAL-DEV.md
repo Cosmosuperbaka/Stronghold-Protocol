@@ -13,7 +13,7 @@
 - 合并上游新版本时从 `main` 开功能分支，完成适配与测试后再合并回 `main`。
 - 同步上游：`git fetch upstream` → `git merge upstream/master` → `npm install` → `npm run setup`（上游常会加素材）→ `node --test`。
 - 素材 `public/assets/`、`.cache/`、`.claude/` 都在 `.gitignore` 里，不进仓库。新机器 clone 后要先 `npm install && npm run setup`。
-- 当前版本为 `v0.2.5-extended.1`，基于上游 `v0.2.5`（`cf7a9400`）。完整素材包使用同一基础版本上游完整包中的 `public/assets/local/` 和 `data/local-assets.json`，包括 11 个官方战场场景；来源和固定 SHA-256 见 DEPLOY §6。发布预检与构建都加 `--require-local-art`，同时核对场景清单为 11 个、所有文件哈希与源包一致；该参数只保证存在有效本地素材清单，不替代场景完整性验证。lite 不含官方本地素材。素材不随 Git 分支移动，切换旧代码版本时也要注意素材版本匹配。
+- 当前版本为 `v0.2.5-extended.3`，基于上游 `v0.2.5`（`cf7a9400`），新增整局回放、三类数据清理与 Release 发布签名。完整素材包沿用 `v0.2.5-extended.1` 的同一基础版本上游完整包中的 `public/assets/local/` 和 `data/local-assets.json`，包括 11 个官方战场场景；来源和固定 SHA-256 见 DEPLOY §6。发布预检与构建都加 `--require-local-art`，同时核对场景清单为 11 个、所有文件哈希与源包一致；该参数只保证存在有效本地素材清单，不替代场景完整性验证。lite 不含官方本地素材。素材不随 Git 分支移动，切换旧代码版本时也要注意素材版本匹配。
 
 ## 2. 本地新增了什么
 
@@ -24,12 +24,17 @@
 | `scripts/start-tunnel.bat` / `.mjs` | 一键开服 + cloudflared 公网隧道，列出地址，持续输出日志。详见 [scripts/README.md](../scripts/README.md) |
 | `scripts/stop-server.bat` / `free-port.mjs` | 释放游戏端口（结束服务器和指向它的隧道），仅 Windows |
 | `server/admin.js` / `admin.html` | 本机主机控制台（HTTP API + 单页界面） |
+| `server/match/replay.js`、`server/replay-store.js` | 战斗输入与已采纳结果录制、gzip 保存、指纹和记录清理 |
+| `server/replay.html`、`server/replay-viewer.js` | 主机回放页：回合时间线、阵容、敌人、播放与结果核对 |
+| `test/match/replay.test.js`、`test/replay-store.test.js`、`test/admin-replay.test.js`、`test/ui/admin-replay.e2e.test.js` | 回放确定性、存储、鉴权与真实浏览器验证 |
 | `server/match/rewind.js` | 回到任一回合的休整期开始（快照 + 恢复） |
 | `server/match/history.js` | 每回合记录 `m.history`（控制台的曲线、每回合详情、干员排行、对局记录） |
 | `server/match/enemyPicks.js` | 敌人日程：每回合所有组合、本局抽到的概率、实际出怪、主机指定（`m.adminPicks`） |
 | `server/match/hostSettings.js` | 主机设置：休整期时长与可选联防叠层，对所有房间、所有对局生效 |
 | `server/match/adminDiy.js` | 控制台「发放自选」：给任一玩家（含 AI）发放任一有 kit 的自选干员 |
-| `test/match/rewind.test.js`、`test/admin.test.js` | 对应的测试 |
+| `server/release-*.js`、`scripts/apply-release-update.mjs`、`tools/release-sign.mjs` | 控制台 Release 更新与发布签名（见第 5 节） |
+| `test/match/rewind.test.js`、`test/admin.test.js`、`test/release-*.test.js` | 对应的测试 |
+| `test/local-docs-version.test.js` | 各文档的「当前版本」与 `RELEASE_TAG` 一致，扩展修订号都带基础版本 |
 | `docs/LOCAL-DEV.md`、`LOCAL-CHANGELOG.md`、`HANDOFF.md` | 本分支的文档（上游的 `CHANGELOG.md` 不改，避免合并时冲突） |
 
 改动过的上游文件（合并上游时可能冲突，每处都只有几行）：
@@ -38,6 +43,9 @@
 |---|---|
 | `server/sim/rng.js` | 加了 `rng.setState()`，回档用 |
 | `server/match/Match.js` | 构造函数里加了 `prepSnapshots`（`Map<回合, 快照>`）、`history`、`adminPicks` |
+| `server/match/match/clientCombat.js` | 启动前录实际 BattleSpec，结果最终采纳后录结果摘要；不影响战斗随机流 |
+| `public/js/battle/runner.js` | 回放运行中调倍速，保持已播放时间与暂停位置 |
+| `public/js/render/app.js` | 回放暂停渲染与暂停时尺寸变化重绘 |
 | `server/match/match/prep.js` | `enterPrep()` 开头调用 `capturePrep()`；休整期倒计时改读 `prepSeconds(this, gd.prepTime(r))` |
 | `server/match/match/settle.js` | `settle()` 结尾和 `finish()` 里调用 `recordRound()` |
 | `server/match/match/phases.js`、`bossRounds.js` | 生成波次的三处（`startRound`、`_planBossWaves`、领袖战开打）把 `this.factions` 换成 `waveSource(this)` |
@@ -109,6 +117,7 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 |---|---|
 | `uidSeq` | 浏览器里迟到的操作带着旧 uid，只会命中同一个棋子或找不到，不会误操作到别的棋子 |
 | `_battleSeq` | 被中止的战斗迟到的上报对不上任何新战场，被忽略 |
+| `replay` | 不进入 `MATCH_KEYS`，回到第 R 回合显式删除回放中回合号 ≥ R 的废弃时间线 |
 | `_turnToken`、`ps._botPrepToken` | 旧的 AI 任务和选秀计时器自动作废 |
 | `connected` / `left` / `autoplay` / `loadout` / `ops` | 连接状态以现在为准，配装和潜能 / 练度（0.2.2 的 `ops`）在开局后就锁定 |
 
@@ -134,7 +143,7 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 - **房间**：每个房间一张卡片，含对局操作、玩家表和「详情」，下面是可折叠的统计面板：本局统计（对局结束后变成「上一局统计」）、敌人日程（剧透，默认折叠）、控制台操作日志。
 - **对局记录**：`logs/results/` 里保存的每一局，点开看结算详情。
-- **设置**：休整期时长，对所有房间、所有对局生效。
+- **设置**：版本更新、联防叠层和休整期时长。
 
 ### 安全
 
@@ -152,6 +161,20 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 | `GET /api/result?id=` | 一条记录全文。`id` 必须是 `logs/results/` 里的文件名（`^[\w-]+\.json$`），防路径穿越 |
 | `GET /api/settings` | 当前的休整期设置 `{ prep }`、设置文件路径，以及各同盟模式每回合的默认秒数 |
 | `POST /api/settings` | `{ prep }`：校验、写文件，然后生效 |
+| `GET /api/update` | 更新状态：当前 / 最新扩展标签、`versions`（`new/current/old`、附件及不可安装原因）、`hasMore`、网络配置、请求来源、下载字节数、错误和是否支持重启 |
+| `POST /api/update` | `open`：每个 updater 生命周期仅首次自动检查，只有首次调用返回新版 `notify`；`check`：刷新正式 Release 列表；`more`：获取下一页（每页 30）；`network`：保存 `{ network: { proxy, mirror } }`；`install`：按已查询的 `tag` 后台下载，旧版需 `allowDowngrade:true`，活动对局需 `force:true` |
+
+首次打开行为由服务端消费，刷新和多页并发不会重复检查或提醒；检查请求并发合并。查询正式版本按数值排序，过滤草稿、预发布和无法识别的标签；当前版本没有远程附件时仍显示。当前版本不可重复安装，旧版回退和活动对局分别确认。网络配置保存在 `logs/release-network.json`；运行时使用 undici 的 HTTP/HTTPS `ProxyAgent`，兼容 Node 22.14，不依赖启动时环境变量。先代理 / 直连 GitHub，失败后绕过该代理直接访问镜像（默认复用素材工具的 `https://gh-proxy.com/` 前缀）。整个响应消费含 JSON、校验文本、流下载、SHA-256 与程序清单验证均可回退，更新忙碌或已有待安装包时拒绝修改网络配置。
+
+更新只访问 `zhewang448/Stronghold-Protocol` 的正式 Release，优先 lite 附件，回退 assets 附件；不接受源码或增量包。先验证附件的 GitHub digest / `SHA256SUMS.txt`，再检查包内程序 `MANIFEST.json`，拒绝路径穿越、重名及清单外程序文件。原服务下载期间继续运行；安装器握手成功才安排优雅停服。替换前备份到 `logs/update-backups/`，复制失败恢复旧文件；恢复失败保留安装锁、阻止重启并提示备份路径。日志在 `logs/release-update-status.json`，直接重启的输出在 `logs/release-restart.log`。
+
+**发布签名**（`server/release-signing.js`）：镜像（默认 `gh-proxy.com`）是第三方，可以同时换掉 Release 列表、`SHA256SUMS.txt` 和 ZIP，所以只靠 SHA-256 防不住镜像篡改。现在维护者用 Ed25519 私钥给 `SHA256SUMS.txt` 签名，附件 `SHA256SUMS.txt.sig` 是一行 base64。签名内容为 `stronghold-protocol-release\n<标签>\n` 加上校验文件原始字节，绑定标签，防止拿别的版本的签名冒充。公钥列在 `RELEASE_PUBLIC_KEYS`（SPKI DER base64）。
+
+- 有 `.sig` 的版本：列表、校验文件、签名、ZIP 都可以走镜像；签名不符直接报错，不退回未签名的校验方式。
+- 没有 `.sig` 的版本（`v0.2.5-extended.2` 及更早）：版本列表和校验值（`SHA256SUMS.txt` 或 API 的 `digest`）都必须直连或经主机自己的代理从 GitHub 取得，ZIP 本身仍可走镜像。列表来自镜像时 `releaseView` 给出不可安装原因。请求经过哪条路由由 `createUpdateRequest` 作为 `consume` 的第二个参数传出，更新器按标签记在 `listedVia`，安装时以 `listing` 传给 `downloadAndStage`。
+- 旧版控制台不认识 `.sig`，照旧按 SHA-256 安装新版，不受影响。
+
+`package.json` 是上游游戏版本，扩展标签由 `server/release-version.js` 的 `RELEASE_TAG` 记录，**每次扩展发布必须更新**，并同步 README、HANDOFF §2、本文第 1 节的「当前版本」和 LOCAL-CHANGELOG 最新一节的标题（`test/local-docs-version.test.js` 会检查）。打包后在附件目录运行 `node tools/release-sign.mjs sign <标签> <目录>`，生成 `SHA256SUMS.txt` 与 `SHA256SUMS.txt.sig`，再用 `verify` 复核，两者都上传到 Release。私钥默认在 `~/.stronghold-release/release-ed25519.pem`（`SP_RELEASE_KEY` 可改），不进 Git、不进发布包，需要另外备份。换密钥时，用旧密钥签一个把新公钥加进 `RELEASE_PUBLIC_KEYS` 的版本，下一版再去掉旧公钥。私钥丢失时，用新公钥发一个不带 `.sig` 的版本：已安装的控制台按未签名规则，只在直连 GitHub 时安装它。只有在没有私钥的机器上才用 `keygen` 生成新密钥。安装器另在 `logs/release-version.json` 写入实际安装标签与源码指纹（优先扩展版本文件，无该文件时使用入口文件）；指纹和基础版本均匹配时允许记录较旧标签，正确识别回退。手动替换源码使指纹失效后使用源码声明，兼容旧标记时仍不让较旧标签覆盖声明。打包必须包含 `scripts/apply-release-update.mjs`、运行依赖 undici 和复用的 `tools/assets/sources.mjs`；ZIP 读取器放在 `server/` 与打包器共用。启动时看到安装锁会等复制完成后退出，让 supervisor 再启动一份读取新文件的进程。
 
 对局操作：`rewind`（`value` 为回合数，空则最新）、`endPrep`、`pause`（仅独立模拟）、`endMatch`、`enemyPick`（`{ round, id }`，指定某回合的敌人组合，`id` 为空恢复原定）、`battleWin` / `battleLose`（`{ field, n? }`，仅客户端战斗）、`timerScale`（0.1–10）。
 
@@ -162,7 +185,7 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 ### 统计与记录
 
-- **装备超库存确认（extended.4）**：`item` 仍支持字符串 ID；库存不足返回 `ITEM_STOCK_CONFIRM`，没有状态变化。页面弹出「是，强制加入 / 否」确认框，Esc 取消；只有点是才重发 `{ id, force: true }`。`pieceEquip` 直接装备也使用相同确认码，保留 `{ target, item }` 并在确认后补 `force: true`；不允许未经确认绕过库存。此入口仅在已鉴权的本机控制台，普通游戏协议不能调用。`acquireItem.forceStock` 给实际超限的装备记 `adminStockCopies`，合成累加授权份数，回档随棋子快照恢复；库存仍按全部普通 1 / 进阶 2 计数，审计只扣除明确授权的份数，普通装备超限仍报错。容量已满仍拒绝，操作日志区分首次拒绝和确认后的发放。
+- **装备超库存确认（`v0.2.4-extended.4` 起）**：`item` 仍支持字符串 ID；库存不足返回 `ITEM_STOCK_CONFIRM`，没有状态变化。页面弹出「是，强制加入 / 否」确认框，Esc 取消；只有点是才重发 `{ id, force: true }`。`pieceEquip` 直接装备也使用相同确认码，保留 `{ target, item }` 并在确认后补 `force: true`；不允许未经确认绕过库存。此入口仅在已鉴权的本机控制台，普通游戏协议不能调用。`acquireItem.forceStock` 给实际超限的装备记 `adminStockCopies`，合成累加授权份数，回档随棋子快照恢复；库存仍按全部普通 1 / 进阶 2 计数，审计只扣除明确授权的份数，普通装备超限仍报错。容量已满仍拒绝，操作日志区分首次拒绝和确认后的发放。
 
 - **每回合记录**：`history.js` 的 `recordRound(m)` 在 `settle()` 结尾写一条 `{ round, enemy, players: [...] }`。`enemy` 是这回合的敌人组合（类型、特殊 / 普通 / 精英的名字、是否控制台指定）。每个玩家有 LP、剩余金币、商店等级、累计花费 / 伤害 / 漏怪 / 击杀，以及本回合的扣血、漏怪、击杀、伤害、是否无伤、每个造成伤害的干员（来自 `lastResults` 的 `unitStats`，召唤物不算）。领袖战回合不经过 `settle()`，在 `_finishFinal()` 完成结果统计后、进入下一回合前立即记录，避免第 14 回合进入隐秘核心时漏记；`finish()` 按回合去重补记。未结算的休整期 / 作战期手动终止不复用上一回合明细。旧记录的缺失逐干员数据不能由总伤害推回。`history` 在 `MATCH_KEYS` 里，回档时自动截断，被放弃的回合不保留。
 - **伤害的含义**：模拟器记的是实际从敌人身上扣掉的生命值（减防、减抗、护盾之后，不算溢出，`server/sim/damage.js` 的 `applyHpLoss`）。同一波怪全部击杀时，几个玩家的伤害基本相同，等于这波怪的总血量；差别来自漏怪、悬赏怪、敌人回血或召唤。元素损伤不扣血，不计入。联防里的伤害只进累计数，不分干员。游戏结算页的「造成伤害」是同一个数。
@@ -221,15 +244,32 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 | 路径 | 内容 |
 |---|---|
 | `logs/results/<YYYYMMDD-HHMMSS>-<房间>.json` | 每局一份对局记录，同一秒同一房间重名时加 `-2`、`-3` |
+| `logs/replays/<同名结果文件>.json.gz` | 整局战斗输入、阵容、敌人、已采纳结果与操作摘要；保留最近 50 局 |
 | `logs/admin-settings.json` | 休整期时长与联防叠层开关 |
 
 ### 加一个新操作
 
 在 `admin.js` 的 `PLAYER_ACTIONS` 或 `MATCH_ACTIONS` 表里加一项，签名分别是 `(m, ps, value)` 和 `(m, value)`，返回 `OK` 或 `{ error }`。它会在 `m.guard()` 里执行，所以异常会被隔离并记日志，结束后自动推送视图，也会自动进操作日志（在 `admin.html` 的 `ACTION_NAMES` 里给它一个中文名）。直接改字段后记得 `ps.dirty()`，影响羁绊或棋盘合法性的改动还要 `ps.recompute()`。页面上的按钮或输入框在 `admin.html` 的 `roomCard` / `playerRow` 里加，用 `data-click` 或 `data-act` 属性接到同一个 `act()` 函数。需要「像玩家一样操作」时，改成调用 `ps.levelUp()` 这类方法即可。
 
+### 整局回放与数据清理
+
+维护者确认的本地主机功能，不改变官方玩法。控制台默认开启录制，设置写入 `logs/admin-settings.json`；`SP_REPLAY=0` 强制关闭，`SP_ADMIN=0` 不启动控制台也不录制。关闭录制会立即释放活动对局的回放内存，这些对局以后不再保存回放，重新打开只对后续完整录制的对局有效。
+
+`server/match/replay.js` 在 `_launch` 启动战场前克隆实际 `f.spec`，在 `_fieldDone` 最终确定结果后记录结果、来源和 `resultDigest`；阵容包含装备、技能、模组、潜能、练度与敌人出场计划，完整输入还包含盟约、效果和联防携带状态。录制不消耗随机流、不进入回档快照；回到第 R 回合时丢弃 ≥ R 的记录，再录新时间线。控制台操作仅保存摘要，不重新执行操作。写入失败只记错误日志，原对局照常结束。
+
+终局结果和回放分别保存，结果列表不读取完整回放。回放使用 gzip 原子写入，自动只删除超过最近 50 局的回放，保留对局结果。四人完整测试局录到 58 个战场，gzip 为 52,362 字节（约 51.1 KiB）；实际大小随阵容和操作数量变化。
+
+「对局记录 → 查看 / 回放」按回合展示战场；普通战斗与联防用桩网络调用现有浏览器 runner，支持暂停、继续、重新播放及 1/2/4/8 倍速，结束后比较摘要并显示「与记录一致」或差异。领袖战涉及实时共享血池，仅展示阵容和结果；控制台合成判定、未完成战斗也仅查看。旧服务器串流模式没有 BattleSpec，不能播放；旧记录没有回放时给出明确提示。
+
+启动时指纹覆盖模拟器、共享代码、runner、11 个模拟数据表和浏览器数据 shim 的内容，并记录应用、扩展和 Spec 版本。版本不同仍可查看记录；普通战斗和联防须确认「仍然尝试」，结果明确标注版本差异，不能据此保证原样重放。
+
+`GET /api/replay?id=` 返回解压后的记录和兼容性；`GET /api/storage` 返回数量，`POST /api/storage` 须携带 `confirm: true`，支持单局 `id` 或批量 `categories`（`results`、`replays`、`adminLogs`）。API 沿用 localhost Host 与 `X-Admin-Token` 校验；回放页和依赖静态资源要求访问控制台建立的 HttpOnly、SameSite=Strict cookie，只挂载白名单目录和模拟文件。
+
+「对局记录 → 删除」确认后删除该局结果与关联回放；「设置 → 数据清理」只处理用户选中的对局结果、回放、控制台操作日志。日志清理覆盖房间日志、活动录制与已保存回放中的操作摘要，不改战斗输入或指纹。设置、素材、缓存、更新包和其他运行日志不在清理范围。清理结果同时清除内存中的最近对局；活动对局仍会在结束时生成新记录，之后的操作会产生新日志。删除无法撤销，界面必须先确认，失败保留错误与重试入口。
+
 ## 6. 测试
 
-- 全量：当前推荐 `node --test --test-concurrency=4`。2026-10-11 的 extended.4 在 Node 24.19 下全量 6161 项，6144 通过、17 跳过、0 失败，约 8 分钟。定向 92 项、真实浏览器库存确认 1 项均通过；启动、lint、导入、类型、四个语言包及文档检查通过。一次只开一份，否则性能用例会超时。Node 22.14 下的首轮 47 项控制台、回档、数据专项也全部通过。
+- 全量：当前推荐 `node --test --test-concurrency=4`，约 8 分钟。一次只开一份，否则性能用例会超时。每次发布的测试数量和结果记在 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md) 对应版本的「验证」一条。
 - 单个文件：`node --test test/match/rewind.test.js`。
 - 对局测试用 `test/match/harness.js` 的 `makeMatch()`：虚拟时钟（`VirtualScheduler`），完全确定。常用 `h.toPrep(r)`、`h.drive(pred)`（自动替真人确认、选策略、就绪）。注意 `h.runToEnd()` **不会**替真人操作，有真人座位时要用 `h.drive(() => h.ended != null)`。
 - `node tools/matchrun.mjs --check` 可以跑整局并检查不变量。

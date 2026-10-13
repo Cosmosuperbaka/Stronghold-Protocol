@@ -18,6 +18,7 @@ import { limitKeyOf } from '../net.js';
 import { applyPendingUpdate } from '../update.js';
 import { ROOT } from './config.js';
 import { startAdmin } from '../admin.js';
+import { updatePaths } from '../release-update.js';
 
 /**
  * Non-internal addresses as http URLs — IPv4 first, then IPv6 (an IPv6 literal needs brackets: `http://[240e:…]:3000`).
@@ -81,6 +82,16 @@ export function printBanner(srv) {
  * @param {() => Promise<{ url: string, host: string, port: number, close: () => Promise<void> }>} start index.js startServer
  */
 export async function runMain(start) {
+  // A service supervisor may restart while the detached installer is still copying. Load fresh code only afterward.
+  const lock = updatePaths(ROOT).lock;
+  if (fs.existsSync(lock)) {
+    console.log('[update] 等待安装器完成，请稍候…');
+    for (let i = 0; i < 1200 && fs.existsSync(lock); i++) await new Promise((r) => setTimeout(r, 100));
+    if (fs.existsSync(lock)) { console.error('[update] 安装锁未释放，请检查 logs/release-update-status.json'); process.exitCode = 1; return; }
+    // This process imported old modules before waiting. Start a fresh process through the existing supervisor.
+    process.exitCode = 1;
+    return;
+  }
   process.on('unhandledRejection', (e) => console.error('[process] unhandled rejection', e));
   process.on('uncaughtException', (e) => console.error('[process] uncaught exception', e));
   // before the data, the packs or the browser runtime are read: the files must be the new version's (server/update.js).
@@ -97,15 +108,6 @@ export async function runMain(start) {
   printBanner(srv);
   // the host's local console (server/admin.js): 127.0.0.1 only, never part of what the LAN / tunnel can reach
   let admin = null;
-  if (!/^(0|false|no|off)$/i.test(process.env.SP_ADMIN || '')) {
-    try {
-      admin = await startAdmin({ lobby: srv.lobby, port: Number(process.env.SP_ADMIN_PORT) || srv.port + 100 });
-      console.log(`  Console: ${admin.url}  (本机控制台)\n`);
-    } catch (e) {
-      console.warn(`  Console: 未启动（${e.code || e.message}）\n`);
-    }
-  }
-
   let stopping = false;
   const stop = (signal) => {
     if (stopping) { console.log('forced exit'); process.exit(1); }
@@ -115,6 +117,16 @@ export async function runMain(start) {
     if (admin) admin.close();
     srv.close().then(() => process.exit(0), () => process.exit(1));
   };
+  if (!/^(0|false|no|off)$/i.test(process.env.SP_ADMIN || '')) {
+    try {
+      admin = await startAdmin({ lobby: srv.lobby, root: ROOT, port: Number(process.env.SP_ADMIN_PORT) || srv.port + 100,
+        onUpdateReady: () => stop('UPDATE') });
+      console.log(`  Console: ${admin.url}  (本机控制台)\n`);
+    } catch (e) {
+      console.warn(`  Console: 未启动（${e.code || e.message}）\n`);
+    }
+  }
+
   process.on('SIGINT', () => stop('SIGINT'));
   process.on('SIGTERM', () => stop('SIGTERM'));
 }
