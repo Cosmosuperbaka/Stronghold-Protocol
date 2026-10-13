@@ -11,10 +11,10 @@ import { botPickBand, botPickCard, bountyKillChance, itemTarget, arrange, botPre
 import { parseKey, tileKey } from '../../server/match/board.js';
 import { makeMatch, checkInvariants, give, giveItem, legalTileFor, DATA } from './harness.js';
 
-const soloBot = (o = {}) => makeMatch({ mode: 'solo', difficulty: 'NORMAL', seats: [{ seat: 0, playerId: 'ai_0', name: 'AI', isBot: true, connected: true }], ...o });
+const soloBot = (o = {}) => makeMatch({ mode: 'solo', difficulty: 'NORMAL', extensions: { upgradeFill: false }, seats: [{ seat: 0, playerId: 'ai_0', name: 'AI', isBot: true, connected: true }], ...o });
 
 test('#514: a living teammate soft-reserves an opening bond, and elimination releases it', () => {
-  const { m } = makeMatch({ humans: 2, difficulty: 'HARD', seed: 11 }).start().toPrep();
+  const { m } = makeMatch({ humans: 2, difficulty: 'HARD', seed: 11, extensions: { upgradeFill: false } }).start().toPrep();
   const [human, bot] = m.order;
   try {
     bot.isBot = true;
@@ -50,7 +50,7 @@ test('#514: a living teammate soft-reserves an opening bond, and elimination rel
 });
 
 test('#514: strategy selection stays possible, and less likely, while a teammate holds that opening', () => {
-  const { m } = makeMatch({ humans: 2, difficulty: 'HARD', seed: 3 }).start().toPrep();
+  const { m } = makeMatch({ humans: 2, difficulty: 'HARD', seed: 3, extensions: { upgradeFill: false } }).start().toPrep();
   const [human, bot] = m.order;
   try {
     bot.isBot = true;
@@ -79,7 +79,7 @@ test('#514: strategy selection stays possible, and less likely, while a teammate
 });
 
 test('user: Given a faction strategy teammate, When scoring shared high-tier chess, Then humans and bots receive the same preference even with full stock', () => {
-  const { m } = makeMatch({ humans: 3, seed: 11 }).start().toPrep();
+  const { m } = makeMatch({ humans: 3, seed: 11, extensions: { upgradeFill: false } }).start().toPrep();
   const [ps, mate, other] = m.order;
   try {
     mate.bandId = other.bandId = null;

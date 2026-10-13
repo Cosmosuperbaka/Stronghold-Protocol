@@ -38,7 +38,9 @@ test('Rockrock killed by a real enemy and automatically revived by Ermengard sta
       });
     }
   }
-  const h = makeMatch({ mode: 'solo', seed: 8 });
+  // extensions upgradeFill:false — this test pins the official slot timing (a level-up leaves the new slot empty,
+  // filled by the round-5 roll); the mod's default-on 升本补卡 is covered by mods-extensions.test.js
+  const h = makeMatch({ mode: 'solo', seed: 8, extensions: { upgradeFill: false } });
   h.m.BattleClass = ObservedBattle; // read-only observers, no combat state writes
   const p = h.ps('p_0'), act = msg => assert.deepEqual(h.m.handle('p_0', msg), { ok: true });
   try {
