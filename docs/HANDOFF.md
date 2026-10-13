@@ -12,6 +12,7 @@
 |---|---|---|
 | 主机控制台：改金币 / LP / 等级、发放干员和道具、盟约、托管、效果和机变卡、棋盘编辑、判胜负、计时倍率等 | `server/admin.js`、`admin.html` | LOCAL-DEV §5 |
 | 回档：回到任一回合的休整期开始 | `server/match/rewind.js` | LOCAL-DEV §4 |
+| 整局回放与数据清理：50 局回放、普通战斗 / 联防播放、领袖战结果查看、单局删除和三类批量清理 | `server/match/replay.js`、`server/replay-store.js`、`server/replay-viewer.js`、`server/admin.js` | LOCAL-DEV §5「整局回放与数据清理」 |
 | 统计和记录：本局曲线、每回合详情、干员伤害排行、对局记录、敌人日程（含指定）、休整期时长设置 | `server/match/history.js`、`enemyPicks.js`、`hostSettings.js` | LOCAL-DEV §5 |
 | 可选联防叠层：默认关闭，下次联防生效，援助干员重新获得额度，结算后保留增量 | `server/match/hostSettings.js`、`match/unitePhase.js`、`match/settle.js` | LOCAL-DEV §5「可选联防叠层」 |
 | 控制台发放自选干员（选技能和模组、改技能） | `server/match/adminDiy.js` | LOCAL-DEV §5「发放自选」 |
@@ -31,7 +32,7 @@
 ## 2. 分支与维护状态
 
 - `origin` 为本仓库，`upstream` 为原项目。默认分支 `main` 已整合主机工具、联动扩展、可选皮肤、随机装备和素材预加载；`local-tools` 与 `codex/operator-skins` 保留原功能分支历史。`master` 只跟踪上游。
-- 当前发布为 `v0.2.5-extended.1`，游戏基础版本为 `0.2.5`：整合上游战斗与库存修复，回档保留随机首领搭档 / 半场，调配导出兼容皮肤与潜能 / 练度改动；完整素材包新增 11 个官方战场场景。
+- 当前发布为 `v0.2.5-extended.3`，游戏基础版本为 `0.2.5`：新增整局回放、三类数据清理与 Release 发布签名。上游战斗与库存修复、回档保留随机首领搭档 / 半场、11 个官方战场场景来自 `v0.2.5-extended.1`。每版的内容见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md)。
 - 当前源码基于上游 v0.2.5（`cf7a9400`）；自选池为 79 名（上游 72 名 + 7 名联动），保留 174 套可选皮肤、中文 / 日文语音与原有控制台扩展。后续同步和测试结果以 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md) 为准，皮肤验证与限制见 [SKINS.md](SKINS.md)。
 - 定期跟进上游更新，先完成扩展兼容与验证，再合并。查看 `git status` 和远端分支确认实际工作状态，不把某台机器的进程、私人地址或临时 ref 写进公共交接文档。
 - 对局记录、主机设置和缓存不进入 Git。公开或分享前检查所有分支、历史和提交邮箱，见 [PRIVACY.md](PRIVACY.md)。
@@ -63,7 +64,7 @@
 ## 5. 测试
 
 - 改了哪里先跑哪里：`node --test test/<目录>/<文件>.test.js`。
-- 全量测试约 7–8 分钟，一次只开一份。v0.2.5-extended.1 在 Node 24.19 下以 `node --test --test-concurrency=4` 跑完 6,453 项，6,443 通过、10 跳过、0 失败；文档、打包、场景定向 83 项，调配 / 皮肤浏览器 7 项和库存确认 1 项通过。298 个 golden 场景通过，启动、lint、导入、类型和四语言包严格检查通过。
+- 全量测试约 7–8 分钟，一次只开一份，推荐 `node --test --test-concurrency=4`。每次发布的测试数量和结果只记在 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md) 对应版本的「验证」一条，这里不重复。
 - 官方场景的加载与镜头 / 回退功能验证通过，但本机无头 Chrome 的 3D 帧率检查未通过；独立复测首张地图 10.8 FPS、120 单位 9.9 FPS。保留 >30 / >45 FPS 原阈值，发布说明必须披露；可切换 2D 棋盘。详细日志位于被忽略的 `.cache/release-v025/`。
 - 历史失败（2026-10-09；2026-10-10 使用 Node 24.19 和并发上限 4 已全部通过）：
 
@@ -81,7 +82,7 @@
 - EN / JA / KO 客户端没有焰狐龙梓兰和结城理，zh-TW 没有麒麟R夜刀，对应界面显示中文。
 
 **控制台的扩充方向**（第三期结束时提给用户的，按价值排序，用户还没挑）
-1. 每回合阵容快照：在 `recordRound` 里记下作战区的干员、精锐、装备（`boardOrder(ps.board)`，名字用 `ps.gd`，参照 `admin.js` 的 `playerDetail`），每回合详情里显示。
+1. 每回合阵容已通过整局回放实现：战场详情展示实际 BattleSpec 中的阵容、装备、技能与模组，见 LOCAL-DEV §5。
 2. 漏怪分析：`lastResults.get(pid).leaked` 每条带 `enemyKey`，按敌人汇总每回合漏了哪些、各几只，配合 `history[].enemy`。
 3. 跨局汇总：「对局记录」页加总览，读 `logs/results/*.json`：胜率、按难度的平均通过回合、最常用的干员和盟约、伤害最高的干员。只读文件，不碰对局逻辑。
 4. 每回合经济明细：`ps.round`（`refreshes / buys / sells / spent`）在回合开始时清零，要在 `settle()` 时（清零之前）记下来。

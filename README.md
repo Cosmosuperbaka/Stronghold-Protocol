@@ -1,6 +1,6 @@
 # 卫戍协议：盟约 · Stronghold Protocol: Alliance
 
-![扩展版本](https://img.shields.io/badge/version-0.2.5--extended.2-blue)
+![扩展版本](https://img.shields.io/badge/version-0.2.5--extended.3-blue)
 
 A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance*, with host tools, collab operators and optional skins.
 
@@ -8,11 +8,11 @@ A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance
 
 [下载本库整合包](https://github.com/zhewang448/Stronghold-Protocol/releases/latest) · [扩展更新记录](docs/LOCAL-CHANGELOG.md) · [玩法指南](docs/PLAYING.md) · [反馈问题](https://github.com/zhewang448/Stronghold-Protocol/issues)
 
-> 当前版本为 **`v0.2.5-extended.2`**，基于上游 `0.2.5`。完整素材包包含 11 个官方战场场景、官方 3D 棋盘、40 组召唤物模型、中文 / 日文语音和 174 套可选皮肤。游戏内基础版本显示 `0.2.5`，扩展修订号以下载页标签和附件文件名为准。
+> 当前版本为 **`v0.2.5-extended.3`**，基于上游 `0.2.5`。完整素材包包含 11 个官方战场场景、官方 3D 棋盘、40 组召唤物模型、中文 / 日文语音和 174 套可选皮肤。游戏内基础版本显示 `0.2.5`，扩展修订号以下载页标签和附件文件名为准。
 >
 > 非官方、非商业同人项目，与《明日方舟》官方无隶属或授权关系。游戏名称、美术、音频、文本与数据的权利归原权利人；仅供学习和个人非商业使用。
 
-本次更新新增控制台 Release 更新：每次启动后首次打开自动检查，有新版弹窗提醒；在「设置 → 版本更新」选择新 / 当前 / 旧版本，点击后自动下载、校验、备份、安装并重启，回退旧版须确认。可保存 HTTP/HTTPS 代理，访问失败自动走备用镜像，查询与下载均适用。
+本次更新新增整局回放：默认录制并保留最近 50 局，在控制台按回合查看阵容、敌人和结果，播放普通战斗与联防。记录页可删除单局，设置页可清理对局结果、回放及控制台操作日志。发布包新增 Ed25519 签名，控制台更新可核验经镜像下载的安装包。
 
 本地主机控制台、回档、逐回合统计、7 名联动自选干员、自定义同盟密钥和皮肤功能继续保留。回档会恢复首领搭档和左右半场；只改潜能 / 练度也能导出调配。完整记录见[扩展更新记录](docs/LOCAL-CHANGELOG.md)。
 
@@ -29,6 +29,7 @@ A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance
 | `*-assets.zip` | 带游戏代码、运行依赖、11 个官方战场场景、官方 3D 棋盘等本地素材与 174 套可选皮肤，适合希望直接启动的玩家 |
 | `*-lite.zip` | 带同版代码与运行依赖，首次启动时联网下载默认素材；官方战场场景、棋盘等本地素材和可选皮肤需另行导入 / 安装 |
 | `SHA256SUMS.txt` | 用于核对安装包的 SHA-256 校验值 |
+| `SHA256SUMS.txt.sig` | 维护者对校验值的 Ed25519 签名，控制台更新据此确认安装包来自本库；更早的版本没有此附件 |
 
 - **Windows**：双击 `scripts/start-windows.bat`。
 - **macOS / Linux**：在解压后的项目目录运行 `bash scripts/start.sh`。
@@ -97,6 +98,8 @@ node tools/install-skins.mjs --all
 ### 逐回合统计与历史对局
 
 控制台提供回合曲线、逐回合详情、累计及单回合干员伤害排行，并可按玩家筛选。对局结束后的记录保存到服务器 `logs/results/`，可在「对局记录」中回看。
+
+整局回放默认开启，保存到 `logs/replays/`，保留最近 50 局；自动清理仅删除回放文件。「对局记录 → 回放」可按回合查看实际阵容、敌人和已采纳结果，播放普通战斗与联防，支持暂停、继续、重播及 1/2/4/8 倍速，结束后核对结果。领袖战仅展示结果；版本变化可确认后尝试播放。旧记录无法补录。记录页可删除单局结果与关联回放，「设置 → 数据清理」可分别清理对局结果、回放和控制台操作日志。
 
 ![主机统计：两回合演示记录、逐回合伤害排行及推进之王与灰烬的累计伤害](docs/img/features/round-statistics.webp)
 

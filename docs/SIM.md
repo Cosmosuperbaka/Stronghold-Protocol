@@ -42,6 +42,8 @@ server/sim/
 
 ## 1. Driving a battle (match owner)
 
+本分支的主机回放复用 `BattleSpec`、浏览器 runner 和 `resultDigest`，播放普通战斗 / 联防并核对已采纳结果；实时共享血池的领袖战仅查看结果，不作确定性重放承诺。存储、版本差异与暂停 / 倍速接口见 [LOCAL-DEV.md](LOCAL-DEV.md) §5「整局回放与数据清理」。录制不改模拟规则或随机流。
+
 ```js
 import { Battle } from './sim/Battle.js';
 const b = new Battle({

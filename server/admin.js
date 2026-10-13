@@ -32,6 +32,10 @@ import { GameData } from './match/gamedata.js';
 import { getPrep, setPrep, normalizePrep, getUniteLayerGains, setUniteLayerGains } from './match/hostSettings.js';
 import { diyCatalog, grantDiy } from './match/adminDiy.js';
 import { createReleaseUpdater } from './release-update.js';
+import { gzipSync } from 'node:zlib';
+import { createStaticHandler } from './http/static.js';
+import { getReplayConfig, setReplayConfig, replayRecord, recordReplayAdmin } from './match/replay.js';
+import { replayIdentity, saveReplay, readReplay, replayFiles, recordFiles, deleteRecordFiles, replayAdminLogs, REPLAY_ID } from './replay-store.js';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const OK = { ok: true };
@@ -327,6 +331,7 @@ function forceField(m, v, win) {
   if (f.done) return { error: '这场已经结束' };
   if (f.kind === 'boss' || f.kind === 'hidden') {
     if (!m.bossPool) return { error: '没有领袖战' };
+    for (const field of m.fields) field.replayForced = true;
     if (win) m.bossPool.hp = 0;
     else { m.teamLp = 0; m._syncTeamLp(); }
     m.markPublic();
@@ -343,6 +348,7 @@ function forceField(m, v, win) {
     for (const pid of f.players) Object.assign(res.perPlayer[pid], { perfect: false, leaked: Array.from({ length: n }, () => ({ enemyKey: spawn ? spawn.enemyKey : null, counted: true })) });
   }
   m._clearFieldTimers(f);
+  f.replayForced = true;
   f.result = res;
   // as _endFinal: the browsers showing it drop the battle (a late b.result names a done field and is ignored)
   for (const pid of m._humansShowing(f)) m.sendTo(pid, { t: 'b.end', battleId: f.battleId, fieldId: f.fieldId, reason: 'forced' });
@@ -402,6 +408,7 @@ export function handleAction(lobby, body) {
   if (!room) return { error: '房间不存在' };
   // the player's name as it was when the action ran (before the action: a closed room has no log to keep)
   const player = room.match && room.match.players && room.match.players.get(String(playerId));
+  if (room.match?.order) recordReplayAdmin(room.match, { action: String(action), player: player?.name || null, value, round: room.match.round });
   const res = runAction(lobby, room, action, playerId, value);
   if (action !== 'closeRoom') {
     let v = value == null || value === '' ? '' : typeof value === 'string' ? value : JSON.stringify(value);
@@ -490,7 +497,8 @@ export function listRecords(dir) {
   for (const id of files) {
     try {
       const rec = JSON.parse(fs.readFileSync(path.join(dir, id), 'utf8'));
-      const r = rec.result || {};
+      if (!rec.result || !rec.savedAt) continue;
+      const r = rec.result;
       out.push({
         id, savedAt: rec.savedAt, room: rec.room, mode: rec.mode, difficulty: rec.difficulty, victory: !!r.victory,
         hiddenCleared: !!r.hiddenCleared, reason: r.reason, roundsPassed: r.roundsPassed, rounds: (rec.history || []).length, durationMs: r.durationMs,
@@ -529,6 +537,7 @@ function loadSettings(file, log) {
   try { raw = fs.readFileSync(file, 'utf8'); } catch { return; } // none yet: the data's timers
   try {
     const saved = JSON.parse(raw);
+    if (typeof saved.replay?.enabled === 'boolean') setReplayConfig({ enabled: process.env.SP_REPLAY === '0' ? false : saved.replay.enabled });
     const r = setPrep(saved.prep);
     if (r.error) log.error(`[admin] ${file}: prep ignored (${r.error})`);
     const u = setUniteLayerGains(saved.uniteLayerGains ?? false);
@@ -542,13 +551,19 @@ function saveSettings(file, body) {
   if (r.error) return r;
   const uniteLayerGains = Object.hasOwn(body, 'uniteLayerGains') ? body.uniteLayerGains : getUniteLayerGains();
   if (typeof uniteLayerGains !== 'boolean') return { error: '联防叠层设置必须为开或关' };
+  if (Object.hasOwn(body, 'replay') && (!body.replay || typeof body.replay !== 'object' || Array.isArray(body.replay))) return { error: '回放设置无效' };
+  const replay = { enabled: getReplayConfig().enabled, keep: 50, ...(body.replay || {}) };
+  if (typeof replay.enabled !== 'boolean' || replay.keep !== 50) return { error: '回放设置无效（最多保留 50 局）' };
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify({ prep: r.prep, uniteLayerGains }, null, 2));
+  fs.writeFileSync(tmp, JSON.stringify({ prep: r.prep, uniteLayerGains, replay }, null, 2));
   fs.renameSync(tmp, file);
   setPrep(r.prep);
   setUniteLayerGains(uniteLayerGains);
-  return { ok: true, prep: getPrep(), uniteLayerGains: getUniteLayerGains() };
+  setReplayConfig({ enabled: process.env.SP_REPLAY === '0' ? false : replay.enabled });
+  const out = { ok: true, prep: getPrep(), uniteLayerGains: getUniteLayerGains() };
+  if (Object.hasOwn(body, 'replay')) out.replay = { enabled: getReplayConfig().enabled, keep: 50, forcedOff: process.env.SP_REPLAY === '0' };
+  return out;
 }
 
 function readJson(req, limit = 8192) {
@@ -564,8 +579,17 @@ function readJson(req, limit = 8192) {
 /** @returns {Promise<{ url: string, port: number, token: string, close: () => Promise<void> }>} */
 export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log = console, resultsDir = path.join(DIR, '..', 'logs', 'results'),
   settingsFile = path.join(DIR, '..', 'logs', 'admin-settings.json'), root = path.join(DIR, '..'), onUpdateReady,
+  replaysDir = path.join(path.dirname(resultsDir), 'replays'),
   updateOptions = {} }) {
+  const oldReplayConfig = getReplayConfig();
+  let identity = null;
+  try { identity = replayIdentity(root); } catch (e) { log.error('[replay] fingerprint unavailable', e.message); }
+  let release = null;
+  try { release = fs.readFileSync(path.join(root, 'RELEASE_TAG'), 'utf8').trim(); } catch { /* source checkout */ }
+  setReplayConfig({ enabled: process.env.SP_REPLAY !== '0', identity, release });
   loadSettings(settingsFile, log);
+  const serveStatic = createStaticHandler({ publicDir: path.join(root, 'public'), dataDir: path.join(root, 'data'),
+    sharedDir: path.join(root, 'shared'), simDir: path.join(root, 'server', 'sim'), packsDir: path.join(root, 'packs'), log });
   const updater = createReleaseUpdater({ ...updateOptions, root, log, onReady: onUpdateReady,
     hasActive: () => [...lobby.rooms.values()].some((r) => r.match && !r.match.ended && !r.match.disposed) });
   const token = randomBytes(16).toString('hex');
@@ -575,6 +599,10 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
     const t = Buffer.from(String(req.headers['x-admin-token'] || ''));
     return t.length === tokenBuf.length && timingSafeEqual(t, tokenBuf);
   };
+  const session = (req) => (req.headers.cookie || '').split(';').some((s) => s.trim() === `sp_admin=${token}`);
+  const resultFiles = () => recordFiles(resultsDir, [path.resolve(settingsFile)]);
+  const storageView = () => ({ results: resultFiles().length, replays: replayFiles(replaysDir).length,
+    adminLogs: replayAdminLogs(replaysDir) + [...lobby.rooms.values()].reduce((n, r) => n + (r.adminLog?.length || 0) + (r.match?.replay?.rounds || []).reduce((s, x) => s + x.admin.length, 0), 0) });
 
   const server = http.createServer(async (req, res) => {
     const send = (status, body, type = 'application/json; charset=utf-8') => {
@@ -590,9 +618,60 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
       const p = address.port;
       if (req.headers.host !== `127.0.0.1:${p}` && req.headers.host !== `localhost:${p}`) return send(403, { error: 'forbidden host' });
       const url = new URL(req.url || '/', 'http://localhost');
-      if (req.method === 'GET' && url.pathname === '/') return send(200, page, 'text/html; charset=utf-8');
+      if (req.method === 'GET' && url.pathname === '/') {
+        res.setHeader('Set-Cookie', `sp_admin=${token}; HttpOnly; SameSite=Strict; Path=/`);
+        return send(200, page, 'text/html; charset=utf-8');
+      }
+      if (req.method === 'GET' && url.pathname === '/replay' && session(req)) {
+        return send(200, fs.readFileSync(path.join(DIR, 'replay.html'), 'utf8').replace('__TOKEN__', token), 'text/html; charset=utf-8');
+      }
+      if (req.method === 'GET' && url.pathname === '/replay-viewer.js' && session(req)) {
+        return send(200, fs.readFileSync(path.join(DIR, 'replay-viewer.js'), 'utf8'), 'text/javascript; charset=utf-8');
+      }
+      if (['GET', 'HEAD'].includes(req.method) && session(req) && /^\/(?:js\/|css\/|vendor\/|assets\/|fonts\/|data\/|shared\/|sim\/|packs\/|media\/|data\.js$)/.test(url.pathname)) {
+        res.setHeader('X-Frame-Options', 'DENY');
+        return await serveStatic(req, res, url.pathname, url.search.slice(1));
+      }
       if (!url.pathname.startsWith('/api/')) return send(404, { error: 'not found' });
       if (!authed(req)) return send(403, { error: 'bad token' });
+      if (req.method === 'GET' && url.pathname === '/api/replay') {
+        const replay = readReplay(replaysDir, url.searchParams.get('id'), identity);
+        if (!replay) return send(404, { error: '回放不存在（可能未录制或已清理）' });
+        if (replay.error) return send(422, replay);
+        const body = gzipSync(JSON.stringify(replay));
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Encoding': 'gzip',
+          'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Length': body.length });
+        return res.end(body);
+      }
+      if (req.method === 'GET' && url.pathname === '/api/storage') return send(200, storageView());
+      if (req.method === 'POST' && url.pathname === '/api/storage') {
+        const body = await readJson(req);
+        if (!body || body.confirm !== true) return send(400, { error: '请先确认删除范围' });
+        if (body.id != null) {
+          if (typeof body.id !== 'string' || !REPLAY_ID.test(body.id) || path.resolve(resultsDir, body.id) === path.resolve(settingsFile)) return send(400, { error: '记录名称无效' });
+          const deleted = deleteRecordFiles(resultsDir, replaysDir, body.id);
+          for (const room of lobby.rooms.values()) if (room.adminLastMatch?.id === body.id) room.adminLastMatch = null;
+          return send(200, { ok: true, deleted, ...storageView() });
+        }
+        if (!Array.isArray(body.categories) || !body.categories.length || body.categories.some((c) => !['results', 'replays', 'adminLogs'].includes(c))) return send(400, { error: '请选择有效的清理类别' });
+        let deleted = 0;
+        for (const category of new Set(body.categories)) {
+          if (category === 'results') {
+            for (const id of resultFiles()) deleted += deleteRecordFiles(resultsDir, replaysDir, id, 'results');
+            for (const room of lobby.rooms.values()) room.adminLastMatch = null;
+          } else if (category === 'replays') {
+            for (const file of replayFiles(replaysDir)) deleted += deleteRecordFiles(resultsDir, replaysDir, file.slice(0, -3), 'replays');
+          } else {
+            deleted += replayAdminLogs(replaysDir, true);
+            for (const room of lobby.rooms.values()) {
+              deleted += room.adminLog?.length || 0;
+              room.adminLog = [];
+              for (const round of room.match?.replay?.rounds || []) { deleted += round.admin.length; round.admin = []; }
+            }
+          }
+        }
+        return send(200, { ok: true, deleted, ...storageView() });
+      }
       if (req.method === 'GET' && url.pathname === '/api/update') return send(200, updater.status());
       if (req.method === 'POST' && url.pathname === '/api/update') {
         const body = await readJson(req);
@@ -607,12 +686,15 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
       if (req.method === 'GET' && url.pathname === '/api/rooms') return send(200, { rooms: roomsView(lobby) });
       if (req.method === 'GET' && url.pathname === '/api/catalog') return send(200, catalogView(lobby, url.searchParams.get('room')));
       if (req.method === 'GET' && url.pathname === '/api/results') return send(200, { records: listRecords(resultsDir) });
-      if (req.method === 'GET' && url.pathname === '/api/settings') return send(200, { prep: getPrep(), uniteLayerGains: getUniteLayerGains(), file: settingsFile, defaults: prepDefaults(lobby.safeData()) });
+      if (req.method === 'GET' && url.pathname === '/api/settings') return send(200, { prep: getPrep(), uniteLayerGains: getUniteLayerGains(), replay: { enabled: getReplayConfig().enabled, keep: 50, forcedOff: process.env.SP_REPLAY === '0' }, file: settingsFile, defaults: prepDefaults(lobby.safeData()) });
       if (req.method === 'POST' && url.pathname === '/api/settings') {
         const body = await readJson(req);
         if (!body) return send(400, { error: '请求格式错误' });
         let r;
         try { r = saveSettings(settingsFile, body); } catch (e) { log.error('[admin] saving the settings failed', e); r = { error: `写入 ${settingsFile} 失败` }; }
+        if (r.ok && !getReplayConfig().enabled) for (const room of lobby.rooms.values()) {
+          if (room.match) { room.match.replayDisabled = true; delete room.match.replay; }
+        }
         log.info(`[admin] settings ${JSON.stringify(body)} → ${r.ok ? 'ok' : r.error}`);
         return send(200, r);
       }
@@ -649,15 +731,20 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
         rec = resultRecord(room, ctx.match, summary);
         id = saveRecord(resultsDir, room, rec, log);
       } catch (e) { log.error('[admin] saving the result failed', e); }
+      if (id) try {
+        const replay = replayRecord(ctx.match, { savedAt: rec.savedAt, room: room.code, resultId: id });
+        if (replay) saveReplay(replaysDir, id, replay, 50);
+      } catch (e) { log.error('[replay] saving failed', e); }
       room.adminLastMatch = rec ? lastMatchView(rec, id) : null;
     }
     return onMatchEnd.call(this, room, ctx, summary);
   };
   const actual = server.address().port;
   return {
-    url: `http://${host}:${actual}`, port: actual, token, resultsDir,
+    url: `http://${host}:${actual}`, port: actual, token, resultsDir, replaysDir,
     close: () => new Promise((r) => {
       if (hadOwn) lobby.onMatchEnd = onMatchEnd; else delete lobby.onMatchEnd;
+      setReplayConfig(oldReplayConfig);
       server.close(() => r());
       server.closeIdleConnections?.();
     }),

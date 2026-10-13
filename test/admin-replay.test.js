@@ -1,0 +1,67 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import http from 'node:http';
+import { startAdmin } from '../server/admin.js';
+import { saveReplay, readReplay, replayIdentity } from '../server/replay-store.js';
+import { getReplayConfig } from '../server/match/replay.js';
+
+test('console replay API: authentication, private assets, versions, deletion scope, logs and persisted recording switch', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-admin-replay-'));
+  const resultsDir = path.join(dir, 'results'), replaysDir = path.join(dir, 'replays'), settingsFile = path.join(resultsDir, 'settings.json');
+  fs.mkdirSync(resultsDir);
+  const active = { replay: { rounds: [{ admin: [{ action: 'funds' }] }] } };
+  const room = { adminLog: [{ action: 'funds' }], match: active, adminLastMatch: { id: 'record.json' } };
+  const lobby = { rooms: new Map([['TEST', room]]), safeData: () => ({}), onMatchEnd() {} };
+  const admin = await startAdmin({ lobby, port: 0, resultsDir, replaysDir, settingsFile, log: { info() {}, error() {} } });
+  t.after(async () => { await admin.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+  const auth = { 'X-Admin-Token': admin.token };
+  const get = (url, headers = auth) => fetch(`${admin.url}${url}`, { headers });
+  const post = (url, body) => fetch(`${admin.url}${url}`, { method: 'POST', headers: auth, body: JSON.stringify(body) });
+  const identity = replayIdentity(path.resolve('.'));
+  const replay = { format: 1, made: { identity }, players: [], rounds: [{ round: 1, admin: [{ action: 'funds' }], fields: [
+    { players: [], playable: true, spec: { players: [], spawns: [] } },
+  ] }] };
+  saveReplay(replaysDir, 'record.json', replay);
+  fs.writeFileSync(path.join(resultsDir, 'record.json'), JSON.stringify({ savedAt: 1, result: { players: [] } }));
+  fs.writeFileSync(settingsFile, '{}');
+  const page = await get('/', {}), cookie = page.headers.get('set-cookie').split(';')[0];
+  assert.match(page.headers.get('set-cookie'), /HttpOnly; SameSite=Strict/);
+  assert.equal((await get('/replay?id=record.json', {})).status, 404);
+  assert.equal((await get('/sim/spec.js', {})).status, 404);
+  assert.equal((await get('/replay?id=record.json', { Cookie: cookie })).status, 200);
+  assert.equal((await get('/sim/spec.js', { Cookie: cookie })).status, 200);
+  assert.equal((await get('/api/replay?id=record.json', { Cookie: cookie })).status, 403);
+  const foreignHost = await new Promise((resolve, reject) => {
+    const req = http.get(`${admin.url}/api/replay?id=record.json`, { headers: { ...auth, Host: 'evil.example' } }, (res) => { res.resume(); resolve(res.statusCode); });
+    req.on('error', reject);
+  });
+  assert.equal(foreignHost, 403);
+  assert.equal((await get('/api/replay?id=../settings.json')).status, 404);
+  assert.equal((await (await get('/api/replay?id=record.json')).json()).compatible, true);
+  saveReplay(replaysDir, 'record.json', { ...replay, made: { identity: 'old' } });
+  const mismatch = await (await get('/api/replay?id=record.json')).json();
+  assert.equal(mismatch.rounds[0].fields[0].canAttempt, true);
+  assert.equal(mismatch.rounds[0].fields[0].playable, false);
+  assert.deepEqual(await (await get('/api/storage')).json(), { results: 1, replays: 1, adminLogs: 3 });
+  assert.equal((await post('/api/storage', { categories: ['results'] })).status, 400);
+  assert.equal((await post('/api/storage', { confirm: true, categories: ['assets'] })).status, 400);
+  assert.equal((await post('/api/storage', { confirm: true, id: 'settings.json' })).status, 400);
+  assert.equal((await post('/api/storage', { confirm: true, id: '../record.json' })).status, 400);
+  assert.equal((await post('/api/storage', { confirm: true, categories: ['adminLogs'] })).status, 200);
+  assert.equal(readReplay(replaysDir, 'record.json', 'old').rounds[0].admin.length, 0);
+  assert.equal(room.adminLog.length, 0); assert.equal(active.replay.rounds[0].admin.length, 0);
+  assert.equal((await post('/api/storage', { confirm: true, categories: ['results'] })).status, 200);
+  assert.ok(fs.existsSync(settingsFile)); assert.ok(fs.existsSync(path.join(replaysDir, 'record.json.gz')));
+  assert.equal(room.adminLastMatch, null);
+  assert.equal((await (await post('/api/settings', { replay: { enabled: false } })).json()).ok, true);
+  assert.equal(active.replayDisabled, true); assert.equal(active.replay, undefined);
+  await post('/api/settings', { replay: { enabled: true } });
+  assert.equal(getReplayConfig().enabled, true); assert.equal(active.replayDisabled, true);
+  assert.equal(JSON.parse(fs.readFileSync(settingsFile)).replay.keep, 50);
+  fs.writeFileSync(path.join(resultsDir, 'record.json'), '{}');
+  assert.equal((await (await post('/api/storage', { confirm: true, id: 'record.json' })).json()).deleted, 2);
+  assert.equal((await get('/api/replay?id=record.json')).status, 404);
+});

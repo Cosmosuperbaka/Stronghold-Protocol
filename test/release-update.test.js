@@ -10,7 +10,7 @@ import { RELEASE_TAG } from '../server/release-version.js';
 import { createReleaseUpdater, compareReleaseTags, installedTag, installedIdentity, normalizeUpdateNetwork, createUpdateRequest, pickReleaseAsset, downloadAndStage, stageZip, scheduleInstall, updatePaths } from '../server/release-update.js';
 import { freePort } from './e2e/client.mjs';
 import { applyReleaseStage } from '../server/release-install.js';
-import { archive, releaseFor, files, manifest, put, read, tag, sha, tick, until } from './helpers/release-fixture.js';
+import { archive, releaseFor, files, manifest, put, read, tag, sha, signRelease, tick, until } from './helpers/release-fixture.js';
 const temp = (t) => { const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-release-')); t.after(() => fs.rmSync(root, { recursive: true, force: true })); put(root, 'package.json', '{"version":"0.2.5"}'); return root; };
 const fetchRelease = async () => new Response(JSON.stringify([releaseFor()]));
 
@@ -113,20 +113,21 @@ test('bad API JSON/HTTP/proxy falls back to mirror; direct success never visits 
 
 test('download retries failed checksum and interrupted body through mirror, checksum text is also validated before fallback', async (t) => {
   const root = temp(t), zip = archive(), release = releaseFor(zip);
-  release.assets.push({ name: 'SHA256SUMS.txt', browser_download_url: release.assets[0].browser_download_url.replace(/[^/]+$/, 'SHA256SUMS.txt') });
+  const { sums, sig, keys } = signRelease(release, zip);
   for (const mode of ['checksum', 'interrupted']) {
     const calls = [];
     const request = createUpdateRequest({ mirror: 'https://mirror.test/' }, { fetchImpl: async (url) => {
       calls.push(url);
       const mirror = url.startsWith('https://mirror.test/');
-      if (url.endsWith('.txt')) return new Response(mirror ? `${sha(zip)}  ${release.assets[0].name}` : '<html>unavailable</html>');
+      if (url.endsWith('.sig')) return new Response(sig);
+      if (url.endsWith('.txt')) return new Response(mirror ? sums : '<html>unavailable</html>');
       if (mirror) return new Response(zip);
       if (mode === 'checksum') return new Response(Buffer.alloc(zip.length));
       return new Response(new ReadableStream({ start(c) { c.enqueue(zip.subarray(0, 80)); c.error(new Error('connection reset')); } }));
     } });
-    const staged = await downloadAndStage({ root, release, request });
+    const staged = await downloadAndStage({ root, release, request, keys, listing: 'mirror' });
     assert.equal(read(staged.stage, 'server/index.js'), '// new server');
-    assert.equal(calls.length, 4, mode);
+    assert.equal(calls.length, 5, mode);
   }
   const invalid = createUpdateRequest({ mirror: 'https://mirror.test/' }, { fetchImpl: async () => new Response('<html>no zip</html>') });
   await assert.rejects(downloadAndStage({ root, release: releaseFor(zip), request: invalid }), /均失败/);

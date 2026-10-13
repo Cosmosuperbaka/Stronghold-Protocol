@@ -7,6 +7,7 @@
 import { PHASE } from '../../../shared/constants.js';
 import { DeadBattle, syntheticResult, RESULT_GRACE_MS, HARD_CAP_SECONDS, HeadlessJob } from '../fields.js';
 import { buildBattleSpec, createBattleFromSpec } from '../../sim/spec.js';
+import { captureReplayFields, finishReplayField } from '../replay.js';
 
 export class MatchClientCombat {
   /** Stop every client-combat timer and the headless pacer (phase end, finish, dispose). */
@@ -107,6 +108,7 @@ export class MatchClientCombat {
   _launch(fields) {
     const now = this.sched.now();
     this.fields = fields;
+    captureReplayFields(this, fields);
     for (const f of fields) { f.startAt = now; f.lastProgressAt = now; }
     for (const f of fields) {
       const auth = this._authorityFor(f);
@@ -217,6 +219,7 @@ export class MatchClientCombat {
     f.live = false;
     this._clearFieldTimers(f);
     if (!f.result) f.result = syntheticResult(f.players, { bossBy: f.bossBy });
+    finishReplayField(this, f);
     f.progress.done = true;
     this.markPublic();
     this._maybeFieldsDone();

@@ -49,6 +49,8 @@ server/match/
 
 ## 1. Match flow
 
+本分支主机可在终局记录打开整局回放，查看每回合实际阵容、敌人及已采纳结果；回到第 R 回合时回放显式截断 ≥ R 的废弃时间线，不进入回档快照。回放与三类清理的主机接口和限制见 [LOCAL-DEV.md](LOCAL-DEV.md) §5「整局回放与数据清理」，不改变对局流程。
+
 ```
 LOBBY → INFO_CHECK (co-op 25 s; solo and single-human matches untimed; all humans confirmed ⇒ next) → BAND_DRAFT → BATTLE_CHECK (3 s)
 → for r = 1..lastRound (+ hidden):

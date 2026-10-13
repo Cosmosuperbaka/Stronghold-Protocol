@@ -540,6 +540,19 @@ export function createBattleRunner(deps) {
     schedule();
   }
 
+  /** Change playback speed without jumping the local battle clock, including while paused. */
+  function setSpeed(value) {
+    const speed = Number(value);
+    if (!(speed > 0 && speed <= 16 && Number.isFinite(speed))) return;
+    const t = clock();
+    for (const e of [...entries.values(), ...pending.values()]) {
+      if (e.t0 != null) e.t0 = t - ((t - e.t0) * e.speed) / speed;
+      e.speed = speed;
+    }
+    publishState();
+    schedule();
+  }
+
   /** Advance one entry to its clock (bounded); render it when it is on screen. */
   function advance(e, t, render) {
     if (e.battle.finished) { if (!e.done) finished(e); return; }
@@ -894,7 +907,7 @@ export function createBattleRunner(deps) {
     _entries: entries,
     _frame: frame,
     _pump: pump,
-    onStart, onPool, onEnd, clear, ensureSim, redeliver, setPaused,
+    onStart, onPool, onEnd, clear, ensureSim, redeliver, setPaused, setSpeed,
     dispose() { clear(); for (const off of offs) { try { off?.(); } catch { /* ignore */ } } },
   };
 }

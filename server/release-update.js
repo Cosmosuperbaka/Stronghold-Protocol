@@ -10,6 +10,7 @@ import { pipeline } from 'node:stream/promises';
 import { parseManifest, pathProblem, removalProblem, isSetupArt, verifyFiles } from './update.js';
 import { readZip } from './release-zip.js';
 import { RELEASE_TAG } from './release-version.js';
+import { SIGNATURE_ASSET, SUMS_ASSET, parseSignature, sumFor, verifySums } from './release-signing.js';
 import { fetch as networkFetch, ProxyAgent } from 'undici';
 import { DEFAULT_GITHUB_PROXY, normalizeProxyPrefix } from '../tools/assets/sources.mjs';
 
@@ -103,7 +104,7 @@ export function createUpdateRequest(config, { fetchImpl = networkFetch, onSource
           signal: AbortSignal.any([headersController.signal, AbortSignal.timeout(timeout)]), ...(agent ? { dispatcher: agent } : {}) });
         clearTimeout(timer);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return await consume(response);
+        return await consume(response, route.source);
       } catch (e) { last = e; }
       finally {
         clearTimeout(timer);
@@ -156,21 +157,42 @@ export function stageZip(zip, stage, releaseTag) {
   return manifest;
 }
 
-/** Stream with backpressure, verify published ZIP SHA-256, then verify individual program files. */
-export async function downloadAndStage({ root, release, fetchImpl = fetch, request = async (url, consume, timeout) => consume(await responseFor(url, fetchImpl, timeout)), progress = () => {} }) {
-  const asset = pickReleaseAsset(release);
-  if (!asset) throw new Error('这个 Release 没有可用的完整包或轻量包附件');
-  const sums = release.assets?.find((a) => a.name === 'SHA256SUMS.txt');
-  let want = /^sha256:[a-f0-9]{64}$/i.test(asset.digest || '') ? asset.digest.slice(7).toLowerCase() : null;
-  if (sums) {
-    want = await request(assetUrl(sums), async (r) => {
-      const txt = await r.text();
-      const line = txt.split(/\r?\n/).find((s) => s.trim().replace(/^[a-f0-9]{64}\s+\*?/i, '') === asset.name);
-      if (!line || !/^[a-f0-9]{64}\s/i.test(line)) throw new Error('SHA256SUMS.txt 缺少安装包校验值');
-      return line.slice(0, 64).toLowerCase();
+const UNSIGNED_VIA_MIRROR = '该版本没有发布签名，只能在直连或代理访问 GitHub 时安装';
+
+/**
+ * The expected ZIP SHA-256. A signed release (SHA256SUMS.txt.sig) may come through any route: the signature anchors
+ * the checksums. An unsigned one is trusted only when the Release list and the checksum both came from GitHub
+ * itself (direct or through the host's own proxy), never from the mirror.
+ */
+async function expectedHash({ release, asset, request, listing, keys }) {
+  const sums = release.assets?.find((a) => a.name === SUMS_ASSET);
+  const sig = release.assets?.find((a) => a.name === SIGNATURE_ASSET);
+  if (sig) {
+    if (!sums) throw new Error('签名附件缺少对应的 SHA256SUMS.txt');
+    const signature = await request(assetUrl(sig), async (r) => parseSignature(await r.text()));
+    return request(assetUrl(sums), async (r) => {
+      const bytes = Buffer.from(await r.arrayBuffer());
+      if (!verifySums(release.tag_name, bytes, signature, keys)) throw new Error('发布签名校验失败');
+      return sumFor(bytes.toString('utf8'), asset.name);
     });
   }
-  if (!want) throw new Error('Release 缺少 SHA-256 校验值，无法安装');
+  if (listing === 'mirror') throw new Error(UNSIGNED_VIA_MIRROR);
+  if (sums) {
+    return request(assetUrl(sums), async (r, source) => {
+      if (source === 'mirror') throw new Error(UNSIGNED_VIA_MIRROR);
+      return sumFor(await r.text(), asset.name);
+    });
+  }
+  if (/^sha256:[a-f0-9]{64}$/i.test(asset.digest || '')) return asset.digest.slice(7).toLowerCase();
+  throw new Error('Release 缺少 SHA-256 校验值，无法安装');
+}
+
+/** Stream with backpressure, verify published ZIP SHA-256, then verify individual program files. */
+export async function downloadAndStage({ root, release, fetchImpl = fetch, listing = 'direct', keys, progress = () => {},
+  request = async (url, consume, timeout) => consume(await responseFor(url, fetchImpl, timeout), 'direct') }) {
+  const asset = pickReleaseAsset(release);
+  if (!asset) throw new Error('这个 Release 没有可用的完整包或轻量包附件');
+  const want = await expectedHash({ release, asset, request, listing, keys });
   const base = path.join(root, 'logs', 'update-staging');
   fs.mkdirSync(base, { recursive: true });
   const work = fs.mkdtempSync(path.join(base, 'release-'));
@@ -230,6 +252,7 @@ export async function scheduleInstall({ root, stage, tag, parentPid = process.pi
 export function createReleaseUpdater({ root, log = console, onReady, hasActive = () => false,
   fetchImpl = networkFetch, stageRelease = downloadAndStage, schedule = scheduleInstall } = {}) {
   let current = { state: 'idle' }, releases = [], prepared = null, opened = false, checking = null, page = 0, hasMore = false;
+  const listedVia = new Map(); // tag → route its Release entry was last listed through
   let network = normalizeUpdateNetwork({});
   try { network = normalizeUpdateNetwork(JSON.parse(fs.readFileSync(updatePaths(root).network, 'utf8'))); }
   catch { /* default on first launch or invalid saved settings */ }
@@ -243,13 +266,19 @@ export function createReleaseUpdater({ root, log = console, onReady, hasActive =
     try {
       if (!asset) throw new Error('没有完整包或轻量包附件');
       assetUrl(asset);
-      const sums = release.assets?.find((a) => a.name === 'SHA256SUMS.txt');
+      const sums = release.assets?.find((a) => a.name === SUMS_ASSET);
+      const sig = release.assets?.find((a) => a.name === SIGNATURE_ASSET);
       if (sums) assetUrl(sums);
+      if (sig) {
+        assetUrl(sig);
+        if (!sums) throw new Error('签名附件缺少对应的 SHA256SUMS.txt');
+      } else if (listedVia.get(release.tag_name) === 'mirror') throw new Error(UNSIGNED_VIA_MIRROR);
       if (!sums && !/^sha256:[a-f0-9]{64}$/i.test(asset.digest || '')) throw new Error('缺少 SHA-256 校验值');
     } catch (e) { reason = e.message; }
     const delta = compareReleaseTags(release.tag_name, installedTag(root));
     return { tag: release.tag_name, relation: delta > 0 ? 'new' : delta < 0 ? 'old' : 'current',
-      asset: asset?.name, size: asset?.size || 0, publishedAt: release.published_at, installable: !reason && delta !== 0, reason };
+      asset: asset?.name, size: asset?.size || 0, publishedAt: release.published_at,
+      signed: !!release.assets?.some((a) => a.name === SIGNATURE_ASSET), installable: !reason && delta !== 0, reason };
   }
   const status = () => {
     const versions = releases.map(releaseView);
@@ -287,14 +316,15 @@ export function createReleaseUpdater({ root, log = console, onReady, hasActive =
     current = { ...current, state: 'checking', error: undefined };
     checking = (async () => {
       try {
-        const found = await request(`${API}?per_page=30&page=${nextPage}`, async (r) => {
+        const { data: found, via } = await request(`${API}?per_page=30&page=${nextPage}`, async (r, source) => {
           const data = await r.json();
           if (!Array.isArray(data) || data.some((v) => !v || typeof v !== 'object' || typeof v.tag_name !== 'string')) throw new Error('Release 列表响应格式错误');
-          return data;
+          return { data, via: source };
         });
         hasMore = found.length === 30;
         page = nextPage;
         const formal = found.filter((r) => !r.draft && !r.prerelease && TAG.test(r.tag_name));
+        for (const r of formal) listedVia.set(r.tag_name, via);
         releases = [...new Map([...(more ? releases : []), ...formal].map((r) => [r.tag_name, r])).values()]
           .sort((a, b) => compareReleaseTags(b.tag_name, a.tag_name));
         const latest = releases[0];
@@ -344,7 +374,7 @@ export function createReleaseUpdater({ root, log = console, onReady, hasActive =
       current = { ...current, ...view, target: tag, state: prepared ? 'verifying' : 'downloading', error: undefined, received: 0 };
       (async () => {
         try {
-          prepared ||= await stageRelease({ root, release, fetchImpl, request, progress: (p) => { current = { ...current, ...p }; } });
+          prepared ||= await stageRelease({ root, release, fetchImpl, request, listing: listedVia.get(tag), progress: (p) => { current = { ...current, ...p }; } });
           await launch(force);
         } catch (e) { prepared = null; fail(e); }
       })();

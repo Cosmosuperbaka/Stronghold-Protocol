@@ -16,6 +16,32 @@ import { DATA, makeMatch } from './harness.js';
 
 const DS = new DataSource(DATA, null);
 
+test('replay speed changes preserve elapsed time; paused speed changes remain frozen and keep deterministic results', async () => {
+  const r = rig(), start = realStart();
+  await r.runner.onStart(start); await r.settle();
+  const e = r.runner._entries.get(start.battleId);
+  r.advance(500);
+  const ticks = e.battle.tickCount;
+  r.runner.setSpeed(4);
+  assert.equal(r.runner.state().speed, 4);
+  r.advance(500);
+  assert.ok(Math.abs(e.battle.tickCount - ticks - 60) <= 2);
+  r.store.patch('match', { public: { phase: 'COMBAT', paused: true } });
+  const frozen = e.battle.tickCount;
+  r.advance(5000); r.runner.setSpeed(8); r.advance(1000);
+  assert.equal(e.battle.tickCount, frozen);
+  r.store.patch('match', { public: { phase: 'COMBAT', paused: false } }); r.advance(250);
+  assert.ok(Math.abs(e.battle.tickCount - frozen - 60) <= 2);
+  r.runner.setSpeed(0); r.runner.setSpeed(Infinity);
+  assert.equal(r.runner.state().speed, 8);
+  r.advance(150000);
+  const result = r.net.sent.find((m) => m.t === 'b.result');
+  assert.ok(result);
+  const expected = runHeadless(specMod.createBattleFromSpec(start.spec, DS, { recordEvents: false }), { players: start.spec.players.map((p) => p.playerId) }).result;
+  assert.equal(specMod.resultDigest(result.result).json, specMod.resultDigest(expected).json);
+  r.runner.dispose();
+});
+
 function fakeNet() {
   const handlers = new Map();
   const n = {
