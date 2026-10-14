@@ -41,6 +41,8 @@
   #msg { position: fixed; right: 20px; bottom: 20px; max-width: 420px; padding: 10px 14px; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); display: none; }
   #msg.err { border-color: var(--red); }
   .off { color: var(--dim); }
+  .live-link { display: inline-block; padding: 3px 6px; color: var(--mint); text-decoration: underline; text-underline-offset: 3px; }
+  .live-link:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
   .empty { color: var(--dim); padding: 40px; text-align: center; }
   tr.detail > td { white-space: normal; background: #101311; padding: 10px 12px 14px; }
   .panes { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
@@ -273,7 +275,7 @@ function playerRow(code, p) {
   const who = `${esc(p.name)}${p.bot ? ' <span class="tag">AI</span>' : ''}${p.connected ? '' : ' <span class="tag off">离线</span>'}${p.alive ? '' : ' <span class="tag off">淘汰</span>'}`;
   const field = (action, value, label) => `<input class="num" type="number" value="${value}" aria-label="${esc(p.name)} ${label}" data-act="${action}" data-player="${esc(p.id)}" data-room="${code}" data-label="${label}">`;
   return `<tr>
-    <td>${who}</td>
+    <td>${who} <a class="live-link" target="_blank" rel="noopener" href="/live?room=${encodeURIComponent(code)}&playerId=${encodeURIComponent(p.id)}" aria-label="实时查看 ${esc(p.name)}">实时查看 / 代操作</a></td>
     <td>${field('lp', p.lp, 'LP')}</td>
     <td>${p.funds} <input class="num" type="number" placeholder="±金币" aria-label="${esc(p.name)} 增减金币" data-act="funds" data-player="${esc(p.id)}" data-room="${code}" data-label="金币" data-clear></td>
     <td>${field('level', p.level, '商店等级')}</td>

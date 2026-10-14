@@ -36,6 +36,7 @@ import { gzipSync } from 'node:zlib';
 import { createStaticHandler } from './http/static.js';
 import { getReplayConfig, setReplayConfig, replayRecord, recordReplayAdmin } from './match/replay.js';
 import { replayIdentity, saveReplay, readReplay, replayFiles, recordFiles, deleteRecordFiles, replayAdminLogs, REPLAY_ID } from './replay-store.js';
+import { liveState, liveIntent } from './admin-live.js';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const OK = { ok: true };
@@ -628,12 +629,25 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
       if (req.method === 'GET' && url.pathname === '/replay-viewer.js' && session(req)) {
         return send(200, fs.readFileSync(path.join(DIR, 'replay-viewer.js'), 'utf8'), 'text/javascript; charset=utf-8');
       }
+      if (req.method === 'GET' && url.pathname === '/live' && session(req)) {
+        return send(200, fs.readFileSync(path.join(DIR, 'live.html'), 'utf8').replace('__TOKEN__', token), 'text/html; charset=utf-8');
+      }
+      if (req.method === 'GET' && url.pathname === '/live-viewer.js' && session(req)) {
+        return send(200, fs.readFileSync(path.join(DIR, 'live-viewer.js'), 'utf8'), 'text/javascript; charset=utf-8');
+      }
       if (['GET', 'HEAD'].includes(req.method) && session(req) && /^\/(?:js\/|css\/|vendor\/|assets\/|fonts\/|data\/|shared\/|sim\/|packs\/|media\/|data\.js$)/.test(url.pathname)) {
         res.setHeader('X-Frame-Options', 'DENY');
         return await serveStatic(req, res, url.pathname, url.search.slice(1));
       }
       if (!url.pathname.startsWith('/api/')) return send(404, { error: 'not found' });
       if (!authed(req)) return send(403, { error: 'bad token' });
+      if (req.method === 'GET' && url.pathname === '/api/live') {
+        return send(200, liveState(lobby, Object.fromEntries(url.searchParams)));
+      }
+      if (req.method === 'POST' && url.pathname === '/api/live') {
+        const body = await readJson(req);
+        return send(200, liveIntent(lobby, body));
+      }
       if (req.method === 'GET' && url.pathname === '/api/replay') {
         const replay = readReplay(replaysDir, url.searchParams.get('id'), identity);
         if (!replay) return send(404, { error: '回放不存在（可能未录制或已清理）' });

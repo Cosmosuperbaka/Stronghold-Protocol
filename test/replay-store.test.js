@@ -7,7 +7,7 @@ import { replayIdentity, saveReplay, readReplay, replayFiles, replayAdminLogs, d
 
 const fixture = () => ({ format: 1, made: { identity: 'same' }, players: [], rounds: [{ round: 1, admin: [{ action: 'funds' }], fields: [
   { players: ['p'], spec: { players: [], spawns: [] }, playable: true },
-  { players: ['p'], spec: { players: [], spawns: [] }, playable: false, reason: 'shared-boss' },
+  { kind: 'boss', players: ['p'], spec: { players: [], spawns: [] }, playable: false, reason: 'shared-boss', source: 'boss-credited', result: { time: 12 } },
 ] }] });
 const temp = (t) => { const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-replay-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true })); return dir; };
 
@@ -19,7 +19,8 @@ test('replays: gzip, compatible/mismatched versions, malformed/unknown formats a
   assert.equal(old.compatible, false);
   assert.equal(old.rounds[0].fields[0].playable, false);
   assert.equal(old.rounds[0].fields[0].canAttempt, true);
-  assert.equal(old.rounds[0].fields[1].canAttempt, false);
+  assert.equal(old.rounds[0].fields[1].canAttempt, true);
+  assert.equal(readReplay(dir, 'record.json', 'same').rounds[0].fields[1].canAttempt, true);
   assert.equal(readReplay(dir, '../record.json', 'same'), null);
   assert.throws(() => saveReplay(dir, '../record.json', fixture()));
   saveReplay(dir, 'unknown.json', { format: 2, rounds: [] });
@@ -28,6 +29,30 @@ test('replays: gzip, compatible/mismatched versions, malformed/unknown formats a
   assert.match(readReplay(dir, 'malformed.json', 'same').error, /损坏/);
   fs.writeFileSync(path.join(dir, 'corrupt.json.gz'), 'not gzip');
   assert.equal(readReplay(dir, 'corrupt.json', 'same'), null);
+});
+
+test('replays: old boss/hidden recordings allow attempts, but synthetic and unfinished fields stay view-only', (t) => {
+  const dir = temp(t), replay = fixture();
+  const boss = replay.rounds[0].fields[1];
+  replay.rounds = [
+    { round: 14, admin: [], fields: [boss] },
+    { round: 15, admin: [], fields: [
+      { ...boss, kind: 'hidden' },
+      { ...boss, source: 'synthetic' },
+      { ...boss, result: { time: 12, synthetic: true } },
+      { ...boss, source: null, result: null },
+      { ...boss, result: { time: -1 } },
+      { ...boss, result: { time: null } },
+    ] },
+  ];
+  saveReplay(dir, 'boss.json', replay);
+  for (const identity of ['same', 'different']) {
+    const loaded = readReplay(dir, 'boss.json', identity);
+    const fields = loaded.rounds.flatMap((r) => r.fields);
+    assert.deepEqual(fields.map((f) => f.canAttempt), [true, true, false, false, false, false, false]);
+    assert.ok(fields.every((f) => !f.playable), 'boss attempts never become exact replays');
+    assert.deepEqual(fields.map((f) => f.spec), replay.rounds.flatMap((r) => r.fields).map((f) => f.spec));
+  }
 });
 
 test('replays: retain newest 50, preserve results, clear archived logs without changing specs or ordering', (t) => {

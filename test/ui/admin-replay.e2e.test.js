@@ -9,7 +9,7 @@ import { getReplayConfig, setReplayConfig, replayRecord } from '../../server/mat
 import { makeMatch } from '../match/harness.js';
 import { CHROME, hasChrome } from '../e2e/client.mjs';
 
-test('console replay: recorded battle, pause/speed/restart, consistency, version warning, deletion confirmation, desktop/mobile', {
+test('console replay: normal playback, boss/hidden attempts across versions, controls, deletion and responsive layout', {
   skip: process.env.SP_E2E !== '1' || !hasChrome(), timeout: 90000,
 }, async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-replay-ui-'));
@@ -60,7 +60,38 @@ test('console replay: recorded battle, pause/speed/restart, consistency, version
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} viewer fits`);
       await page.screenshot({ path: path.join(shots, `replay-${name}.png`), fullPage: true });
     }
-    saveReplay(replaysDir, id, { ...replay, made: { ...replay.made, identity: 'previous-version' } });
+    const fields = replay.rounds.flatMap((r) => r.fields);
+    const bossIndex = fields.findIndex((f) => f.kind === 'boss');
+    assert.ok(bossIndex >= 0, 'the real match reached the Final Assault');
+    const boss = fields[bossIndex];
+    // Keep real captured boss input and an unemptied pool, but shorten the recorded duration to
+    // exercise the local cutoff quickly. The hidden fixture shares that input with its own kind.
+    boss.result.time = 2;
+    const hidden = structuredClone(boss);
+    hidden.kind = hidden.spec.kind = 'hidden';
+    hidden.battleId = hidden.spec.battleId = `${boss.battleId}-hidden`;
+    hidden.spec.round = 15;
+    replay.rounds.push({ round: 15, phase: 'HIDDEN_CORE', admin: [], fields: [hidden] });
+    for (const identity of [replay.made.identity, 'previous-version']) {
+      saveReplay(replaysDir, id, { ...replay, made: { ...replay.made, identity } });
+      await page.reload({ waitUntil: 'networkidle0' });
+      for (const index of [bossIndex, fields.length]) {
+        await page.click(`[data-field="${index}"]`);
+        assert.equal(await page.$eval('#play', (el) => el.disabled), false);
+        assert.equal(await page.$eval('#play', (el) => el.textContent), '仍然尝试播放');
+        assert.match(await page.$eval('#digest', (el) => el.textContent), /共享血池/);
+        page.once('dialog', (d) => d.dismiss()); await page.click('#play');
+        assert.equal(await page.$eval('#field', (el) => el.hidden), true);
+        const dialog = new Promise((resolve) => page.once('dialog', async (d) => { const message = d.message(); await d.accept(); resolve(message); }));
+        await page.click('#play');
+        assert.match(await dialog, /共享血池/);
+        await page.waitForFunction(() => document.querySelector('#digest').textContent.includes('领袖战尝试播放结束'), { timeout: 15000 });
+        assert.equal(await page.$eval('#digest', (el) => el.className), 'warn');
+        assert.equal(await page.$eval('#pause', (el) => el.disabled), true);
+        assert.match(await page.$eval('#digest', (el) => el.textContent), /无法保证原样重放|结果不同|与记录不同/);
+        assert.equal(boss.spec.timeLimit, null, 'the saved boss input keeps its original unlimited duration');
+      }
+    }
     await page.reload({ waitUntil: 'networkidle0' });
     assert.match(await page.$eval('#notice', (el) => el.textContent), /版本已变/);
     page.once('dialog', (d) => d.dismiss()); await page.click('#play');
