@@ -14,11 +14,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { APP_VERSION, DEV_BUILD } from '../../shared/constants.js';
+import { N_ } from '../../shared/i18n.js';
 import { limitKeyOf } from '../net.js';
 import { applyPendingUpdate } from '../update.js';
 import { ROOT } from './config.js';
 import { startAdmin } from '../admin.js';
 import { updatePaths } from '../release-update.js';
+import { prepareRestart } from '../service-control.js';
 
 /**
  * Non-internal addresses as http URLs — IPv4 first, then IPv6 (an IPv6 literal needs brackets: `http://[240e:…]:3000`).
@@ -109,17 +111,28 @@ export async function runMain(start) {
   // the host's local console (server/admin.js): 127.0.0.1 only, never part of what the LAN / tunnel can reach
   let admin = null;
   let stopping = false;
-  const stop = (signal) => {
+  const stop = (signal, code = 0) => {
     if (stopping) { console.log('forced exit'); process.exit(1); }
     stopping = true;
     console.log(`\n[${signal}] shutting down…`);
-    setTimeout(() => process.exit(0), 5000).unref();
+    setTimeout(() => process.exit(code), 5000).unref();
     if (admin) admin.close();
-    srv.close().then(() => process.exit(0), () => process.exit(1));
+    srv.close().then(() => process.exit(code), () => process.exit(code || 1));
   };
   if (!/^(0|false|no|off)$/i.test(process.env.SP_ADMIN || '')) {
     try {
+      const supervised = process.env.SP_UPDATE_RESTART === 'supervisor';
+      const managedShutdown = process.env.SP_SERVICE_SHUTDOWN === 'exit-code';
       admin = await startAdmin({ lobby: srv.lobby, root: ROOT, port: Number(process.env.SP_ADMIN_PORT) || srv.port + 100,
+        service: {
+          shutdownReason: supervised && !managedShutdown ? N_('由外部守护程序管理，请使用服务管理器关闭服务') : '',
+          prepare: async (action) => {
+            const cancel = action === 'restart' && !supervised ? await prepareRestart(ROOT, {
+              PORT: String(srv.port), HOST: srv.host, SP_ADMIN_PORT: String(admin.port),
+            }) : null;
+            return { cancel, run: () => stop(action.toUpperCase(), supervised ? (action === 'shutdown' ? 75 : 1) : 0) };
+          },
+        },
         onUpdateReady: () => stop('UPDATE') });
       console.log(`  Console: ${admin.url}  (本机控制台)\n`);
     } catch (e) {

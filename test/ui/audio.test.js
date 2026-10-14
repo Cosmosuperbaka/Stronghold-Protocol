@@ -500,14 +500,16 @@ describe('operator battle voice', () => {
 
 function fakeWindow() {
   const listeners = new Map();
-  const made = { sources: 0, started: 0 };
-  class Param { constructor() { this.value = 1; } setValueAtTime(v) { this.value = v; } linearRampToValueAtTime(v) { this.value = v; } setTargetAtTime(v) { this.value = v; } cancelScheduledValues() {} }
+  const made = { sources: 0, started: 0, tones: [] };
+  class Param { constructor() { this.value = 1; } setValueAtTime(v) { this.value = v; } linearRampToValueAtTime(v) { this.value = v; } exponentialRampToValueAtTime(v) { this.value = v; } setTargetAtTime(v) { this.value = v; } cancelScheduledValues() {} }
   class Node { connect() {} disconnect() {} }
   class Gain extends Node { constructor() { super(); this.gain = new Param(); } }
   class Src extends Node { constructor() { super(); this.playbackRate = new Param(); made.sources++; } start() { made.started++; } stop() {} }
+  class Osc extends Node { constructor() { super(); this.frequency = new Param(); } start() { made.tones.push(this.frequency.value); } stop() {} }
   class Ctx {
     constructor() { this.currentTime = 0; this.state = 'running'; this.destination = new Node(); }
     createGain() { return new Gain(); }
+    createOscillator() { return new Osc(); }
     createBufferSource() { return new Src(); }
     decodeAudioData(ab, ok) { ok({ duration: 1.5 }); }
     resume() { return Promise.resolve(); }
@@ -526,6 +528,34 @@ function fakeWindow() {
 }
 
 describe('AudioManager', () => {
+  test('field pings have distinct cues without assets, bound bursts, and honor sound/visibility/unlock settings', () => {
+    const fw = fakeWindow();
+    const a = new AudioManager({ win: fw.win, getManifest: () => null });
+    a.ping('question');
+    assert.equal(fw.made.tones.length, 0, 'locked audio does not queue a ping');
+    a.install(); fw.fire('pointerdown');
+    const cues = [];
+    for (const kind of ['attention', 'attack', 'danger', 'retreat', 'question']) {
+      const before = fw.made.tones.length;
+      a.ctx.currentTime += 1;
+      a.ping(kind);
+      cues.push(fw.made.tones.slice(before).join(','));
+      const after = fw.made.tones.length;
+      assert.ok(after > before, kind);
+      a.ping(kind);
+      assert.equal(fw.made.tones.length, after, 'simultaneous senders do not stack cues');
+    }
+    assert.equal(new Set(cues).size, 5, 'each kind can be recognized by sound');
+    a.ctx.currentTime += 1;
+    const before = fw.made.tones.length;
+    a.setVolumes({ muted: true }); a.ping('danger');
+    a.setVolumes({ muted: false, sfx: 0 }); a.ping('danger');
+    a.setVolumes({ sfx: 0.8 }); fw.win.document.hidden = true; a.ping('danger');
+    fw.win.document.hidden = false; a.ctx.state = 'suspended'; a.ping('danger');
+    assert.equal(fw.made.tones.length, before);
+    a.ctx.state = 'running'; a.ping('danger');
+    assert.ok(fw.made.tones.length > before, 'reenabling sound accepts a fresh ping');
+  });
   test('no AudioContext / no manifest: every call is a silent no-op', () => {
     const a = new AudioManager({ win: null, getManifest: () => null });
     a.install();

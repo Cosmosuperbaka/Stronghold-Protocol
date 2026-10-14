@@ -38,6 +38,9 @@
   .candidate-options [role="option"] { display: block; padding: 5px 8px; cursor: pointer; white-space: normal; overflow-wrap: anywhere; }
   .candidate-options [role="option"]:hover, .candidate-options [role="option"][aria-selected="true"] { background: #2b3c35; color: var(--mint); }
   #status { margin-left: auto; color: var(--dim); }
+  .service-bar { padding: 10px 20px; border-bottom: 1px solid var(--line); }
+  .service-bar button { min-height: 36px; }
+  #service-status { flex: 1 1 240px; }
   #msg { position: fixed; right: 20px; bottom: 20px; max-width: 420px; padding: 10px 14px; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); display: none; }
   #msg.err { border-color: var(--red); }
   .off { color: var(--dim); }
@@ -96,6 +99,11 @@
   <span class="meta">只能在这台电脑上打开 · 修改直接生效、不扣金币；只有「加层」「补发机变卡」「装备」会触发游戏效果</span>
   <span id="status" aria-live="polite"></span>
 </header>
+<div class="row service-bar" aria-label="服务控制">
+  <button data-service="restart" disabled>重启服务</button>
+  <button data-service="shutdown" class="danger" disabled>关闭服务</button>
+  <span id="service-status" class="meta" role="status" aria-live="polite">正在读取服务状态…</span>
+</div>
 <main id="rooms"></main>
 <main id="records" hidden></main>
 <main id="settings" hidden></main>
@@ -110,6 +118,67 @@ const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const api = (p, body) => fetch(p, { method: body ? 'POST' : 'GET', headers: { 'X-Admin-Token': TOKEN, 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) })
   .then((r) => r.json());
+let servicePending = false;
+let roomPoll;
+async function loadService() {
+  try {
+    const state = await api('/api/service');
+    $('[data-service="restart"]').disabled = !state.canRestart;
+    $('[data-service="shutdown"]').disabled = !state.canShutdown;
+    $('#service-status').textContent = state.shutdownReason || (state.canRestart ? '服务操作会结束全部对局并断开玩家连接。' : '当前启动方式不支持服务控制。');
+    if (state.action) {
+      lockService();
+      waitService(state.action);
+    }
+  } catch { $('#service-status').textContent = '读取服务状态失败，请刷新页面重试。'; }
+}
+function lockService() {
+  servicePending = true;
+  clearInterval(roomPoll);
+  clearInterval(updatePoll); updatePoll = null;
+  for (const b of document.querySelectorAll('[data-service]')) b.disabled = true;
+  for (const main of document.querySelectorAll('main')) main.inert = true;
+}
+async function controlService(action) {
+  if (servicePending) return;
+  const label = action === 'restart' ? '重启' : '关闭';
+  if (!confirm(`确定${label}服务？这会结束全部对局并断开所有玩家连接。${action === 'shutdown' ? '关闭后需要使用启动脚本或服务管理器重新启动。' : '控制台会在重启完成后自动刷新。'}`)) return;
+  servicePending = true;
+  for (const b of document.querySelectorAll('[data-service]')) b.disabled = true;
+  $('#service-status').textContent = `正在请求${label}服务…`;
+  try {
+    const result = await api('/api/service', { action, confirm: true });
+    if (!result.ok) throw new Error(result.error || '请求失败');
+    lockService();
+    waitService(action);
+  } catch (e) {
+    servicePending = false;
+    await loadService();
+    $('#service-status').textContent = `${label}请求未确认：${e.message}。请检查状态后重试。`;
+  }
+}
+async function waitService(action) {
+  const status = $('#service-status');
+  status.textContent = action === 'restart' ? '正在重启服务，等待恢复连接…' : '正在关闭服务…';
+  const deadline = Date.now() + 60000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 1000));
+    try {
+      const response = await fetch('/', { cache: 'no-store', signal: AbortSignal.timeout(2000) });
+      if (!response.ok) throw new Error('unavailable');
+      const page = await response.text();
+      const current = page.match(/const TOKEN = '([a-f0-9]+)'/);
+      if (current && current[1] !== TOKEN) { location.reload(); return; }
+    } catch {
+      if (action === 'shutdown') {
+        status.textContent = '服务已关闭。重新启动请使用启动脚本或服务管理器。';
+        $('#status').textContent = '服务已关闭';
+        return;
+      }
+    }
+  }
+  status.textContent = action === 'restart' ? '重启后未恢复连接，请检查 logs/service-restart.log 或服务管理器，然后刷新页面。' : '服务仍可连接，关闭未完成，请检查服务日志。';
+}
 
 let catalogRoom = null;
 let catalogPending = null;
@@ -816,6 +885,7 @@ async function saveUpdateNetwork() {
 async function openUpdateConsole() {
   try {
     releaseUpdate = await api('/api/update', { action: 'open' });
+    if (servicePending) return;
     drawReleaseUpdate();
     if (['checking', 'downloading', 'verifying', 'scheduled'].includes(releaseUpdate.state)) startUpdatePolling();
     if (releaseUpdate.notify && confirm(`发现新版本 ${releaseUpdate.tag}（当前 ${releaseUpdate.currentVersion}）。是否打开更新设置？`)) await setTab('settings');
@@ -823,7 +893,7 @@ async function openUpdateConsole() {
 }
 
 function startUpdatePolling() {
-  if (updatePoll) return;
+  if (updatePoll || servicePending) return;
   updatePoll = setInterval(async () => {
     try {
       const d = await api('/api/update');
@@ -1148,11 +1218,13 @@ document.addEventListener('input', (e) => {
 });
 let lastJson = '';
 async function refresh() {
+  if (servicePending) return;
   // never re-render under the user's cursor: typing into a field would lose its value
   if (document.activeElement && document.activeElement.matches('input, select')) return;
   if ($('#rooms').hidden) return;
   let data;
-  try { data = await api('/api/rooms'); } catch { $('#status').textContent = '无法连接服务器'; return; }
+  try { data = await api('/api/rooms'); } catch { if (!servicePending) $('#status').textContent = '无法连接服务器'; return; }
+  if (servicePending) return;
   if (data.error) { $('#status').textContent = data.error; return; }
   if (document.activeElement?.matches('input, select')) return;
   $('#status').textContent = `更新于 ${new Date().toLocaleTimeString()}`;
@@ -1168,6 +1240,8 @@ async function refresh() {
 }
 
 document.addEventListener('click', (e) => {
+  const serviceButton = e.target.closest('button[data-service]');
+  if (serviceButton && !serviceButton.disabled) { controlService(serviceButton.dataset.service); return; }
   const tab = e.target.closest('button[data-tab]');
   if (tab) { setTab(tab.dataset.tab); return; }
   if (e.target.closest('button[data-update-check]')) { updateRelease('check'); return; }
@@ -1293,7 +1367,8 @@ document.addEventListener('keydown', (e) => {
   }
 });
 refresh();
-setInterval(refresh, 1500);
+roomPoll = setInterval(refresh, 1500);
+loadService();
 openUpdateConsole();
 </script>
 </body>

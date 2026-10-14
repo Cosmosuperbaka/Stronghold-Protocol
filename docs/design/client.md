@@ -19,6 +19,14 @@ and battle Spine models only. This affects presentation only, never purchases or
 
 ## 9. Client rendering contract (public/js/render)
 
+Local host service controls (owner request, 2026-10-14): the console toolbar offers restart and shutdown with
+explicit confirmation that all matches and connections end. Only the authenticated localhost console accepts
+these actions. Update and service operations exclude each other; duplicate requests cannot spawn another server.
+Direct starts use a detached helper that waits for process exit and preserves game/admin ports and host. The
+bundled Windows task runner recognizes exit code 75 as an intentional shutdown. External supervisors own restart;
+shutdown is disabled unless configured to honor that exit code. Restart refreshes the console with its new token;
+shutdown leaves a persistent closed status. See [DEPLOY.md](../DEPLOY.md) and [LOCAL-DEV.md](../LOCAL-DEV.md).
+
 Local host live view (owner request, 2026-10-14): `/live` reuses the ordinary game UI with a read-only default
 and explicit control toggle. The console reads the selected player's public/private views, runs display-only battle
 replicas and sends allowlisted ordinary player intents through the existing match handler. It never claims a session,
@@ -255,3 +263,21 @@ maintainer's decision of 2026-10-13). On, an operator's ammo bar carries `left/m
 the exact b.snap `ammo` counts, extra rounds and refills included), centred in the bar's yellow; the rows under the bars
 move down by its height. It hides with the magazine, in the prep view and after death. The simplified board has no ammo
 bar and so no count.
+
+Room text chat is an owner-requested remake extension: the global `public/js/ui/chat.js` panel is available in the
+room and every match phase, independent of the official emote wheel. Its transport store (`public/js/ui/chatStore.js`)
+follows room membership across route changes. The in-match entry sits below the ready controls and timer.
+Limits and frames: network §8, Room text chat.
+
+Field pings are another owner-requested remake extension [ASSUMED] (2026-10-14). A five-button HUD group selects
+attention, attack, danger, retreat or question; choosing one arms the next tap/click on a board tile (occupied tiles
+included), then exits placement. Each marker displays its server-authored sender name as escaped text, with long names ellipsized. Click the same button again or press Esc to cancel. Right-clicking empty ground
+sends the selected kind directly. Both the engine and DOM fallback use BOARD coordinates and `view.tileScreen`
+viewport geometry. Matching-field markers last 2.5 s and follow the camera: a 56–80 px SVG badge drops above the target,
+with two expanding ground rings and a pointer stem. Short screens use a shorter drop; reduced motion keeps the badge
+and a static ground ring. Five distinct synthesized cues use the existing AudioManager SFX/mute buses, require an
+unlocked visible page, and suppress bursts within 180 ms. Only newly received pings on the currently shown field sound;
+switching fields never replays old cues. No audio assets or downloads are required.
+The 44 px controls sit above the bottom-left communication/settings corner, away from the shop's refresh/freeze buttons.
+Hidden while the emote wheel is open, in the enemy pen, during dragging/facing, and for spectator seats (they still
+see/hear markers). Text uses all language packs. Changes of phase/round/room clear recent markers.

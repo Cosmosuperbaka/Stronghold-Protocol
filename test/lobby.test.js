@@ -1650,7 +1650,7 @@ describe('match result replay', () => {
       const res = await back.waitFor('m.result');
       if (unicast) assert.equal(res.playerId, guest.id, 'the player gets their own result');
       else assert.equal(res.reason, hostResult.reason);
-      assert.deepEqual(order(back), ['room.state', `m.public:${PHASE.RESULT}`, 'm.result']);
+      assert.deepEqual(order(back), ['room.state', 'chat.history', `m.public:${PHASE.RESULT}`, 'm.result']);
       assert.equal(back.log.find((m) => m.t === 'room.state').inMatch, false);
     });
   }

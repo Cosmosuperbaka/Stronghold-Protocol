@@ -581,7 +581,7 @@ function readJson(req, limit = 8192) {
 export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log = console, resultsDir = path.join(DIR, '..', 'logs', 'results'),
   settingsFile = path.join(DIR, '..', 'logs', 'admin-settings.json'), root = path.join(DIR, '..'), onUpdateReady,
   replaysDir = path.join(path.dirname(resultsDir), 'replays'),
-  updateOptions = {} }) {
+  updateOptions = {}, service = null }) {
   const oldReplayConfig = getReplayConfig();
   let identity = null;
   try { identity = replayIdentity(root); } catch (e) { log.error('[replay] fingerprint unavailable', e.message); }
@@ -594,6 +594,9 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
   const updater = createReleaseUpdater({ ...updateOptions, root, log, onReady: onUpdateReady,
     hasActive: () => [...lobby.rooms.values()].some((r) => r.match && !r.match.ended && !r.match.disposed) });
   const token = randomBytes(16).toString('hex');
+  let serviceAction = null, serviceTimer = null, serviceCancel = null;
+  const serviceView = () => ({ instanceId: process.pid, canRestart: !!service, canShutdown: !!service && !service.shutdownReason,
+    shutdownReason: service?.shutdownReason || '', action: serviceAction });
   const page = fs.readFileSync(path.join(DIR, 'admin.html'), 'utf8').replace('__TOKEN__', token);
   const tokenBuf = Buffer.from(token);
   const authed = (req) => {
@@ -686,9 +689,45 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
         }
         return send(200, { ok: true, deleted, ...storageView() });
       }
+      if (req.method === 'GET' && url.pathname === '/api/service') return send(200, serviceView());
+      if (req.method === 'POST' && url.pathname === '/api/service') {
+        const body = await readJson(req);
+        if (!body || !['restart', 'shutdown'].includes(body.action)) return send(400, { error: '未知服务操作' });
+        if (body.confirm !== true) return send(400, { error: '请确认结束全部对局并操作服务' });
+        if (!service || (body.action === 'shutdown' && service.shutdownReason)) return send(409, { error: service?.shutdownReason || '当前启动方式不支持服务控制' });
+        if (serviceAction || ['checking', 'downloading', 'verifying', 'scheduled'].includes(updater.status().state)) return send(409, { error: '服务操作或更新进行中，请稍后重试' });
+        serviceAction = body.action;
+        try {
+          const prepared = await service.prepare(body.action);
+          serviceCancel = prepared.cancel;
+          if (res.destroyed) {
+            serviceCancel?.(); serviceCancel = null; serviceAction = null;
+            return;
+          }
+          res.once('close', () => {
+            if (res.writableFinished) return;
+            serviceCancel?.(); serviceCancel = null; serviceAction = null;
+          });
+          res.once('finish', () => {
+            serviceTimer = setTimeout(() => {
+              serviceCancel = null;
+              Promise.resolve().then(prepared.run).catch((e) => {
+                serviceAction = null;
+                log.error('[admin] service control failed', e);
+              });
+            }, 500);
+          });
+          return send(202, { ok: true, action: serviceAction });
+        } catch (e) {
+          serviceAction = null;
+          log.error('[admin] preparing service control failed', e);
+          return send(500, { error: `服务操作准备失败：${e.message}` });
+        }
+      }
       if (req.method === 'GET' && url.pathname === '/api/update') return send(200, updater.status());
       if (req.method === 'POST' && url.pathname === '/api/update') {
         const body = await readJson(req);
+        if (serviceAction) return send(409, { error: '正在操作服务，请稍后重试' });
         if (!body || typeof body !== 'object' || Array.isArray(body)) return send(400, { error: '请求格式错误' });
         if (body.action === 'check') return send(200, await updater.check());
         if (body.action === 'open') return send(200, await updater.open());
@@ -757,6 +796,8 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
   return {
     url: `http://${host}:${actual}`, port: actual, token, resultsDir, replaysDir,
     close: () => new Promise((r) => {
+      clearTimeout(serviceTimer);
+      serviceCancel?.();
       if (hadOwn) lobby.onMatchEnd = onMatchEnd; else delete lobby.onMatchEnd;
       setReplayConfig(oldReplayConfig);
       server.close(() => r());

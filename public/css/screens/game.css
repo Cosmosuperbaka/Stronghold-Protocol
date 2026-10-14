@@ -9,6 +9,53 @@
 .gm { background: transparent; }
 .gm__field { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
 .gm__field canvas { display: block; }
+.gm__ping-layer { position: fixed; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
+.gm__ping-target { position: absolute; inset: 0; z-index: 2; cursor: crosshair; touch-action: none; }
+.gm__ping { position: absolute; width: 0; height: 0; color: #fff; --ping-size: clamp(56px, .76rem, 80px); }
+.gm__ping-drop { position: absolute; left: calc(var(--ping-size) / -2); bottom: 22px; width: var(--ping-size); height: var(--ping-size);
+  animation: gm-ping-drop .32s cubic-bezier(.16, 1, .3, 1); }
+.gm__ping-name { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); max-width: 200px;
+  padding: 3px 8px; border: 1px solid currentColor; background: #080c0a; font: 12px/1.4 var(--font-cjk);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 3px 10px #0008; }
+.gm__ping-badge { width: 100%; height: 100%; display: grid; place-items: center;
+  border: 3px solid currentColor; border-radius: 50%; background: #080c0a; box-shadow: 0 6px 16px #000b;
+  animation: gm-ping-lift .7s ease-in-out .32s 2; }
+.gm__ping-badge::after { content: ''; position: absolute; left: calc(50% - 5px); bottom: -7px; width: 10px; height: 10px;
+  background: currentColor; clip-path: polygon(0 0, 100% 0, 50% 100%); }
+.gm__ping .icon { width: 68%; height: 68%; }
+.gm__ping-stem { position: absolute; left: -1px; bottom: 0; width: 2px; height: 20px; background: currentColor; }
+.gm__ping-ring { position: absolute; left: -40px; top: -40px; width: 80px; height: 80px; border: 3px solid currentColor;
+  border-radius: 50%; opacity: 0; animation: gm-ping-ring .9s ease-out .08s 2; }
+.gm__ping-ring--echo { animation-delay: .36s; }
+.gm__ping--attention { color: var(--mint-400); }
+.gm__ping--attack { color: #ffcf66; }
+.gm__ping--danger { color: #ff7373; }
+.gm__ping--retreat { color: #b8b8ff; }
+.gm__ping--question { color: #e9a7ff; }
+.gm__ping-tools { position: absolute; left: 0; bottom: calc(100% + 12px); z-index: 4; padding: 6px;
+  background: rgba(8, 12, 10, .82); border: 1px solid var(--line); pointer-events: auto; }
+.gm__ping-hint { display: block; margin-bottom: 4px; font: 12px/1.4 var(--font-cjk); color: var(--text-hi); }
+.gm__ping-buttons { display: flex; gap: 4px; }
+.gm__ping-btn { width: max(.38rem, 44px); height: max(.38rem, 44px); display: grid; place-items: center; padding: 8px; border: 1px solid var(--line); background: rgba(255,255,255,.04);
+  color: var(--text-md); cursor: pointer; }
+.gm__ping-btn .icon { width: 24px; height: 24px; }
+.gm__ping-btn:focus-visible { outline: 2px solid var(--mint-400); outline-offset: 2px; }
+.gm__ping-btn:hover, .gm__ping-btn.is-on { color: #fff; border-color: currentColor; background: rgba(255,255,255,.12); }
+.gm__ping-btn--attention.is-on { color: var(--mint-400); }
+.gm__ping-btn--attack.is-on { color: #ffcf66; }
+.gm__ping-btn--danger.is-on { color: #ff7373; }
+.gm__ping-btn--retreat.is-on { color: #b8b8ff; }
+.gm__ping-btn--question.is-on { color: #e9a7ff; }
+@keyframes gm-ping-drop { from { opacity: .65; transform: translateY(-100px) scale(1.2); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes gm-ping-lift { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes gm-ping-ring { from { opacity: .95; transform: scale(.25, .12); } to { opacity: 0; transform: scale(1.6, .72); } }
+@media (max-height: 500px) { .gm__ping-drop { animation-name: gm-ping-drop-short; } }
+@keyframes gm-ping-drop-short { from { opacity: .65; transform: translateY(-32px) scale(1.2); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .gm__ping-drop, .gm__ping-badge { animation: none; }
+  .gm__ping-ring { animation: none; opacity: .65; transform: scale(.65, .3); }
+  .gm__ping-ring--echo { display: none; }
+}
 .gm__vignette {
   position: absolute; inset: 0; z-index: 1; pointer-events: none;
   background:
