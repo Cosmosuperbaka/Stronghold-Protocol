@@ -12,6 +12,21 @@ import { snapFrame } from '../fields.js';
 import { OK, fail } from './common.js';
 
 export class MatchWatch {
+  /** Whether a viewer could switch to `fieldId` right now, without changing its watch state. */
+  canWatchField(ps, fieldId) {
+    if (!ps || typeof fieldId !== 'string') return false;
+    const f = this.fields.find((x) => x.fieldId === fieldId) || null;
+    if (f) {
+      const own = this.fields.find((x) => Array.isArray(x.players) && x.players.includes(ps.playerId)) || null;
+      if ((f.kind === 'boss' || f.kind === 'hidden') && ps.alive && own && own !== f) return false;
+      if (this.clientCombat && this.fields.some((x) => x.cc) && ps.alive && f.kind === 'normal' && own && own !== f && own.live) return false;
+      return true; // completed fields can still be watched while teammates finish
+    }
+    if (!fieldId.startsWith('n:') || this.fields.length) return false;
+    const target = this.players.get(fieldId.slice(2));
+    return !!target && target.alive && !target.left;
+  }
+
   /**
    * A spectator seat (community report #26; server/lobby.js spectate) joined during the match, came back or asked for a
    * resync: registered once, then resent what an eliminated player watching sees (_resync — never an m.private).

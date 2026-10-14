@@ -158,6 +158,7 @@ export class PlayerState {
     this.ready = false;
     this.infoReady = this.isBot;
     this.lastEmoteAt = -Infinity;
+    this.lastPingAt = -Infinity;
     /** operator loadout (DESIGN §16): frozen { [baseChessId]: { skill, module } }, {} = every chess on its defaults */
     this.loadout = Object.freeze({});
     this.skins = Object.freeze(this.isBot ? {} : cleanSkins(seat.skins, this.gd.raw.skins || { chars: {} }));

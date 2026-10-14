@@ -1239,5 +1239,12 @@
   "装备库存不足，未获得该装备": "Equipment stock is insufficient; no equipment was received",
   "库存不足": "Out of stock",
   "其他": "Other",
-  "多盟约干员在各所属盟约下显示，总数不重复计算": "Operators with multiple bonds appear under each bond; the total counts each operator once"
+  "多盟约干员在各所属盟约下显示，总数不重复计算": "Operators with multiple bonds appear under each bond; the total counts each operator once",
+  "注意": "Attention",
+  "进攻": "Attack",
+  "危险": "Danger",
+  "疑问": "Question",
+  "战场标点": "Field pings",
+  "点击格子发送标点": "Tap a tile to send a ping",
+  "选择标记，或右键地面": "Choose a marker, or right-click the ground"
 }
