@@ -148,7 +148,7 @@ export class StubMatch {
       const now = this.now();
       if (now - p.lastPingAt < PING_COOLDOWN_MS) return { error: ERR.RATE };
       p.lastPingAt = now;
-      this.broadcastFn({ t: 'm.ping', playerId, fieldId: msg.fieldId, area: msg.area, row: msg.row, col: msg.col, kind: msg.kind });
+      this.broadcastFn({ t: 'm.ping', playerId, name: p.name, fieldId: msg.fieldId, area: msg.area, row: msg.row, col: msg.col, kind: msg.kind });
     }
     return { ok: true };
   }

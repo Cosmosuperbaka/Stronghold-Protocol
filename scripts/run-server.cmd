@@ -8,6 +8,8 @@ set "NODE_EXE=node"
 rem Dual-stack default (IPv6 and IPv4 on one socket). scripts\service.env.cmd may override HOST.
 set "HOST=::"
 set "SP_UPDATE_RESTART=supervisor"
+rem Exit code 75 is an explicit console shutdown; do not restart it.
+set "SP_SERVICE_SHUTDOWN=exit-code"
 if exist "%~dp0service.env.cmd" call "%~dp0service.env.cmd"
 if not exist "logs" mkdir "logs"
 
@@ -15,6 +17,7 @@ if not exist "logs" mkdir "logs"
 if exist "logs\server.log" for %%A in ("logs\server.log") do if %%~zA GTR 10485760 move /y "logs\server.log" "logs\server.old.log" >nul
 echo [%date% %time%] starting: "%NODE_EXE%" server\index.js (PORT=%PORT% HOST=%HOST%) >> "logs\server.log"
 "%NODE_EXE%" server\index.js >> "logs\server.log" 2>&1
+if %errorlevel% EQU 75 exit /b 0
 echo [%date% %time%] server exited with code %errorlevel%, restarting in 5 s >> "logs\server.log"
 ping -n 6 127.0.0.1 >nul
 goto loop

@@ -68,3 +68,8 @@ purposes only: no selling, paid distribution, paid hosting, ads, donations or an
 can request removal through a GitHub issue and the content will be taken down. No warranty of any kind.
 The English UI strings were seeded from GitHub PR #70 by @YuriRestia (credited, released with the project under
 GPL-3.0-or-later); the English game texts (`data/i18n/en.json`) are official EN client data like `data/*.json`.
+
+**Room text chat credit:** `server/chat.js` and `public/js/ui/chatStore.js`, and the text-chat send flow in
+`public/js/ui/chat.js`, are adapted from [RyantArgnisan/Stronghold-Protocol](https://github.com/RyantArgnisan/Stronghold-Protocol),
+commit [a649d92dc3ffd3249f4c1dbe9d2ee1c9811bbfd6](https://github.com/RyantArgnisan/Stronghold-Protocol/commit/a649d92dc3ffd3249f4c1dbe9d2ee1c9811bbfd6),
+under GPL-3.0-or-later. Adaptation keeps the current room API, four-player rules and official emote wheel.

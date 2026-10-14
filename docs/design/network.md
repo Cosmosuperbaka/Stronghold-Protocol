@@ -39,9 +39,10 @@ creation, joining, spectating and invitation links use the same room code.
 **Field pings (owner extension, 2026-10-14).** [ASSUMED] `g.ping {fieldId, area:'board', row, col, kind}`
 accepts attention / attack / danger / retreat / question. The coordinates are integer BOARD coordinates within GEO.
 The target must satisfy the current watch restrictions (including normal combat and boss-group visibility), or
-`BAD_TARGET`; 500 ms per-player cooldown or `RATE`. `m.ping {playerId, fieldId, area, row, col, kind}` broadcasts
+`BAD_TARGET`; 500 ms per-player cooldown or `RATE`. `m.ping {playerId, name, fieldId, area, row, col, kind}` broadcasts
 to room members, with clients showing it only on the matching field for 2.5 s. It is ephemeral, absent from state,
 history and reconnect. Spectator seats read only. This communication event never enters the deterministic sim.
+The server supplies `playerId` and the sender's `name`; the client displays that name above the marker as escaped text.
 C→S (all carry `rid`): `g.infoReady {setupRevision?}` · `g.band {bandId}` · `g.bandSkip` · `g.bandFocus {bandId?}` (the strategy highlighted in the draft screen — what a timed-out turn takes; absent / null clears it; `WRONG_PHASE` outside BAND_DRAFT, `ALREADY` after the pick, `BAD_TARGET` for a band not allowed; §18.2) · `g.buy {slot}` · `g.refresh` · `g.freeze` · `g.levelUp` · `g.sell {uid}` · `g.move {uid, to:{area:'board', row, col}|{area:'hand', idx}, dir?}` · `g.equip {itemUid, targetUid, replaceUid?}` (`replaceUid`: which equipped item a third one replaces, §6.2) · `g.art {itemUid, row, col, dir?}` (`dir` ∈ UP|RIGHT|DOWN|LEFT from the deploy wheel, §3; absent ⇒ `to.dir`, then RIGHT; `g.move` onto the piece's own tile re-orients it; board pieces in `m.private` / `m.field {prep:true}` carry `dir`) · `g.destroy {uid}` (hand / temp items only; equipped items are locked, §6.2) · `g.reward {idx}` · `g.choice {idx, choiceId?}` (with an ID: the recipient's PREP personal choice; without one: the public SP_DRAFT; stale or wrong IDs never fall through to the public draft) · `g.ready {ready}` · `g.emote {id}` · `g.watch {fieldId, playerId?}` (`playerId`: the player tapped — a shared 联防 / boss pair field shows two; what an eliminated viewer follows, §25) · `g.autoplay {on}` · `g.pause {on}` (solo battles only, §14 Solo pause) · `g.unitStats {seq?}` (ROUND_START / SP_DRAFT / PREP, else `WRONG_PHASE`; eliminated: `ELIMINATED`) → push `m.unitStats` (§18.5) · `g.leave`
 S→C:
 - `m.public` — full public state on every change (throttled ≤ 10/s): `{ phase, round, lastRound, deadline, serverNow, modeId, difficulty, stageId, factions, disabledBonds, bannedChess, bossId, hiddenBossId?, teamLp?, bossHp?:{hp,max}, overtimeAt? /* FA / HC: ms epoch the overtime drain starts, §4 */, paused /* solo pause, §14 */, draft?:{order,turn,picks,skipsLeft,turnDeadline,turnSeconds /* one turn's length, 0 untimed; deadline = turnDeadline (§18.2) */,untimed}, sp?:{family,cards /* bounty cards carry descRaw?, §20.6 */,turn,picks}, players:[{playerId, seat, name, isBot, connected, alive, lp, bandId, shopLevel, boardCount, ready, bonds:[{bondId,count,active,tier,layers,harmony? /* 调和's +1 is in count, §21.26 */}], fieldId, status, pendingLp? /* COMBAT / 联防 of a normal round: the LP the player's own battle will cost at settlement so far, min(lpCapPerRound, counted leaks) — in 联防 min(lpCapPerRound, uniteLeft) — omitted when 0 and in every other phase (§17.5 live LP) */, uniteLeft? /* 联防: the leaker's enemies still standing — not spawned yet + alive + counted leaks, uncapped, live (§20.6) */}] , fields:[{fieldId, kind, players:[playerId...], progress?:{killed, resolved, total, done} /* §14 顶栏胶囊: resolved = the field's own scheduled enemies knocked down or leaked, null while unknown */}] }` · `m.public.uniteResult` — SETTLE after a 联防 only, its outcome as data: `{ through /* the leakers' enemies that still got through, uncapped */, helpers:[playerId...], leakers:[playerId...], losses:{playerId: the LP settlement charged this round — every alive player} }`; absent when no 联防 resolved (the client's result box then reads the round's own battle; GitHub #235, PR #112)
@@ -176,3 +177,21 @@ The preparation medic and future battle's medic/Touch use the same entitlement; 
 alive. A mere draft focus grants nothing; another match starts without it. Only `band_amedic` is retained in
 `contentInfo.matchBands`; `teammates` and other team strategies still filter eliminated players. The official text
 and initial/unlimited-round data do not explicitly settle the holder-elimination case (§30.14).
+
+### Room text chat (owner-requested remake extension)
+
+[ASSUMED] The official mode has only the emote wheel (upstream issue #125); the owner requested text chat on
+2026-10-14. `room.chat {text, clientId}` works for seated human players before, during and after a match. Spectators
+read only (`SPECTATOR`); non-members receive `NOT_IN_ROOM`. The server strips C0/C1 controls, trims and rejects empty
+text or more than 200 Unicode code points / 1024 UTF-8 bytes (`BAD_MSG`). Each session may send once per second
+(`RATE`); each room admits at most ten messages per rolling second. Identity and time come from the server.
+
+`chat.message {code, id, playerId, name, seat, role, text, at}` broadcasts only to current room members;
+`chat.history {code, messages, lastId}` unicasts the latest 50 entries on join, spectate and reconnect/resync. History
+is held only in room memory and disappears with the room. Repeating an accepted `clientId` is acknowledged without
+broadcasting again (last 50 IDs per session per room). `room.state.textChat: true` advertises support.
+
+The global collapsible text panel preserves history and drafts across match phases, counts unread live messages,
+escapes user text via Preact and clears its state on leave/kick/room or identity change. Enter sends (Chinese IME
+composition does not), Shift+Enter edits and Esc collapses. Failure preserves the draft; offline requests are never
+queued. The original picture-only emote wheel is retained. No battle rules or golden results change.

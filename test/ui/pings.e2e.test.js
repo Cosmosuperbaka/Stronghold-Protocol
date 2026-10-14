@@ -80,6 +80,10 @@ describe('field ping placement in the browser', { skip: !ENABLED && 'set SP_E2E=
       if (width < 900) await page.touchscreen.tap(point.x, point.y);
       else await page.mouse.click(point.x, point.y);
       await page.waitForSelector('.gm__ping--question');
+      assert.equal(await page.$eval('.gm__ping-name', (el) => el.textContent), await page.evaluate(async () => {
+        const { store } = await import('/js/store.js');
+        return store.get().match.public.players.find((p) => p.playerId === store.get().me.playerId).name;
+      }), 'ping identifies its sender');
       assert.deepEqual(await page.evaluate(() => globalThis.pingRequests.at(-1)), { fieldId: 'n:p1', area: 'board', row: 10, col: 4, kind: 'question' });
       assert.equal(await page.$('.gm__ping-target'), null, 'placement exits after one ping');
       await page.waitForFunction(() => globalThis.pingOscillators > 0 && globalThis.pingAudioPeak > 0.001);
@@ -124,8 +128,9 @@ describe('field ping placement in the browser', { skip: !ENABLED && 'set SP_E2E=
       await page.waitForFunction(() => {
         const el = document.querySelector('.gm__ping');
         if (!el) return false;
+        const ring = getComputedStyle(el.querySelector('.gm__ping-ring'));
         return getComputedStyle(el.querySelector('.gm__ping-badge')).animationName === 'none'
-          && getComputedStyle(el.querySelector('.gm__ping-ring')).animationName === 'none';
+          && ring.animationName === 'none' && Number(ring.opacity) > 0;
       }, { timeout: 1500 });
       assert.ok(await page.$eval('.gm__ping', (el) => {
         const badge = getComputedStyle(el.querySelector('.gm__ping-badge'));

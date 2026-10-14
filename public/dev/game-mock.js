@@ -722,7 +722,7 @@ async function mockRequest(t, f = {}) {
       return {};
     }
     case 'g.ping': {
-      store.set((s) => ({ pings: [...s.pings.slice(-(PING_KEEP - 1)), { ...f, playerId: ME, seq: Date.now(), at: Date.now() }] }));
+      store.set((s) => ({ pings: [...s.pings.slice(-(PING_KEEP - 1)), { ...f, playerId: ME, name: pub.players.find((p) => p.playerId === ME)?.name, seq: Date.now(), at: Date.now() }] }));
       return {};
     }
     case 'g.watch': {

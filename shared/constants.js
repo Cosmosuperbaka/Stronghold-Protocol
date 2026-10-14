@@ -250,3 +250,8 @@ export const PING_KINDS = Object.freeze(['attention', 'attack', 'danger', 'retre
 export const PING_COOLDOWN_MS = 500;
 export const PING_TTL_MS = 2500;
 export const PING_KEEP = 32;
+
+// [ASSUMED] Remake-only room text chat, requested by the owner; independent of the official emote wheel.
+export const CHAT_MAX_CHARS = 200;
+export const CHAT_HISTORY_LIMIT = 50;
+export const CHAT_COOLDOWN_MS = 1000;

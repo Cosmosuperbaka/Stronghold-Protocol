@@ -83,6 +83,7 @@ export const initialState = Object.freeze({
   ticker: [],
   emotes: [],
   pings: [],
+  chat: null,
   clock: { offset: 0, rtt: null, synced: false },
   ui: { pendingJoin: null, restoring: false, buildStale: false },
 });

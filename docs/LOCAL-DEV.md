@@ -1,6 +1,6 @@
 # 扩展分支开发笔记
 
-这份文档记录本仓库在上游 [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol) 之上做的改动，以及读代码时摸清的结构和坑，方便之后继续开发。上游自己的架构文档见 [DESIGN.md](DESIGN.md)（总体）、[META.md](META.md)（对局与经济）、[SIM.md](SIM.md)（战斗模拟）。
+这份文档记录本仓库在上游 [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol) 之上做的改动，以及读代码时摸清的结构和坑，方便之后继续开发。上游自己的架构文档见 [DESIGN.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.2.6/docs/DESIGN.md)（总体）、[META.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.2.6/docs/META.md)（对局与经济）、[SIM.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.2.6/docs/SIM.md)（战斗模拟）。
 
 ## 1. 仓库与分支
 
@@ -13,7 +13,7 @@
 - 合并上游新版本时从 `main` 开功能分支，完成适配与测试后再合并回 `main`。
 - 同步上游：`git fetch upstream` → `git merge upstream/master` → `npm install` → `npm run setup`（上游常会加素材）→ `node --test`。
 - 素材 `public/assets/`、`.cache/`、`.claude/` 都在 `.gitignore` 里，不进仓库。新机器 clone 后要先 `npm install && npm run setup`。
-- 当前版本为 `v0.2.6-extended.2`，基于上游 `v0.2.6`（`488db49f`），新增主机实时查看与代操作、最终两回合回放尝试；沿用上一版带宽、渲染优化和 Release 发布签名。完整素材包沿用 `v0.2.5-extended.1` 导入的上游完整包中的 `public/assets/local/` 和 `data/local-assets.json`，包括 11 个官方战场场景；来源和固定 SHA-256 见 DEPLOY §6。发布预检与构建都加 `--require-local-art`，同时核对场景清单为 11 个、所有文件哈希与源包一致；该参数只保证存在有效本地素材清单，不替代场景完整性验证。lite 不含官方本地素材。素材不随 Git 分支移动，切换旧代码版本时也要注意素材版本匹配。
+- 当前版本为 `v0.2.6-extended.3`，基于上游 `v0.2.6`（`488db49f`），新增房间文字聊天、带发送者名称的战场标点和控制台服务按钮；保留实时查看、代操作、回放与 Release 发布签名。完整素材包沿用 `v0.2.5-extended.1` 导入的上游完整包中的 `public/assets/local/` 和 `data/local-assets.json`，包括 11 个官方战场场景；来源和固定 SHA-256 见 DEPLOY §6。发布预检与构建都加 `--require-local-art`，同时核对场景清单为 11 个、所有文件哈希与源包一致；该参数只保证存在有效本地素材清单，不替代场景完整性验证。lite 不含官方本地素材。素材不随 Git 分支移动，切换旧代码版本时也要注意素材版本匹配。
 
 各版上游合并、主机扩展与发布验证见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md)。
 
@@ -26,6 +26,7 @@
 | `scripts/start-tunnel.bat` / `.mjs` | 一键开服 + cloudflared 公网隧道，列出地址，持续输出日志。详见 [scripts/README.md](../scripts/README.md) |
 | `scripts/stop-server.bat` / `free-port.mjs` | 释放游戏端口（结束服务器和指向它的隧道），仅 Windows |
 | `server/admin.js` / `admin.html` | 本机主机控制台（HTTP API + 单页界面） |
+| `server/service-control.js` | 直接启动模式的脱离窗口重启助手，等旧进程退出后再启动，日志在 `logs/service-restart.log` |
 | `server/match/replay.js`、`server/replay-store.js` | 战斗输入与已采纳结果录制、gzip 保存、指纹和记录清理 |
 | `server/replay.html`、`server/replay-viewer.js` | 主机回放页：回合时间线、阵容、敌人、播放与结果核对 |
 | `test/match/replay.test.js`、`test/replay-store.test.js`、`test/admin-replay.test.js`、`test/ui/admin-replay.e2e.test.js` | 回放确定性、存储、鉴权与真实浏览器验证 |
@@ -67,6 +68,14 @@
 当前 v0.2.5 的自选池为 79 名（上游 72 + 本地 7），单位形态 280 个，有语音的干员 199 名。上表的 71 → 78、256 → 277 等是 v0.2.2 的历史数量。上游自己的文档仍描述排除联动的官方分支，以本节为准。
 
 0.2.0 起上游把 `Match` 的方法拆到了 `server/match/match/*.js`，启动代码从 `server/index.js` 拆到了 `server/http/`。
+
+### 房间交流（文字聊天与战场标点）
+
+文字聊天入口在等待室和对局中持续显示；局内下移，避开准备按钮和计时器。`server/chat.js` 保存每房间最近 50 条消息，身份、时间由服务端生成；`room.chat` 仅正式玩家可发送，观战席只读。每条最多 200 个 Unicode 码点 / 1024 字节，每会话间隔 1 秒，每房间滚动 1 秒最多 10 条；`clientId` 对最近 50 次发送去重。加入与重连收到 `chat.history`；客户端 `chatStore.js` 合并历史和实时消息，保留草稿，离开或更换房间清空，断线不排队发送。Enter 发送时避开中文输入法候选确认，Shift+Enter 换行、Esc 收起；用户文本由 Preact 转义。
+
+标点使用 `g.ping {fieldId, area, row, col, kind}` 与 `m.ping`；服务端校验场地可观察权限、棋盘坐标、五种类型及 500 ms 间隔，并附 `playerId` 和服务端的 `name`，客户端不能指定发送者。房间广播后，仅当前观察该战场的客户端显示 2.5 秒，不进入战斗模拟、回档或回放，也不在重连时补发。正式玩家包括淘汰玩家可发送，观战席只接收；切换场地不会重播旧标点音效。客户端保留最多 32 条，阶段或回合变化清空；动画包括落下、上浮与两圈落点扩散，减少动画设置下保留静态落点环。原创 Web Audio 音效沿用音效音量与静音设置，页面隐藏或未解锁音频时不补播。
+
+聊天借鉴 RyantArgnisan/Stronghold-Protocol 的 GPL 实现，署名见 NOTICE；标点参考 ApexPing 的交互思路，没有引入其代码或依赖。两者均为维护者请求的非官方扩展 `[ASSUMED]`，不改战斗规则或 golden。接口详见 META 与 design/network，专项测试见 `test/chat.test.js`、`test/ping.test.js`、`test/ui/chat.test.js` 及对应浏览器测试。
 
 ## 3. 对局引擎速览
 
@@ -149,6 +158,8 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 ### 安全
 
+本机服务控制：控制台顶部「重启服务」「关闭服务」通过受 token / Host 保护的 `/api/service` 发起，必须传 `confirm: true`，和 Release 更新互斥。`boot.js` 接入正常关闭流程，直接重启助手先确认就绪、待旧进程退出后启动新进程；保留地址、游戏端口、控制台端口和环境变量，不依赖 CMD 窗口。Windows 自启循环识别退出码 75 为主动停服；其他 supervisor 默认禁用关闭，详见 [DEPLOY.md](DEPLOY.md)。浏览器重启后取新 token 自动刷新，关闭后停止轮询并保留关闭状态。针对性验证在 `test/admin-service.test.js`、`test/ui/admin-service.e2e.test.js`。
+
 三层，缺一不可：只监听 127.0.0.1（局域网和隧道都到不了）；`/api/*` 必须带 `X-Admin-Token`（每次启动随机生成，嵌在页面里）；`Host` 头必须是控制台自己的 localhost 地址（防止浏览器里打开的其他网站通过 DNS rebinding 调用）。`test/admin.test.js` 覆盖了这三条。对局记录和设置也只走这个端口，游戏端口（会通过隧道公开、没有鉴权）上没有任何入口。
 
 ### 实时查看与代操作
@@ -165,6 +176,8 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 | `GET /api/live?room=&playerId=` | 所选玩家实时公私状态、一次性战斗输入、共享血池与结束信息（控制台 token） |
 | `POST /api/live` | 带对局、回合、阶段及状态摘要的普通代操作；拒绝战斗上报、离开及房间管理指令 |
 | `GET /` | 控制台页面 |
+| `GET /api/service` | 服务操作能力、禁用关闭的原因、当前操作与进程标识 |
+| `POST /api/service` | `{ action: 'restart' 或 'shutdown', confirm: true }`；返回 202 后正常关服，和更新、重复操作互斥 |
 | `GET /api/rooms` | 所有房间：对局阶段、玩家数据、`history`、`enemyPlan`；房间级的 `log`（操作日志）和 `lastMatch`（没有进行中的对局时，上一局的统计） |
 | `GET /api/catalog?room=` | 当前模式可发放的干员、道具、机变卡 |
 | `POST /api/action` | `{ room, action, playerId?, value? }` → `{ ok }` 或 `{ error, code? }` |

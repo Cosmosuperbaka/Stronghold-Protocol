@@ -855,11 +855,12 @@ gets the table value of its own rounds. `onEnd(summary)` receives the same objec
 `m.emote { playerId, id }`: `id` must be one of `shared/constants.js EMOTES` (`BAD_MSG` otherwise, also when `handle()`
 is called without protocol validation); 1 per second per player (`RATE`).
 
-`g.ping { fieldId, area:'board', row, col, kind }` → `m.ping { playerId, fieldId, area, row, col, kind }`:
+`g.ping { fieldId, area:'board', row, col, kind }` → `m.ping { playerId, name, fieldId, area, row, col, kind }`:
 owner-requested remake extension [ASSUMED] (2026-10-14). Kinds are attention, attack, danger, retreat and question.
 The server validates board coordinates, existing watch permissions and a per-player 500 ms cooldown (`RATE`);
 invisible fields are `BAD_TARGET`. Completed fields remain eligible while teammates fight. Broadcasts reach all room
 members, spectator seats included; clients display only the field currently shown, for 2.5 s. No history or resync.
+The server authors both `playerId` and `name`; each marker shows the sender name, never a client-supplied identity.
 Spectator seats retain read-only permissions. Constants: shared/constants.js; client UI: public/js/ui/fieldPings.js.
 The client palette sits above the bottom-left communication controls. Markers use a drop/pointer/ground-ring cue;
 only fresh pings on the displayed field play synthesized tones through AudioManager's existing SFX/mute channels.
@@ -1015,3 +1016,21 @@ unit data cannot be recovered from aggregate totals; no migration invents them.
 
 Rewind snapshots restore `bossPairs` together with `bossWaves` (§30.31), so the restored prep preview and boss
 combat retain the same partners and left/right sides. Rewinding to a prep before pairing resets both to null.
+
+### Room text chat (owner-requested remake extension)
+
+[ASSUMED] The official mode has only the emote wheel (upstream issue #125); the owner requested text chat on
+2026-10-14. `room.chat {text, clientId}` works for seated human players before, during and after a match. Spectators
+read only (`SPECTATOR`); non-members receive `NOT_IN_ROOM`. The server strips C0/C1 controls, trims and rejects empty
+text or more than 200 Unicode code points / 1024 UTF-8 bytes (`BAD_MSG`). Each session may send once per second
+(`RATE`); each room admits at most ten messages per rolling second. Identity and time come from the server.
+
+`chat.message {code, id, playerId, name, seat, role, text, at}` broadcasts only to current room members;
+`chat.history {code, messages, lastId}` unicasts the latest 50 entries on join, spectate and reconnect/resync. History
+is held only in room memory and disappears with the room. Repeating an accepted `clientId` is acknowledged without
+broadcasting again (last 50 IDs per session per room). `room.state.textChat: true` advertises support.
+
+The global collapsible text panel preserves history and drafts across match phases, counts unread live messages,
+escapes user text via Preact and clears its state on leave/kick/room or identity change. Enter sends (Chinese IME
+composition does not), Shift+Enter edits and Esc collapses. Failure preserves the draft; offline requests are never
+queued. The original picture-only emote wheel is retained. No battle rules or golden results change.

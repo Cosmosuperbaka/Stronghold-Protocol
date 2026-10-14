@@ -72,7 +72,7 @@ export class MatchIntents {
     const now = this.sched.now();
     if (now - ps.lastPingAt < PING_COOLDOWN_MS) return fail(ERR.RATE);
     ps.lastPingAt = now;
-    this.broadcast({ t: 'm.ping', playerId: ps.playerId, fieldId, area, row, col, kind });
+    this.broadcast({ t: 'm.ping', playerId: ps.playerId, name: ps.name, fieldId, area, row, col, kind });
     return OK;
   }
 

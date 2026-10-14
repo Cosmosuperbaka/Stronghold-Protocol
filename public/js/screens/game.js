@@ -180,7 +180,10 @@ function PingLayer({ pings, fieldId, view }) {
       return html`<div key=${p.seq} class=${`gm__ping gm__ping--${p.kind}`} style=${{ left: `${pos.x}px`, top: `${pos.y}px` }}>
         <span class="gm__ping-ring"></span><span class="gm__ping-ring gm__ping-ring--echo"></span>
         <span class="gm__ping-stem"></span>
-        <span class="gm__ping-drop"><span class="gm__ping-badge"><${PingIcon} kind=${p.kind} /></span></span>
+        <span class="gm__ping-drop">
+          ${typeof p.name === 'string' && p.name ? html`<span class="gm__ping-name" title=${p.name}>${p.name}</span>` : null}
+          <span class="gm__ping-badge"><${PingIcon} kind=${p.kind} /></span>
+        </span>
       </div>`;
     })}
   </div>`;

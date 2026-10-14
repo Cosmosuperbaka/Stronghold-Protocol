@@ -32,9 +32,9 @@ describe('field pings', () => {
     const h = makeMatch({ mode: 'coop', humans: 2, seed: 701, fake: true }).start();
     const m = h.m;
     h.toPrep(1);
-    assert.deepEqual(m.handle('p_0', ping()), { ok: true });
+    assert.deepEqual(m.handle('p_0', { ...ping(), name: 'forged name' }), { ok: true });
     assert.deepEqual(h.lastBc('m.ping'), {
-      t: 'm.ping', playerId: 'p_0', fieldId: 'n:p_1', area: 'board', row: 3, col: 4, kind: 'question',
+      t: 'm.ping', playerId: 'p_0', name: h.ps('p_0').name, fieldId: 'n:p_1', area: 'board', row: 3, col: 4, kind: 'question',
     });
     assert.equal(m.handle('p_0', ping('n:p_0')).error, ERR.RATE);
     h.sched.advance(PING_COOLDOWN_MS);
@@ -112,7 +112,7 @@ describe('field pings', () => {
     await a.waitFor('m.public');
     assert.equal((await a.request(ping(`n:${b.id}`))).t, 'ok');
     const received = await Promise.all(clients.map((c) => c.waitFor('m.ping')));
-    for (const msg of received) assert.deepEqual(msg, { ...ping(`n:${b.id}`), t: 'm.ping', playerId: a.id });
+    for (const msg of received) assert.deepEqual(msg, { ...ping(`n:${b.id}`), t: 'm.ping', playerId: a.id, name: 'P0' });
     assert.equal((await watcher.request(ping(`n:${b.id}`))).code, ERR.SPECTATOR);
   });
 });

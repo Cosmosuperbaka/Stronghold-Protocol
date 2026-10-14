@@ -99,9 +99,10 @@
 //     a player seat (the seat is kept and given back on resume).
 
 import { randomBytes, randomInt } from 'node:crypto';
-import { ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor } from '../shared/constants.js';
+import { ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor, CHAT_COOLDOWN_MS } from '../shared/constants.js';
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks } from '../shared/protocol.js';
 import { encode, isDroppable, isErrCode, sendRaw, sendSession } from './net.js';
+import { RoomChat, cleanChatText } from './chat.js';
 import { getData as defaultGetData, lookup } from './data.js';
 import { Match as DefaultMatch } from './match/Match.js';
 import { KITTED_CHARS } from './sim/content/kits/index.js';
@@ -187,6 +188,7 @@ export class Room {
     this.seats = new Array(MAX_SEATS).fill(null);
     /** @type {{ playerId: string, name: string, connected: boolean }[]} spectator seats, ≤ MAX_SPECTATORS (header) */
     this.spectators = [];
+    this.chat = new RoomChat();
     /** @type {any} running Match instance */
     this.match = null;
     /** @type {{ live: boolean, ended: boolean, disposed: boolean, match: any } | null} */
@@ -232,6 +234,7 @@ export class Room {
       difficulty: this.difficulty,
       aiPicksLast: this.aiPicksLast,
       inMatch: !!this.match,
+      textChat: true,
       seats: this.seats.map((s) => (s
         ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left }
         : null)),
@@ -263,6 +266,7 @@ export class Lobby {
     this.opts = { ...LOBBY_DEFAULTS, ...options };
     /** @type {Map<string, Room>} */
     this.rooms = new Map();
+    this.chatTimes = new WeakMap();
     /** @type {Map<string, NodeJS.Timeout>} lobby grace timers by playerId */
     this.graceTimers = new Map();
     /** @type {Map<string, NodeJS.Timeout>} deferred (coalesced) resyncs by playerId */
@@ -323,7 +327,7 @@ export class Lobby {
     if (!room.match && seat.name !== session.name) { seat.name = session.name; changed = true; }
     if (!room.hostId) { this.migrateHost(room); changed = true; }
     if (changed) this.broadcastState(room);
-    else this.sendState(room, session);
+    else this.sendState(room, session, false);
     this.resync(session, !resumed);
   }
 
@@ -339,6 +343,7 @@ export class Lobby {
       case 'room.join': return this.join(session, msg);
       case 'room.leave': return this.leave(session);
       case 'room.ready': return this.ready(session, msg);
+      case 'room.chat': return this.chat(session, msg);
       case 'room.setDifficulty': return this.setDifficulty(session, msg);
       case 'room.setAiPicksLast': return this.setAiPicksLast(session, msg);
       case 'room.addBot': return this.addBot(session);
@@ -452,6 +457,24 @@ export class Lobby {
     session.pendingResult = null;
     if (!room.hostId) room.hostId = session.playerId;
     this.broadcastState(room);
+    sendSession(session, room.chat.history(room.code));
+    return OK;
+  }
+
+  // [ASSUMED] Owner-requested remake text chat; spectators read only, in every room/match phase.
+  chat(session, { text, clientId }) {
+    const room = this.roomOf(session);
+    if (!room) return fail(ERR.NOT_IN_ROOM);
+    const seat = room.seatOf(session.playerId);
+    if (!seat || seat.isBot || seat.left) return fail(ERR.SPECTATOR);
+    const clean = cleanChatText(text);
+    if (clean === null || typeof clientId !== 'string' || !/^[A-Za-z0-9_\-.:]{1,64}$/.test(clientId)) return fail(ERR.BAD_MSG);
+    if (room.chat.seen(session, clientId)) return OK;
+    const now = this.now();
+    if (now - (this.chatTimes.get(session) ?? -Infinity) < CHAT_COOLDOWN_MS || !room.chat.admit(now)) return fail(ERR.RATE);
+    this.chatTimes.set(session, now);
+    room.chat.remember(session, clientId);
+    this.broadcastRoom(room, room.chat.message(room, seat, clean, now));
     return OK;
   }
 
@@ -485,6 +508,7 @@ export class Lobby {
     session.notice = null;
     session.pendingResult = null;
     this.broadcastState(room);
+    sendSession(session, room.chat.history(room.code));
     if (room.match) this.callMatch(room, 'addSpectator', session.playerId);
     return OK;
   }
@@ -879,6 +903,7 @@ export class Lobby {
     const room = this.roomOf(session);
     if (!room) return;
     session.resyncAt = this.now();
+    sendSession(session, room.chat.history(room.code));
     if (room.match) {
       this.callMatch(room, room.spectatorOf(session.playerId) ? 'addSpectator' : 'onReconnect', session.playerId);
       return;
@@ -1149,8 +1174,9 @@ export class Lobby {
     for (const session of this.memberSessions(room)) sendRaw(session.ws, data);
   }
 
-  sendState(room, session) {
+  sendState(room, session, includeChat = true) {
     sendSession(session, room.toState());
+    if (includeChat) sendSession(session, room.chat.history(room.code));
   }
 
   /** Match broadcast: encode once, send to every connected member. @returns {string | null} the encoded frame */
