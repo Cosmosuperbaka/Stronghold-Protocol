@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { APP_VERSION, DEV_BUILD } from '../../shared/constants.js';
+import { N_ } from '../../shared/i18n.js';
 import { limitKeyOf } from '../net.js';
 import { applyPendingUpdate } from '../update.js';
 import { ROOT } from './config.js';
@@ -124,7 +125,7 @@ export async function runMain(start) {
       const managedShutdown = process.env.SP_SERVICE_SHUTDOWN === 'exit-code';
       admin = await startAdmin({ lobby: srv.lobby, root: ROOT, port: Number(process.env.SP_ADMIN_PORT) || srv.port + 100,
         service: {
-          shutdownReason: supervised && !managedShutdown ? '由外部守护程序管理，请使用服务管理器关闭服务' : '',
+          shutdownReason: supervised && !managedShutdown ? N_('由外部守护程序管理，请使用服务管理器关闭服务') : '',
           prepare: async (action) => {
             const cancel = action === 'restart' && !supervised ? await prepareRestart(ROOT, {
               PORT: String(srv.port), HOST: srv.host, SP_ADMIN_PORT: String(admin.port),

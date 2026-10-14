@@ -34,7 +34,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const alive = () => { try { process.kill(pid, 0); return true; } catch { return false; } };
   process.send?.('ready');
   for (let i = 0; i < 160 && alive(); i++) await new Promise((r) => setTimeout(r, 250));
-  if (alive()) { fs.writeSync(fd, '原服务器未退出，取消重启\n'); process.exit(1); }
+  if (alive()) { fs.writeSync(fd, '原服务器未退出，取消重启\n'); process.exit(1); } // i18n-ignore: host process log
   const child = spawn(process.execPath, [path.join(root, 'server', 'index.js')], {
     cwd: root, detached: true, windowsHide: true, stdio: ['ignore', fd, fd],
   });
