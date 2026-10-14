@@ -838,6 +838,15 @@ gets the table value of its own rounds. `onEnd(summary)` receives the same objec
 `m.emote { playerId, id }`: `id` must be one of `shared/constants.js EMOTES` (`BAD_MSG` otherwise, also when `handle()`
 is called without protocol validation); 1 per second per player (`RATE`).
 
+`g.ping { fieldId, area:'board', row, col, kind }` → `m.ping { playerId, fieldId, area, row, col, kind }`:
+owner-requested remake extension [ASSUMED] (2026-10-14). Kinds are attention, attack, danger, retreat and question.
+The server validates board coordinates, existing watch permissions and a per-player 500 ms cooldown (`RATE`);
+invisible fields are `BAD_TARGET`. Completed fields remain eligible while teammates fight. Broadcasts reach all room
+members, spectator seats included; clients display only the field currently shown, for 2.5 s. No history or resync.
+Spectator seats retain read-only permissions. Constants: shared/constants.js; client UI: public/js/ui/fieldPings.js.
+The client palette sits above the bottom-left communication controls. Markers use a drop/pointer/ground-ring cue;
+only fresh pings on the displayed field play synthesized tones through AudioManager's existing SFX/mute channels.
+
 Tickers (`m.ticker { text, id, type, priority, playerId }`) from `config.broadcasts`: SHOP_LEVEL, GOLDEN_CHAR,
 CHAR_DAMAGE (per board unit per battle, highest threshold; summons created in battle once per unit type — a client
 result may only name the unit types its lineup can field, fields.js validateClientResult), BOSS_HIT (20/50/80 % of the

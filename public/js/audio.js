@@ -80,6 +80,11 @@ const MAX_VOICES = 8;
 const UNIT_COOLDOWN_MS = 160;
 const URL_GAP_MS = 45;
 const MAX_PER_URL = 2;
+// [ASSUMED] Original short field-ping earcons; independent of downloaded official sound banks.
+const PING_TONES = Object.freeze({
+  attention: [880, 1174.66], attack: [659.25, 987.77, 1318.51], danger: [987.77, 659.25, 987.77],
+  retreat: [880, 659.25, 440], question: [659.25, 1046.5],
+});
 /**
  * 漏怪: the original Arknights exit alarm (`sfx.battle.leak`, `battle/b_ui/b_ui_alarmenter`) runs **1.44 s**, and the
  * official bank is a one-shot: `battle.ON_ENEMY_REACHED_EXIT` carries `maxSoundAllowed: 1` with `popOldest: true` on the
@@ -573,6 +578,7 @@ export class AudioManager {
     this.voiceLang = 'cn';    // settings 语音语言: 'cn' (audio.voice) | 'jp' (audio.voiceJp, falling back to audio.voice)
     this.startVoiceDone = false; // 行动出发 of this field (the first operator deployed says it)
     this.uiVoices = 0;
+    this.lastPingSoundAt = -Infinity;
     this.wantBgm = null;      // desired key (kept while locked)
     this.bgm = null;          // { key, loopUrl, nodes: [{src, gain}], gain }
     this.bgmToken = 0;
@@ -988,6 +994,30 @@ export class AudioManager {
         else this._play(url, { volume: o.volume ?? 0.9 });
       }
     } catch { /* ignore */ }
+  }
+
+  /** Field-ping sound, generated locally through the existing SFX/mute buses. Never queue while locked/hidden. */
+  ping(kind) {
+    const notes = PING_TONES[kind];
+    const ctx = this.ctx;
+    if (!notes || !ctx || !this.sfxGain || ctx.state !== 'running' || this.win?.document?.hidden
+      || this.volumes.muted || this.volumes.sfx <= 0 || ctx.currentTime - this.lastPingSoundAt < 0.18) return;
+    this.lastPingSoundAt = ctx.currentTime;
+    try {
+      notes.forEach((frequency, i) => {
+        const start = ctx.currentTime + i * 0.09;
+        const tone = ctx.createOscillator();
+        const gain = ctx.createGain();
+        tone.type = 'triangle';
+        tone.frequency.setValueAtTime(frequency, start);
+        gain.gain.setValueAtTime(0, start);
+        gain.gain.linearRampToValueAtTime(0.32, start + 0.008);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.13);
+        tone.connect(gain); gain.connect(this.sfxGain);
+        tone.onended = () => { tone.disconnect(); gain.disconnect(); };
+        tone.start(start); tone.stop(start + 0.14);
+      });
+    } catch (err) { this._warn('field-ping', err); }
   }
 
   /** Battle sound by name (sfx.battle keys), limited like unit sounds. */

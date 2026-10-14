@@ -226,3 +226,16 @@ maintainer's decision of 2026-10-13). On, an operator's ammo bar carries `left/m
 the exact b.snap `ammo` counts, extra rounds and refills included), centred in the bar's yellow; the rows under the bars
 move down by its height. It hides with the magazine, in the prep view and after death. The simplified board has no ammo
 bar and so no count.
+
+Field pings are another owner-requested remake extension [ASSUMED] (2026-10-14). A five-button HUD group selects
+attention, attack, danger, retreat or question; choosing one arms the next tap/click on a board tile (occupied tiles
+included), then exits placement. Click the same button again or press Esc to cancel. Right-clicking empty ground
+sends the selected kind directly. Both the engine and DOM fallback use BOARD coordinates and `view.tileScreen`
+viewport geometry. Matching-field markers last 2.5 s and follow the camera: a 56–80 px SVG badge drops above the target,
+with two expanding ground rings and a pointer stem. Short screens use a shorter drop; reduced motion keeps the badge
+and a static ground ring. Five distinct synthesized cues use the existing AudioManager SFX/mute buses, require an
+unlocked visible page, and suppress bursts within 180 ms. Only newly received pings on the currently shown field sound;
+switching fields never replays old cues. No audio assets or downloads are required.
+The 44 px controls sit above the bottom-left communication/settings corner, away from the shop's refresh/freeze buttons.
+Hidden while the emote wheel is open, in the enemy pen, during dragging/facing, and for spectator seats (they still
+see/hear markers). Text uses all language packs. Changes of phase/round/room clear recent markers.

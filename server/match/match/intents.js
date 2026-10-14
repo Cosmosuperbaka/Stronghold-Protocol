@@ -5,7 +5,7 @@
 // Installed on Match.prototype by server/match/Match.js (a method container: never instantiated; `this` is the match).
 
 import { unitStatsEntry } from '../../../shared/protocol.js';
-import { PHASE, ERR, EMOTES, EMOTE_COOLDOWN_MS, GEO } from '../../../shared/constants.js';
+import { PHASE, ERR, EMOTES, EMOTE_COOLDOWN_MS, PING_KINDS, PING_COOLDOWN_MS, GEO } from '../../../shared/constants.js';
 import { deriveSeed } from '../../sim/rng.js';
 import { OK, fail } from './common.js';
 import { onHumanEmote } from '../botEmotes.js';
@@ -40,6 +40,7 @@ export class MatchIntents {
         : this.pickCard(ps, msg.idx);
       case 'g.ready': return ps.setReady(!!msg.ready);
       case 'g.emote': return this.emote(ps, msg.id);
+      case 'g.ping': return this.ping(ps, msg.fieldId, msg.area, msg.row, msg.col, msg.kind);
       // playerId: the player tapped (a shared field names two) — the watch preference (item 56)
       case 'g.watch': return this.watch(ps, msg.fieldId, msg.playerId ?? null);
       case 'g.autoplay': return this.setAutoplay(ps, !!msg.on);
@@ -61,6 +62,17 @@ export class MatchIntents {
     this.broadcast({ t: 'm.emote', playerId: ps.playerId, id });
     // an AI teammate can react to a human's emote (enabled by default: server/match/botEmotes.js, SP_BOT_EMOTES=0 silences it)
     onHumanEmote(this, ps.playerId, id);
+    return OK;
+  }
+
+  ping(ps, fieldId, area, row, col, kind) {
+    if (area !== 'board' || !PING_KINDS.includes(kind) || !Number.isInteger(row) || row < 0 || row >= GEO.ROWS
+      || !Number.isInteger(col) || col < 0 || col >= GEO.COLS) return fail(ERR.BAD_MSG);
+    if (!this.canWatchField(ps, fieldId)) return fail(ERR.BAD_TARGET, 'field is not visible');
+    const now = this.sched.now();
+    if (now - ps.lastPingAt < PING_COOLDOWN_MS) return fail(ERR.RATE);
+    ps.lastPingAt = now;
+    this.broadcast({ t: 'm.ping', playerId: ps.playerId, fieldId, area, row, col, kind });
     return OK;
   }
 

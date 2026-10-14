@@ -242,3 +242,9 @@ export const emoteArtGroup = (id) => { const e = emoteInfo(id); return e ? `emot
 export const emoteArtPath = (id) => { const e = emoteInfo(id); return e ? `/assets/local/emoticon/${e.dir}/${e.picId}.png` : null; };
 export const EMOTE_COOLDOWN_MS = 1000; // activity_table autoChessData.constData.chatCD (s)
 export const EMOTE_BUBBLE_MS = 3000;   // constData.chatTime (s): how long a bubble stays up
+
+// [ASSUMED] Remake-only field pings. They are ephemeral room events, independent of the official emote wheel.
+export const PING_KINDS = Object.freeze(['attention', 'attack', 'danger', 'retreat', 'question']);
+export const PING_COOLDOWN_MS = 500;
+export const PING_TTL_MS = 2500;
+export const PING_KEEP = 32;
