@@ -1,6 +1,6 @@
 # 扩展分支维护交接
 
-最近更新 2026-10-13。接手这个项目先读这份，再按需要读下面列的文档。这里只放现状、怎么跑、常见任务和待办，实现细节在 [LOCAL-DEV.md](LOCAL-DEV.md)，不重复。
+最近更新 2026-10-14。接手这个项目先读这份，再按需要读下面列的文档。这里只放现状、怎么跑、常见任务和待办，实现细节在 [LOCAL-DEV.md](LOCAL-DEV.md)，不重复。
 
 ## 1. 项目是什么
 
@@ -10,9 +10,9 @@
 
 | 功能 | 主要文件 | 细节 |
 |---|---|---|
-| 主机控制台：改金币 / LP / 等级、发放干员和道具、盟约、托管、效果和机变卡、棋盘编辑、判胜负、计时倍率等 | `server/admin.js`、`admin.html` | LOCAL-DEV §5 |
+| 主机控制台：改金币 / LP / 等级、发放干员和道具、盟约、托管、效果和机变卡、棋盘编辑、判胜负、计时倍率、实时查看与代操作等 | `server/admin.js`、`server/admin-live.js`、`server/live.html`、`server/live-viewer.js` | LOCAL-DEV §5 |
 | 回档：回到任一回合的休整期开始 | `server/match/rewind.js` | LOCAL-DEV §4 |
-| 整局回放与数据清理：50 局回放、普通战斗 / 联防播放、领袖战结果查看、单局删除和三类批量清理 | `server/match/replay.js`、`server/replay-store.js`、`server/replay-viewer.js`、`server/admin.js` | LOCAL-DEV §5「整局回放与数据清理」 |
+| 整局回放与数据清理：50 局回放、普通战斗 / 联防播放、最终攻势 / 隐秘核心尝试播放、单局删除和三类批量清理 | `server/match/replay.js`、`server/replay-store.js`、`server/replay-viewer.js`、`server/admin.js` | LOCAL-DEV §5「整局回放与数据清理」 |
 | 统计和记录：本局曲线、每回合详情、干员伤害排行、对局记录、敌人日程（含指定）、休整期时长设置 | `server/match/history.js`、`enemyPicks.js`、`hostSettings.js` | LOCAL-DEV §5 |
 | 可选联防叠层：默认关闭，下次联防生效，援助干员重新获得额度，结算后保留增量 | `server/match/hostSettings.js`、`match/unitePhase.js`、`match/settle.js` | LOCAL-DEV §5「可选联防叠层」 |
 | 控制台发放自选干员（选技能和模组、改技能） | `server/match/adminDiy.js` | LOCAL-DEV §5「发放自选」 |
@@ -32,7 +32,7 @@
 ## 2. 分支与维护状态
 
 - `origin` 为本仓库，`upstream` 为原项目。默认分支 `main` 已整合主机工具、联动扩展、可选皮肤、随机装备和素材预加载；`local-tools` 与 `codex/operator-skins` 保留原功能分支历史。`master` 只跟踪上游。
-- 当前发布为 `v0.2.6-extended.1`，游戏基础版本为 `0.2.6`：合并上游带宽与缓存优化、模型与官方战场修复、入场动画及弹药数量选项；保留整局回放、数据清理与 Release 发布签名等扩展。每版的内容见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md)。
+- 当前发布为 `v0.2.6-extended.2`，游戏基础版本为 `0.2.6`：新增主机实时查看与普通规则代操作，开放最终攻势 / 隐秘核心的回放尝试；沿用上一版上游合并、带宽与渲染优化、完整素材和发布签名。每版的内容见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md)。
 - 当前源码已合入上游 v0.2.6（`488db49f`）；自选池为 79 名（上游 72 名 + 7 名联动），保留 174 套可选皮肤、中文 / 日文语音与原有控制台扩展。后续同步和测试结果以 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md) 为准，皮肤验证与限制见 [SKINS.md](SKINS.md)。
 - 定期跟进上游更新，先完成扩展兼容与验证，再合并。查看 `git status` 和远端分支确认实际工作状态，不把某台机器的进程、私人地址或临时 ref 写进公共交接文档。
 - 对局记录、主机设置和缓存不进入 Git。公开或分享前检查所有分支、历史和提交邮箱，见 [PRIVACY.md](PRIVACY.md)。

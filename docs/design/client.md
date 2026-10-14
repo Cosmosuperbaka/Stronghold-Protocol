@@ -19,6 +19,18 @@ and battle Spine models only. This affects presentation only, never purchases or
 
 ## 9. Client rendering contract (public/js/render)
 
+Local host live view (owner request, 2026-10-14): `/live` reuses the ordinary game UI with a read-only default
+and explicit control toggle. The console reads the selected player's public/private views, runs display-only battle
+replicas and sends allowlisted ordinary player intents through the existing match handler. It never claims a session,
+changes player watch preferences or submits battle results. Changed player state rejects stale intents. See
+[LOCAL-DEV.md](../LOCAL-DEV.md) §5 and [LOCAL-CHANGELOG.md](../LOCAL-CHANGELOG.md).
+
+Local host replay (owner request, 2026-10-14): completed Final Assault / Hidden Core recordings,
+including existing files, may be attempted after confirmation even across simulator versions. They lack live
+shared-pool and team-LP updates, so only the selected field is simulated, bounded by its recorded game duration.
+Always label these attempts as approximate; synthetic and unfinished results stay view-only. See
+[LOCAL-DEV.md](../LOCAL-DEV.md) §5 and [LOCAL-CHANGELOG.md](../LOCAL-CHANGELOG.md).
+
 Bond-layer audio (#482): live own preparation gains arrive as `m.layer`; the displayed battle's `layer` tuples
 play the same `bondUp` cue. A gain of several layers plays once, including gains to inactive bonds. The official
 `ON_ACT1AUTOCHESS_ADD_BOND` bank allows one sound and replaces the oldest; there is no added cooldown. Existing
