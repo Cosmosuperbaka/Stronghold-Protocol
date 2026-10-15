@@ -1261,5 +1261,12 @@
   "输入消息，Enter 发送": "Type a message; Enter to send",
   "发送中…": "Sending…",
   "发送": "Send",
-  "{n}/{max} 字 · Esc 收起": "{n}/{max} characters · Esc to close"
+  "{n}/{max} 字 · Esc 收起": "{n}/{max} characters · Esc to close",
+  "主机公告": "Host Announcement",
+  "你已被主机禁言，请联系主机解除": "You have been muted by the host. Contact the host to unmute.",
+  "更新记录": "Release notes",
+  "仅提供中文": "Available in Chinese only",
+  "移动聊天位置（拖动或按方向键）": "Move chat (drag or use arrow keys)",
+  "恢复默认位置": "Restore default position",
+  "拖动按钮或标题调整位置，自动保存": "Drag the button or title to move chat. Position saved automatically."
 }

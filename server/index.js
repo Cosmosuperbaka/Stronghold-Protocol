@@ -29,6 +29,7 @@
 // The server only auto-listens when this file is the process entry point.
 
 import http from 'node:http';
+import { createRecovery } from './recovery.js';
 import { getData, loadData } from './data.js';
 import { ROOT, listenAddress, bindCandidates, serveDirs, makeLogger, parseTrustProxy, assetIndexOptionsFrom } from './http/config.js';
 import { WS_MAX_PAYLOAD, createSessionStack, attachWebSocket } from './http/websocket.js';
@@ -60,6 +61,7 @@ export {
  *   maxConnectionsPerAddr?: number, maxRoomsPerAddr?: number, maxMatchesPerAddr?: number, resyncMinGapMs?: number,
  *   heavyPerSec?: number, heavyBurst?: number, trustProxy?: 'auto' | boolean, soloReconnectWindowMs?: number,
  *   assetIndex?: boolean | { cacheFile?: string | null, delayMs?: number },
+ *   recovery?: boolean | { dir?: string, identity?: string },
  * }} [opts]
  *   assetIndex: the content-hash index (default on; false or SP_ASSET_INDEX=0: off — config.js assetIndexOptionsFrom)
  * @returns {Promise<{ port: number, host: string, url: string, server: http.Server, wss: import('ws').WebSocketServer,
@@ -130,6 +132,19 @@ export async function startServer(opts = {}) {
   }
   server.on('error', (e) => log.error('[http] server error', e));
   assetIndex?.start();
+  // Programmatic callers opt in; the process entry enables recovery even without the console.
+  let recovery = null;
+  try {
+    recovery = opts.recovery ? createRecovery({ lobby, root: ROOT, log,
+      ...(typeof opts.recovery === 'object' ? opts.recovery : {}) }) : null;
+    recovery?.restore();
+  } catch (e) {
+    recovery?.prepareShutdown();
+    lobby.shutdown('startup-failed'); network.close(); assetIndex?.close();
+    await new Promise((resolve) => server.close(resolve));
+    wss.close();
+    throw e;
+  }
 
   const addr = server.address();
   const actualPort = typeof addr === 'object' && addr ? addr.port : port;
@@ -139,6 +154,7 @@ export async function startServer(opts = {}) {
   async function close() {
     if (closing) return closing;
     closing = (async () => {
+      recovery?.prepareShutdown();
       try { lobby.shutdown('shutdown'); } catch (e) { log.error('[shutdown] lobby', e); }
       network.close();
       assetIndex?.close();

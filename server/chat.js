@@ -11,7 +11,7 @@ export function cleanChatText(value) {
 }
 
 export class RoomChat {
-  constructor() { this.lastId = 0; this.messages = []; this.sentIds = new WeakMap(); this.sendTimes = []; }
+  constructor() { this.lastId = 0; this.clearedThrough = 0; this.muted = new Set(); this.messages = []; this.sentIds = new WeakMap(); this.sendTimes = []; }
 
   /** Rolling room-wide window; at most ten entries are retained, even under member churn. */
   admit(at) {
@@ -38,7 +38,15 @@ export class RoomChat {
     return message;
   }
 
-  history(code) { return { t: 'chat.history', code, messages: this.messages.slice(), lastId: this.lastId }; }
+  announce(room, text, at) {
+    const message = this.message(room, { playerId: null, name: '', seat: null }, text, at);
+    message.role = 'system';
+    return message;
+  }
+
+  history(code) { return { t: 'chat.history', code, messages: this.messages.slice(), lastId: this.lastId, clearedThrough: this.clearedThrough }; }
+
+  clearMessages() { this.messages = []; this.clearedThrough = this.lastId; }
 
   clear() { this.lastId = 0; this.messages = []; this.sentIds = new WeakMap(); this.sendTimes = []; }
 }

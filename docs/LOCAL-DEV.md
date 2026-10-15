@@ -13,7 +13,7 @@
 - 合并上游新版本时从 `main` 开功能分支，完成适配与测试后再合并回 `main`。
 - 同步上游：`git fetch upstream` → `git merge upstream/master` → `npm install` → `npm run setup`（上游常会加素材）→ `node --test`。
 - 素材 `public/assets/`、`.cache/`、`.claude/` 都在 `.gitignore` 里，不进仓库。新机器 clone 后要先 `npm install && npm run setup`。
-- 当前版本为 `v0.2.6-extended.3`，基于上游 `v0.2.6`（`488db49f`），新增房间文字聊天、带发送者名称的战场标点和控制台服务按钮；保留实时查看、代操作、回放与 Release 发布签名。完整素材包沿用 `v0.2.5-extended.1` 导入的上游完整包中的 `public/assets/local/` 和 `data/local-assets.json`，包括 11 个官方战场场景；来源和固定 SHA-256 见 DEPLOY §6。发布预检与构建都加 `--require-local-art`，同时核对场景清单为 11 个、所有文件哈希与源包一致；该参数只保证存在有效本地素材清单，不替代场景完整性验证。lite 不含官方本地素材。素材不随 Git 分支移动，切换旧代码版本时也要注意素材版本匹配。
+- 当前版本为 `v0.2.6-extended.4`，基于上游 `v0.2.6`（`488db49f`），新增聊天管理、四席完整监控墙、资源与详细统计、重启恢复、空闲更新和更新记录；聊天可拖动记住位置，房间休整期配置默认继承全局。保留带名标点、服务控制、代操作、回放与 Release 发布签名。完整素材包沿用 `v0.2.5-extended.1` 导入的上游完整包中的 `public/assets/local/` 和 `data/local-assets.json`，包括 11 个官方战场场景；来源和固定 SHA-256 见 DEPLOY §6。发布预检与构建都加 `--require-local-art`，同时核对场景清单为 11 个、所有文件哈希与源包一致；该参数只保证存在有效本地素材清单，不替代场景完整性验证。lite 不含官方本地素材。素材不随 Git 分支移动，切换旧代码版本时也要注意素材版本匹配。
 
 各版上游合并、主机扩展与发布验证见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md)。
 
@@ -71,7 +71,9 @@
 
 ### 房间交流（文字聊天与战场标点）
 
-文字聊天入口在等待室和对局中持续显示；局内下移，避开准备按钮和计时器。`server/chat.js` 保存每房间最近 50 条消息，身份、时间由服务端生成；`room.chat` 仅正式玩家可发送，观战席只读。每条最多 200 个 Unicode 码点 / 1024 字节，每会话间隔 1 秒，每房间滚动 1 秒最多 10 条；`clientId` 对最近 50 次发送去重。加入与重连收到 `chat.history`；客户端 `chatStore.js` 合并历史和实时消息，保留草稿，离开或更换房间清空，断线不排队发送。Enter 发送时避开中文输入法候选确认，Shift+Enter 换行、Esc 收起；用户文本由 Preact 转义。
+文字聊天入口在等待室和对局中持续显示，默认位置避开侧边效果、准备按钮和计时器。`server/chat.js` 保存每房间最近 50 条消息，身份、时间由服务端生成；`room.chat` 仅正式玩家可发送，观战席只读。每条最多 200 个 Unicode 码点 / 1024 字节，每会话间隔 1 秒，每房间滚动 1 秒最多 10 条；`clientId` 对最近 50 次发送去重。加入与重连收到 `chat.history`；客户端 `chatStore.js` 合并历史和实时消息，保留草稿，离开或更换房间清空，断线不排队发送。Enter 发送时避开中文输入法候选确认，Shift+Enter 换行、Esc 收起；用户文本由 Preact 转义。
+
+聊天按钮和展开后的标题可用鼠标或触摸拖动；聚焦后方向键微调 1 px、Shift+方向键 10 px，展开面板内可恢复默认位置。`public/js/ui/chatPosition.js` 将归一化坐标保存在浏览器 `sp.pref.chatPosition.name.<编码昵称>`，同一浏览器、同一站点按昵称分别记忆；同名重登录或服务端身份过期仍恢复，没有昵称时才退回 playerId。此为本地显示偏好，同名共用，换浏览器 / 设备 / 站点不共享；不写入游戏协议、聊天内容或草稿。窗口变化后保持相对位置，按钮和展开面板限制在屏内；存储不可用或配置损坏时仍可拖动使用。
 
 标点使用 `g.ping {fieldId, area, row, col, kind}` 与 `m.ping`；服务端校验场地可观察权限、棋盘坐标、五种类型及 500 ms 间隔，并附 `playerId` 和服务端的 `name`，客户端不能指定发送者。房间广播后，仅当前观察该战场的客户端显示 2.5 秒，不进入战斗模拟、回档或回放，也不在重连时补发。正式玩家包括淘汰玩家可发送，观战席只接收；切换场地不会重播旧标点音效。客户端保留最多 32 条，阶段或回合变化清空；动画包括落下、上浮与两圈落点扩散，减少动画设置下保留静态落点环。原创 Web Audio 音效沿用音效音量与静音设置，页面隐藏或未解锁音频时不补播。
 
@@ -154,7 +156,7 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 - **房间**：每个房间一张卡片，含对局操作、玩家表和「详情」，下面是可折叠的统计面板：本局统计（对局结束后变成「上一局统计」）、敌人日程（剧透，默认折叠）、控制台操作日志。
 - **对局记录**：`logs/results/` 里保存的每一局，点开看结算详情。
-- **设置**：版本更新、联防叠层和休整期时长。
+- **设置**：版本更新、空闲自动更新、重启恢复、联防叠层和休整期时长；资源标签显示负载、流量和 RTT。
 
 ### 安全
 
@@ -183,6 +185,11 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 | `POST /api/action` | `{ room, action, playerId?, value? }` → `{ ok }` 或 `{ error, code? }` |
 | `GET /api/results` | 对局记录列表（新的在前，只有摘要） |
 | `GET /api/result?id=` | 一条记录全文。`id` 必须是 `logs/results/` 里的文件名（`^[\w-]+\.json$`），防路径穿越 |
+| `GET /wall?room=`、`GET /api/wall?room=` | 只读四席完整游戏画面及席位摘要；画面分别读取已鉴权的 `/api/live` |
+| `GET /resources`、`GET /api/resources` | 资源页面及最近 10 分钟采样 |
+| `GET /api/results-summary` | 跨局汇总，可按 `from` / `to` / `mode` / `difficulty` 筛选 |
+| `GET /api/recovery`、`POST /api/recovery` | 恢复开关、问题文件列表；写入需 `confirm:true`，支持 `{enabled}` 或 `{action:"delete",id}` |
+| `GET /api/release-notes` | 当前安装版本的玩家更新记录 |
 | `GET /api/settings` | 当前的休整期设置 `{ prep }`、设置文件路径，以及各同盟模式每回合的默认秒数 |
 | `POST /api/settings` | `{ prep }`：校验、写文件，然后生效 |
 | `GET /api/update` | 更新状态：当前 / 最新扩展标签、`versions`（`new/current/old`、附件及不可安装原因）、`hasMore`、网络配置、请求来源、下载字节数、错误和是否支持重启 |
@@ -200,9 +207,9 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 `package.json` 是上游游戏版本，扩展标签由 `server/release-version.js` 的 `RELEASE_TAG` 记录，**每次扩展发布必须更新**，并同步 README、HANDOFF §2、本文第 1 节的「当前版本」和 LOCAL-CHANGELOG 最新一节的标题（`test/local-docs-version.test.js` 会检查）。打包后在附件目录运行 `node tools/release-sign.mjs sign <标签> <目录>`，生成 `SHA256SUMS.txt` 与 `SHA256SUMS.txt.sig`，再用 `verify` 复核，两者都上传到 Release。私钥默认在 `~/.stronghold-release/release-ed25519.pem`（`SP_RELEASE_KEY` 可改），不进 Git、不进发布包，需要另外备份。换密钥时，用旧密钥签一个把新公钥加进 `RELEASE_PUBLIC_KEYS` 的版本，下一版再去掉旧公钥。私钥丢失时，用新公钥发一个不带 `.sig` 的版本：已安装的控制台按未签名规则，只在直连 GitHub 时安装它。只有在没有私钥的机器上才用 `keygen` 生成新密钥。安装器另在 `logs/release-version.json` 写入实际安装标签与源码指纹（优先扩展版本文件，无该文件时使用入口文件）；指纹和基础版本均匹配时允许记录较旧标签，正确识别回退。手动替换源码使指纹失效后使用源码声明，兼容旧标记时仍不让较旧标签覆盖声明。打包必须包含 `scripts/apply-release-update.mjs`、运行依赖 undici 和复用的 `tools/assets/sources.mjs`；ZIP 读取器放在 `server/` 与打包器共用。启动时看到安装锁会等复制完成后退出，让 supervisor 再启动一份读取新文件的进程。
 
-对局操作：`rewind`（`value` 为回合数，空则最新）、`endPrep`、`pause`（仅独立模拟）、`endMatch`、`enemyPick`（`{ round, id }`，指定某回合的敌人组合，`id` 为空恢复原定）、`battleWin` / `battleLose`（`{ field, n? }`，仅客户端战斗）、`timerScale`（0.1–10）。
+对局操作：`rewind`（`value` 为回合数，空则最新）、`endPrep`、`pause`（仅独立模拟）、`endMatch`、`enemyPick`（`{ round, id }`，指定某回合的敌人组合，`id` 为空恢复原定）、`battleWin` / `battleLose`（`{ field, n? }`，仅客户端战斗）、`prepTimer`（同设置页的休整期配置，`null` 恢复跟随控制台）。旧 `timerScale`（0.1–10）兼容为仅设置本房间休整期倍率。
 
-玩家操作：`funds`（增减）、`lp`（设定）、`level`（设定）、`refresh`（+1 免费刷新）、`chess` / `item`（发放）、`diy`（`{ charId, tier: 5|6, elite, skillIndex?, uniEquipId? }`，发放自选，见下）、`diySkill`（同样的值，只改技能和模组）、`bondAdd` / `bondSet` / `bondBonus`（`{ bond, n }`）、`autoplay`（1/0，仅真人）、`effectRemove` / `bountyRemove`（效果 / 悬赏 id）、`card`（机变卡 effectId）、`pieceRemove` / `piecePromote`（棋子 uid）、`pieceEquip`（`{ target, item }`）。房间操作：`closeRoom`。
+玩家操作：`funds`（增减）、`lp`（设定）、`level`（设定）、`refresh`（+1 免费刷新）、`chess` / `item`（发放）、`diy`（`{ charId, tier: 5|6, elite, skillIndex?, uniEquipId? }`，发放自选，见下）、`diySkill`（同样的值，只改技能和模组）、`bondAdd` / `bondSet` / `bondBonus`（`{ bond, n }`）、`autoplay`（1/0，仅真人）、`effectRemove` / `bountyRemove`（效果 / 悬赏 id）、`card`（机变卡 effectId）、`pieceRemove` / `piecePromote`（棋子 uid）、`pieceEquip`（`{ target, item }`）。房间操作：`closeRoom`；`announce`（`value` 为公告，`room:"*"` 广播全部）、`chatClear`、`chatMute`（`playerId` + 布尔 `value`）、`chatKick`（`playerId`）。
 
 - **会触发游戏效果的**：`bondAdd`（走 `addLayers`，派发 `onLayers`）、`card`（走 `applyCard`，全队卡会作用到所有存活队友）、`pieceEquip`（派发 `onEquip`，能合成时直接合成）。其余都是直接改数据，不扣金币、不触发 `onLevelUp` 之类的效果。
 - **判负**：普通战场按 `n` 条计数漏怪生成结果，结算扣 `min(10, n)`；同盟模式下这些漏怪会像真的一样进入联防。联防判胜等于全部击杀，判负等于没人支援（按漏怪者自己的漏怪数扣血）。领袖战判胜把共享血池清零，判负把同盟 LP 清零，两者都会结束所有领袖战场。
@@ -245,10 +252,10 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 进程级的一份 `prep`：`default`（按数据 `rounds[r].prepTime`，同盟第 1 回合 65 秒到第 14 回合 195 秒）、`scale`（× 0.1–10）、`fixed`（每回合 5–3600 秒）、`perRound`（指定的回合用指定秒数，其余按数据）、`untimed`（不限时，等所有人就绪或控制台结束）。
 
-- `enterPrep()` 设倒计时时经过 `prepSeconds()`，所以进行中的对局从下一个休整期开始生效；房间的计时倍率 `timerScale` 再乘一次。`audit.js` 的倒计时检查用同一个函数。
+- `enterPrep()` 设倒计时时经过 `prepSeconds()`，进行中的对局从下一个休整期开始生效。房间默认 `prepOverride = null`，持续跟随控制台；单独覆盖支持相同五种模式，替换全局配置，不重复相乘。其他阶段计时不变。`audit.js` 使用同一个函数；内部开发参数 `timerScale` 保留，但控制台不再修改它。
 - `soloUntimed` 的对局（独立模拟、只有一个真人的同盟房间）仍然不限时。
 - `startAdmin` 启动时读 `logs/admin-settings.json`（`settingsFile` 选项可改，测试用临时文件）。保存时先校验、写临时文件再改名，最后才生效；文件损坏时记日志并按默认处理。
-- 设置不进回档快照：回档重进休整期时用的是当前设置。`SP_ADMIN=0` 时控制台不启动，设置也不会加载。
+- 全局设置不进回档快照；房间的 `prepOverride` 随休整期快照恢复，为 `null` 时使用当前全局设置。正常开服在恢复对局前加载设置，`SP_ADMIN=0` 也加载已保存的主机规则设置，但不创建资源采样器、不运行控制台自动更新。
 
 ### 可选联防叠层（hostSettings.js）
 
@@ -361,3 +368,41 @@ fork 文档里列的未完成项（§F6.4）：Fever 槽、她的粉色技力条
 `data/backups.json`、`assets.json`、`i18n/*.json`、`test/golden/diy.json` 都是生成的：冲突时先取上游版本，再按上面的 1–5 步重新生成。第 7 节说的「`data/assets.json` 用上游的版本」在这里不适用：直接用上游版本会丢掉联动干员的素材条目，要再跑一次第 3 步。
 
 EN / JA / KO 客户端里没有焰狐龙梓兰和结城理，zh-TW 里还没有麒麟R夜刀，这些在对应界面显示中文。0.2.3 新增的克莱门莎尚未有英文文本；当前英文总覆盖率 96.9%、技能 95.1%、天赋 94%，测试按该实测下限校验，其余分类门槛保持不变。
+
+## 9. 九项主机扩展（2026-10-15，v0.2.6-extended.4）
+
+需求及验收映射见 [NEXT-FEATURES.md](NEXT-FEATURES.md)。不改变官方玩法、生成数据或 golden。
+
+### 聊天、监控与资源
+
+聊天管理复用 `server/chat.js` 与普通离开规则，只允许本机控制台调用；公告使用 `role: 'system'`，不受玩家频率限制，长度限制不变。清空广播带 `clearedThrough` 的空历史；单调消息 ID 不重用，客户端丢弃迟到的废弃消息。禁言绑定房间 playerId，重连不解除；玩家发送返回 `CHAT_MUTED`。轮询复用聊天节点，输入草稿与展开状态不丢失。
+
+`admin-wall.js` 输出四席摘要和对局标识，`monitor.html` 桌面 2×2、手机单列。每席内嵌 `/live?wall=1` 的完整游戏界面，包含棋盘、商店、盟约、HUD 与非权威战斗副本；按 1280×720 桌面视口缩放，可全屏或单独观察。墙内禁止代操作，不创建玩家 WebSocket 或上报战斗结果。仅已鉴权墙模式允许同源 iframe，普通实时页保持禁止嵌入。摘要每秒轮询、5 秒超时，同一对局 / 玩家不重建画面，结束或关闭移除 iframe，退出停止轮询与尺寸监听。局内聊天入口默认避开右侧效果及准备按钮，可拖动并按本机站点和昵称保存；展开面板跟随入口并自动限制在屏内。
+
+`resources.js` 仅由控制台创建，每秒采样，最多 600 条，不落盘；复用 WebSocket 30 秒心跳的 ping/pong 测 RTT，断连清理。CPU 为进程 CPU 时间相对墙钟时间的近似占比，以单核 100% 计；WebSocket 统计按总量与房间，素材 / 音频统计使用现有 HTTP 流量计数。
+
+### 漏怪、经济、盟约与跨局汇总
+
+`match/leak-history.js` 分普通 / 联防来源及召唤 / 未知敌人汇总数量、计扣血数量和漏怪扣血；领袖战保存全队损失，个人扣血留空并说明技能扣血口径。`history.js` 保存实际经济增减及来源、期初 / 期末金币、购买 / 出售 / 刷新次数，以及盟约 id / 名称 / 激活 / 层数 / 档位。收入取实际入账值，支出取实际扣款；手动金币调整也记录。曲线一次一个指标，盟约层数先选盟约，座位颜色固定并提供表格。回档复用 MATCH_KEYS 自动截断；旧字段留空，不推算。
+
+`result-summary.js` 只读结果目录，以 mtime / ctime / size 缓存解析；损坏或关键字段缺失的文件跳过并计数。干员和激活盟约按每局去重，伤害记录累计值和单局最高；时间 / 模式 / 难度筛选不改原记录。千份文件回归见 `test/result-summary.test.js`。
+
+### 重启恢复（用户已确认）
+
+`recovery.js` 复用进入 PREP 时、自动效果触发前的 rewind 快照，每次写 `logs/recovery/<房间>.bin.tmp` 后原子改名（文件创建权限 0600）。Node v8 序列化保留 Map / Set / 共享引用；非枚举敌人日程单独保存。恢复文件绑定扩展版本、模拟器、数据和对局规则指纹，不兼容文件隔离保留并在控制台报告，可确认删除；每个文件独立处理，校验结构、身份和 128 MiB 大小限制。
+
+正常启动默认开启，程序化 `startServer` 需传 `recovery` 选项。先加载主机规则再恢复 Room / Match / Session；真人掉线、AI 在线，原 token 可重连，独立模拟保留 24 小时窗口。恢复到最近休整期开始，保留该回合机变、DIY / 调配 / 潜能及托管 / 离开标记；重打本回合，截断作废回放与历史，不重复发放入场收益。停机和废弃回合不计入用时。尚无 PREP 快照的开局不能恢复；等待室、聊天和实时操作日志不恢复。正常关服先标记保留，结局或房间关闭删文件。
+
+默认启用；`logs/recovery-settings.json` 保存开关。关闭时删除旧快照，重新开启时保存活动局最新 PREP；已隔离的问题文件可单独确认删除。不要把恢复文件当作可跨版本导入的存档，它含原重连 token，应按本机身份数据保管。
+
+### 空闲更新与更新记录
+
+`idle-update.js` 默认关闭，`logs/auto-update.json` 持久化开关。开启后首次立即检查，其后间隔至少一小时；只接受已签名可安装的正式新版，复用签名安装器，不自动回退、不强制结束对局。有活动局先等，无活动局向全部房间公告后等 60 秒；新局取消倒计时。失败标签停止自动重试，直到重新开关 / 重启或有新版；外部守护不支持自动重启时报告原因。关闭后忽略未完成检查的迟到结果。`POST /api/update` 新增 `{action:'automatic',enabled}`。
+
+`release-notes.js` 从 LOCAL-CHANGELOG 当前发布节提取玩家条目，排除验证记录；游戏端仅公开只读 `/release-notes.json`，不带管理数据。游戏与控制台共用 `public/js/ui/releaseNotes.js`：首次访问建立版本基线，版本变化弹出，关闭记住版本，支持 Esc 和横屏滚动，非中文界面说明条目为中文。未发布记录不冒充新版，正式发版时再同步 RELEASE_TAG。
+
+### 验证入口
+
+- 服务端：`test/admin-chat.test.js`、`resources-wall.test.js`、`match/history-details.test.js`、`result-summary.test.js`、`recovery.test.js`、`idle-update.test.js`、`release-notes.test.js`（除已写目录者外均在 test 根目录）。
+- 浏览器：`SP_E2E=1 node --test test/ui/admin-chat.e2e.test.js test/ui/admin-stats.e2e.test.js test/ui/next-features.e2e.test.js`；设 `CHROME_PATH`。监控墙真实 30 分钟验收另设 `SP_WALL_SOAK=1`，日常回归无需等待半小时。
+- 最终汇总见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md) 的 `v0.2.6-extended.4` 节；只在明确授权后提交。

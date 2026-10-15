@@ -18,7 +18,7 @@ import { N_ } from '../../shared/i18n.js';
 import { limitKeyOf } from '../net.js';
 import { applyPendingUpdate } from '../update.js';
 import { ROOT } from './config.js';
-import { startAdmin } from '../admin.js';
+import { startAdmin, loadSettings } from '../admin.js';
 import { updatePaths } from '../release-update.js';
 import { prepareRestart } from '../service-control.js';
 
@@ -81,7 +81,7 @@ export function printBanner(srv) {
 /**
  * The process main: finish a pending update package, start the server, print the banner, stop gracefully on SIGINT /
  * SIGTERM.
- * @param {() => Promise<{ url: string, host: string, port: number, close: () => Promise<void> }>} start index.js startServer
+ * @param {(options?: object) => Promise<{ url: string, host: string, port: number, close: () => Promise<void> }>} start index.js startServer
  */
 export async function runMain(start) {
   // A service supervisor may restart while the detached installer is still copying. Load fresh code only afterward.
@@ -101,7 +101,8 @@ export async function runMain(start) {
   if (applyPendingUpdate(ROOT).state === 'failed') { process.exitCode = 1; return; }
   let srv;
   try {
-    srv = await start();
+    loadSettings(ROOT + '/logs/admin-settings.json', console);
+    srv = await start({ recovery: true });
   } catch (e) {
     if (e && e.code === 'EADDRINUSE') console.error(`端口已被占用 / port in use: ${e.port ?? process.env.PORT ?? 3000}. Try PORT=3001 npm start`);
     else console.error('[boot] failed to start', e);
@@ -123,7 +124,7 @@ export async function runMain(start) {
     try {
       const supervised = process.env.SP_UPDATE_RESTART === 'supervisor';
       const managedShutdown = process.env.SP_SERVICE_SHUTDOWN === 'exit-code';
-      admin = await startAdmin({ lobby: srv.lobby, root: ROOT, port: Number(process.env.SP_ADMIN_PORT) || srv.port + 100,
+      admin = await startAdmin({ lobby: srv.lobby, network: srv.network, traffic: srv.traffic, root: ROOT, port: Number(process.env.SP_ADMIN_PORT) || srv.port + 100,
         service: {
           shutdownReason: supervised && !managedShutdown ? N_('由外部守护程序管理，请使用服务管理器关闭服务') : '',
           prepare: async (action) => {

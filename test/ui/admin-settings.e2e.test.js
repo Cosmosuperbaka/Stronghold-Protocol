@@ -6,8 +6,71 @@ import os from 'node:os';
 import path from 'node:path';
 import { startServer } from '../../server/index.js';
 import { startAdmin } from '../../server/admin.js';
-import { getUniteLayerGains, resetHostSettings } from '../../server/match/hostSettings.js';
+import { getUniteLayerGains, resetHostSettings, setPrep } from '../../server/match/hostSettings.js';
+import { makeMatch } from '../match/harness.js';
 import { CHROME, OUT, hasChrome } from '../e2e/client.mjs';
+
+test('console room prep: follows settings, room-only modes, errors, reset and responsive controls', {
+  skip: process.env.SP_E2E !== '1' || !hasChrome(), timeout: 60000,
+}, async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'sp-room-prep-'));
+  const h = makeMatch({ humans: 2, fake: true }).start().toPrep();
+  let admin, browser;
+  resetHostSettings();
+  try {
+    const room = { code: 'TEST', mode: 'coop', difficulty: 'NORMAL', seats: [], spectators: [], match: h.m };
+    admin = await startAdmin({ lobby: { rooms: new Map([['TEST', room]]), safeData: () => h.m.data, onMatchEnd() {} }, port: 0,
+      resultsDir: dir, settingsFile: path.join(dir, 'settings.json'), log: { info() {}, error() {} } });
+    setPrep({ mode: 'scale', scale: 2 });
+    browser = await (await import('puppeteer-core')).default.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', '--no-first-run'] });
+    const page = await browser.newPage(), errors = [];
+    page.on('pageerror', e => errors.push(e.message));
+    await page.setViewport({ width: 1440, height: 900 });
+    await page.goto(admin.url, { waitUntil: 'domcontentloaded' });
+    const mode = '[data-room-prep-mode]';
+    const apply = () => page.click('[data-room-prep-save]');
+    const current = text => page.waitForFunction(text => document.querySelector('[data-room-prep-current]')?.textContent.includes(text), {}, text);
+    await page.waitForSelector(mode);
+    assert.equal(await page.$eval(mode, e => e.value), 'inherit');
+    await current('继承控制台：默认时长 × 2');
+    await page.select(mode, 'scale');
+    await page.$eval('[data-room-prep-scale] input', e => { e.value = '1.5'; });
+    await apply(); await current('本房间：默认时长 × 1.5');
+    assert.deepEqual(h.m.prepOverride, { mode: 'scale', scale: 1.5 });
+    assert.equal(h.m.timerScale, 1);
+    await page.select(mode, 'fixed');
+    await page.$eval('[data-room-prep-seconds] input', e => { e.value = '1'; });
+    await apply(); await page.waitForFunction(() => document.querySelector('#msg').textContent.includes('5–3600'));
+    assert.deepEqual(h.m.prepOverride, { mode: 'scale', scale: 1.5 });
+    await page.waitForFunction(() => document.querySelector('[data-room-prep-mode]').value === 'scale');
+    await page.select(mode, 'fixed');
+    await page.$eval('[data-room-prep-seconds] input', e => { e.value = '45'; });
+    await apply(); await current('本房间：每回合 45 秒');
+    await page.select(mode, 'perRound');
+    await page.$eval('[data-room-prep-round="2"]', e => { e.value = '80'; });
+    await apply(); await current('本房间：按回合指定');
+    assert.deepEqual(h.m.prepOverride, { mode: 'perRound', rounds: { 2: 80 } });
+    mkdirSync(OUT, { recursive: true });
+    for (const [name, width, height] of [['desktop', 1440, 900], ['mobile', 390, 844]]) {
+      await page.setViewport({ width, height });
+      assert.ok(await page.$eval('[data-room-prep]', el => {
+        const r = el.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && el.scrollWidth <= el.clientWidth;
+      }), name);
+      await page.screenshot({ path: path.join(OUT, `admin-room-prep-${name}.png`), fullPage: true });
+    }
+    await page.select(mode, 'untimed'); await apply(); await current('本房间：不限时');
+    setPrep({ mode: 'fixed', seconds: 70 });
+    await page.select(mode, 'inherit'); await apply(); await current('继承控制台：每回合 70 秒');
+    assert.equal(h.m.prepOverride, null);
+    setPrep({ mode: 'fixed', seconds: 90 });
+    await current('继承控制台：每回合 90 秒');
+    assert.deepEqual(errors, []);
+  } finally {
+    if (browser) await browser.close();
+    if (admin) await admin.close();
+    h.m.dispose(); resetHostSettings(); rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 test('console 联防 layers: save, undo, reload, failure recovery and desktop/mobile layout', {
   skip: process.env.SP_E2E !== '1' || !hasChrome(), timeout: 60000,

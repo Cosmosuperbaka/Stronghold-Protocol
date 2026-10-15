@@ -3,8 +3,9 @@
 // i18n-ignore-file: host-console messages in Chinese, not player UI (tools/i18n.mjs)
 //
 // prep: the 休整期 timer of a timed match (match/prep.js enterPrep reads prepSeconds; a match without a prep timer —
-// solo, or a 同盟 room with one human: Match.soloUntimed — stays untimed). The match's timerScale still applies on top
-// (Match.setDeadline). A change reaches a running match at its next 休整期.
+// solo, or a 同盟 room with one human: Match.soloUntimed — stays untimed). A room's prepOverride replaces the standing
+// setting; null follows future standing changes. The internal developer timerScale still applies via setDeadline,
+// but the console only configures prep time. A change reaches a running match at its next 休整期.
 //   { mode: 'default' }                     the data's prepTime (config rounds[r].prepTime)
 //   { mode: 'scale', scale }                data × scale (0.1–10)
 //   { mode: 'fixed', seconds }              every round the same (5–3600 s)
@@ -84,5 +85,5 @@ export function prepSecondsFor(round, base, p = prep) {
 
 /** match/prep.js: the prep timer of m's current round. */
 export function prepSeconds(m, base) {
-  return prepSecondsFor(m.round, base);
+  return prepSecondsFor(m.round, base, m.prepOverride ?? prep);
 }

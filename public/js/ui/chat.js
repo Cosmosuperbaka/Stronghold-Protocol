@@ -1,5 +1,5 @@
 // Text-only adaptation of RyantArgnisan/Stronghold-Protocol a649d92 (GPL-3.0-or-later); see NOTICE.md.
-import { html } from './components.js';
+import { html, Icon } from './components.js';
 import { useLayoutEffect, useRef } from '../../vendor/hooks.module.js';
 import { store, useStore, shallowEqual } from '../store.js';
 import { net } from '../net.js';
@@ -8,6 +8,7 @@ import { CHAT_MAX_CHARS, CHAT_HISTORY_LIMIT } from '../../../shared/constants.js
 import { chatMember } from './chatStore.js';
 import { describeError } from './toasts.js';
 import { GIcon } from './gameComponents.js';
+import { useChatPosition } from './chatPosition.js';
 
 export function chatFacts(state) {
   const member = state.chat?.code === state.room?.code && chatMember(state.room, state.me?.playerId);
@@ -48,6 +49,7 @@ export function ChatPanel() {
   const chat = state.chat, facts = chatFacts(state);
   const input = useRef(null), log = useRef(null), toggle = useRef(null), composing = useRef(false);
   const open = chat?.open, code = chat?.code;
+  const placement = useChatPosition({ name: state.me?.name, playerId: state.me?.playerId, active: facts.member && state.room?.textChat, open });
   useLayoutEffect(() => { composing.current = false; }, [code]);
   useLayoutEffect(() => { if (open && facts.canSend) input.current?.focus(); }, [open, code]);
   useLayoutEffect(() => { if (open && log.current) log.current.scrollTop = log.current.scrollHeight; }, [open, code, chat?.lastId]);
@@ -57,21 +59,25 @@ export function ChatPanel() {
     if (!value) toggle.current?.focus();
   };
   const count = [...chat.draft].length;
-  return html`<aside class=${state.room.inMatch ? 'chat chat--match' : 'chat'} aria-label=${t('同盟聊天')} onKeyDown=${(e) => {
+  return html`<aside ref=${placement.root} class=${state.room.inMatch ? 'chat chat--match' : 'chat'} aria-label=${t('同盟聊天')} onKeyDown=${(e) => {
     if (e.key === 'Escape' && !composing.current && !e.isComposing && e.keyCode !== 229) {
       e.preventDefault(); e.stopPropagation(); setOpen(false);
     }
   }}>
-    <button ref=${toggle} type="button" class="chat__toggle" aria-expanded=${!!open} aria-controls="room-chat-body" onClick=${() => setOpen(!open)}>
+    <button ref=${toggle} type="button" class="chat__toggle" aria-expanded=${!!open} aria-controls="room-chat-body"
+      title=${t('移动聊天位置（拖动或按方向键）')} ...${placement.events} onClick=${e => { if (!placement.draggedClick(e)) setOpen(!open); }}>
       <${GIcon} name="emote" /><span>${t('文字聊天')}</span>
       ${chat.unread ? html`<span class="chat__unread">${t('{n} 条未读', { n: chat.unread })}</span>` : null}
     </button>
-    ${open ? html`<section id="room-chat-body" class="chat__body" aria-label=${t('同盟聊天')}>
-      <header class="chat__head"><strong>${t('同盟聊天')}</strong><button type="button" onClick=${() => setOpen(false)}>${t('收起聊天')}</button></header>
+    ${open ? html`<section ref=${placement.body} id="room-chat-body" class="chat__body" aria-label=${t('同盟聊天')}>
+      <header class="chat__head"><button type="button" class="chat__drag" title=${t('移动聊天位置（拖动或按方向键）')}
+        aria-label=${t('移动聊天位置（拖动或按方向键）')} ...${placement.events} onClick=${placement.draggedClick}><strong>${t('同盟聊天')}</strong></button>
+        <button type="button" class="chat__reset" title=${t('恢复默认位置')} aria-label=${t('恢复默认位置')} onClick=${placement.reset}><${Icon} name="refresh" size="20" /></button><button type="button" onClick=${() => setOpen(false)}>${t('收起聊天')}</button></header>
+      <p class="chat__notice">${t('拖动按钮或标题调整位置，自动保存')}</p>
       <p class="chat__notice">${t('最近 {n} 条消息', { n: CHAT_HISTORY_LIMIT })}</p>
       <ol ref=${log} class="chat__log" role="log" aria-live="polite" aria-relevant="additions" aria-label=${t('聊天记录')}>
-        ${chat.messages.length ? chat.messages.map((m) => html`<li key=${m.id} class="chat__message">
-          <span class="chat__name" title=${m.name}>${m.name}</span><span class="chat__text">${m.text}</span>
+        ${chat.messages.length ? chat.messages.map((m) => html`<li key=${m.id} class=${m.role === 'system' ? 'chat__message chat__message--system' : 'chat__message'}>
+          <span class="chat__name" title=${m.name}>${m.role === 'system' ? t('主机公告') : m.name}</span><span class="chat__text">${m.text}</span>
         </li>`) : html`<li class="chat__empty">${t('暂无消息')}</li>`}
       </ol>
       ${facts.reason ? html`<p class="chat__notice" role="status">${facts.reason}</p>` : null}

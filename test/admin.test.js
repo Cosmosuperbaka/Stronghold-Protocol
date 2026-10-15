@@ -9,7 +9,7 @@ import { startServer } from '../server/index.js';
 import { startAdmin, handleAction, roomsView, resultRecord, catalogView } from '../server/admin.js';
 import { TestClient } from './helpers/wsClient.js';
 import { makeMatch, checkInvariants } from './match/harness.js';
-import { getPrep, setPrep, resetHostSettings, prepSecondsFor, getUniteLayerGains } from '../server/match/hostSettings.js';
+import { getPrep, setPrep, resetHostSettings, prepSeconds, prepSecondsFor, getUniteLayerGains } from '../server/match/hostSettings.js';
 import { capturePrep, rewindToPrep } from '../server/match/rewind.js';
 import { releaseFor, tag, until } from './helpers/release-fixture.js';
 
@@ -358,7 +358,8 @@ test('console: forcing a client-side battle — a win keeps the LP, a loss costs
   h.drive(() => h.m.phase === 'COMBAT');
   assert.match(h.act('battleLose', { field: h.matchView().fields[0].id, n: 0 }).error, /漏怪数/);
   assert.deepEqual(h.act('timerScale', 0.5), { ok: true });
-  assert.equal(h.m.timerScale, 0.5);
+  assert.deepEqual(h.m.prepOverride, { mode: 'scale', scale: 0.5 });
+  assert.equal(h.m.timerScale, 1, 'the console leaves all other phase timers unchanged');
   assert.match(h.act('timerScale', 0).error, /0.1–10/);
   h.m.dispose();
 });
@@ -553,6 +554,59 @@ test('console: the enemy schedule — every composition per round, the possible 
   m.dispose();
 });
 
+test('console room prep: inherit, replace, reset, validation, phase isolation and rewind', t => {
+  resetHostSettings();
+  t.after(resetHostSettings);
+  const h = harness({ humans: 2, bots: 0, fake: true, seed: 15 });
+  const other = harness({ humans: 2, bots: 0, fake: true, seed: 16 });
+  t.after(() => { h.m.dispose(); other.m.dispose(); });
+  const m = h.m;
+  const next = round => {
+    assert.ok(h.drive(() => m.phase === 'PREP' && m.round === round, { ready: false }));
+    return m.deadline ? m.deadline - m.sched.now() : null;
+  };
+  setPrep({ mode: 'scale', scale: 2 });
+  assert.equal(h.matchView().prepInherited, true);
+  assert.deepEqual(h.matchView().prep, getPrep());
+  assert.equal(next(1), m.gd.prepTime(1) * 2000);
+  const originalDeadline = m.deadline;
+  assert.deepEqual(h.act('prepTimer', { mode: 'scale', scale: 1.5 }), { ok: true });
+  assert.equal(m.deadline, originalDeadline, 'current prep deadline is preserved');
+  assert.equal(m.timerScale, 1, 'all other phases keep their original timing');
+  assert.equal(m.scaled(25), 25);
+  assert.equal(h.matchView().prepInherited, false);
+  assert.equal(other.matchView().prepInherited, true, 'override is confined to one room');
+  assert.equal(next(2), Math.round(m.gd.prepTime(2) * 1.5) * 1000, 'global scale is replaced, not multiplied');
+  const snapRound = m.round;
+  assert.deepEqual(h.act('prepTimer', { mode: 'fixed', seconds: 35 }), { ok: true });
+  setPrep({ mode: 'fixed', seconds: 70 });
+  assert.equal(prepSeconds(other.m, 95), 70, 'inheriting room sees future settings');
+  assert.equal(next(3), 35000);
+  assert.deepEqual(h.act('prepTimer', { mode: 'perRound', rounds: { 4: 45 } }), { ok: true });
+  assert.equal(next(4), 45000);
+  assert.equal(next(5), m.gd.prepTime(5) * 1000, 'unlisted round uses game data');
+  const before = structuredClone(m.prepOverride);
+  for (const value of [{ mode: 'fixed', seconds: 1 }, { mode: 'scale', scale: 20 }, { mode: 'perRound', rounds: { 31: 50 } }, { mode: 'invalid' }]) {
+    assert.ok(h.act('prepTimer', value).error);
+    assert.deepEqual(m.prepOverride, before);
+  }
+  assert.deepEqual(h.act('prepTimer', { mode: 'untimed' }), { ok: true });
+  assert.equal(next(6), null);
+  assert.deepEqual(h.act('prepTimer', null), { ok: true });
+  assert.equal(h.matchView().prepInherited, true);
+  assert.equal(next(7), 70000);
+  assert.deepEqual(h.act('timerScale', 0.5), { ok: true }, 'legacy action now only configures prep');
+  assert.equal(m.timerScale, 1);
+  assert.equal(next(8), Math.round(m.gd.prepTime(8) * 0.5) * 1000);
+  assert.deepEqual(h.act('rewind', snapRound), { ok: true, round: snapRound });
+  assert.deepEqual(m.prepOverride, { mode: 'scale', scale: 1.5 });
+  assert.equal(m.deadline - m.sched.now(), Math.round(m.gd.prepTime(snapRound) * 1.5) * 1000);
+  assert.deepEqual(h.act('rewind', 1), { ok: true, round: 1 });
+  assert.equal(m.prepOverride, null, 'earlier snapshot restores inheritance');
+  assert.equal(m.deadline - m.sched.now(), 70000, 'inheritance uses current standing setting');
+  assert.equal(m.errorCount, 0, JSON.stringify(m.errors));
+});
+
 test('console settings: the 休整期 timer of every timed match, kept in a file across restarts', async () => {
   try {
     // the rules
@@ -569,7 +623,7 @@ test('console settings: the 休整期 timer of every timed match, kept in a file
     assert.match(setPrep({ mode: 'nope' }).error, /未知/);
     assert.deepEqual(getPrep(), { mode: 'default' });
 
-    // a timed match (two humans): the setting reaches it at the next prep, the console's timer scale on top
+    // A timed match: standing settings apply next prep; the internal developer speed remains available to tests.
     const h = makeMatch({ mode: 'coop', humans: 2, bots: 0, seed: 15 }).start().autoHumans();
     const m = h.m;
     const left = () => m.deadline - m.sched.now();

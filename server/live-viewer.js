@@ -11,6 +11,8 @@ import { audio } from '/js/audio.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
+const embedded = params.get('wall') === '1';
+document.body.classList.toggle('live-wall', embedded);
 const room = params.get('room');
 let playerId = params.get('playerId'), state = null, watched = null, timer = null, sequence = 0, disposed = false;
 let knownBattle = null, shownField = null, mounted = false, syncing = null;
@@ -75,9 +77,9 @@ async function sync() {
         $('live-player').dataset.signature = signature;
       }
       $('live-player').value = playerId;
-      $('live-player').disabled = false;
-      $('live-control').disabled = !next.controllable;
-      if (!next.controllable) $('live-control').checked = false;
+      $('live-player').disabled = embedded;
+      $('live-control').disabled = embedded || !next.controllable;
+      if (embedded || !next.controllable) $('live-control').checked = false;
       $('live-message').hidden = true;
       $('live-game').hidden = false;
       store.set({ me: { playerId, name: next.name, token: null }, session: { entered: true },
@@ -137,7 +139,7 @@ net.request = async (type, fields = {}) => {
     net._emit('m.unitStats', stats.unitStats);
     return { ok: true };
   }
-  if (!$('live-control').checked || !state?.controllable) throw new NetError('WRONG_PHASE', '当前仅查看，请先开启代操作');
+  if (embedded || !$('live-control').checked || !state?.controllable) throw new NetError('WRONG_PHASE', '当前仅查看，请先开启代操作');
   const seq = sequence, target = playerId;
   const intent = { ...fields, t: type };
   try {

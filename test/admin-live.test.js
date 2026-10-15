@@ -102,9 +102,16 @@ test('host live API: token/cookie/Host protection, invalid players and guarded r
   const endpoint = '/api/live?room=TEST&playerId=p_0';
   assert.equal((await fetch(admin.url + endpoint)).status, 403);
   assert.equal((await fetch(admin.url + '/live')).status, 404);
+  assert.equal((await fetch(admin.url + '/live?wall=1')).status, 404);
   assert.equal((await fetch(admin.url + '/live-viewer.js')).status, 404);
   const home = await fetch(admin.url), cookie = home.headers.get('set-cookie').split(';')[0];
-  assert.equal((await fetch(admin.url + '/live', { headers: { Cookie: cookie } })).status, 200);
+  const ordinary = await fetch(admin.url + '/live', { headers: { Cookie: cookie } });
+  assert.equal(ordinary.status, 200);
+  assert.equal(ordinary.headers.get('x-frame-options'), 'DENY');
+  const embedded = await fetch(admin.url + '/live?wall=1', { headers: { Cookie: cookie } });
+  assert.equal(embedded.status, 200);
+  assert.equal(embedded.headers.get('x-frame-options'), 'SAMEORIGIN');
+  assert.match(embedded.headers.get('content-security-policy'), /frame-ancestors 'self'/);
   assert.equal((await fetch(admin.url + '/live-viewer.js', { headers: { Cookie: cookie } })).status, 200);
   assert.equal((await fetch(admin.url + endpoint, { headers: { Cookie: cookie } })).status, 403);
   const auth = { 'X-Admin-Token': admin.token };

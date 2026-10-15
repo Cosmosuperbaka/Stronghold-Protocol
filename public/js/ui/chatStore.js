@@ -11,19 +11,20 @@ export function chatMember(room, playerId) {
 
 export function mergeChat(chat, event, history = false) {
   if (!chat?.code || event?.code !== chat.code) return chat;
-  const byId = new Map(chat.messages.map((m) => [m.id, m]));
+  const clearedThrough = Math.max(chat.clearedThrough || 0, history && Number.isSafeInteger(event.clearedThrough) ? event.clearedThrough : 0);
+  const byId = new Map(chat.messages.filter((m) => m.id > clearedThrough).map((m) => [m.id, m]));
   let unread = chat.unread;
   const incoming = history ? (Array.isArray(event.messages) ? event.messages : []) : [event];
   for (const m of incoming) {
     if (!m || !Number.isSafeInteger(m.id) || m.id <= 0 || typeof m.text !== 'string' || (m.code && m.code !== chat.code)) continue;
-    if (byId.has(m.id)) continue;
+    if (m.id <= clearedThrough || byId.has(m.id)) continue;
     if (!history && !chat.open && m.id > chat.lastId) unread++;
     byId.set(m.id, { code: chat.code, id: m.id, playerId: m.playerId, name: typeof m.name === 'string' ? m.name : '',
-      seat: m.seat, role: 'player', text: m.text, at: m.at, receivedAt: history ? null : Date.now() });
+      seat: m.seat, role: m.role === 'system' ? 'system' : 'player', text: m.text, at: m.at, receivedAt: history ? null : Date.now() });
   }
   const messages = [...byId.values()].sort((a, b) => a.id - b.id).slice(-CHAT_HISTORY_LIMIT);
   const lastId = Math.max(chat.lastId, messages.at(-1)?.id || 0, history && Number.isSafeInteger(event.lastId) ? event.lastId : 0);
-  return { ...chat, messages, lastId, unread };
+  return { ...chat, messages, lastId, clearedThrough, unread: messages.length ? unread : 0 };
 }
 
 // Transport subscriptions outlive routes; local membership transitions clear the slice synchronously.
