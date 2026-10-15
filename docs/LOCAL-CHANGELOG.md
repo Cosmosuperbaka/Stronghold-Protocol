@@ -2,6 +2,18 @@
 
 只记录本分支在上游之上的改动。上游自己的更新见 [CHANGELOG.md](../CHANGELOG.md)，实现细节见 [LOCAL-DEV.md](LOCAL-DEV.md)。
 
+## 2026-10-16 — 源码整合上游 v0.3.0（尚未另发安装包）
+
+- 按先发布后合并的顺序，先将 v0.2.6-extended.5 推到 main 并发布正式 Release，再整合上游 v0.3.0（c24e17eec3af1e6dedfa9935a6d15245cf2f4586）。本次源码基础版本为 0.3.0，扩展发布标签继续指向最新正式附件，不伪造新 Release。
+- 保留 Hub UI 与全部原版局扩展，接入上游插件、官方 FX、多语言语音、七键快捷键及玩法修复。冲突适配包括统一 classic Service Worker、素材缓存 / Range、库存欠账回档、预演取消，以及玩法插件进程的本机控制台通信。
+- 黄金基准以 v0.3.0 为准：roster 49、bonds 46、fields 22、matches 21、standins 10 与上游一致；本库额外 7 名联动重新加入 DIY 数据后，diy-136 至 diy-151 共 16 个场景重排 / 新增，DIY 共 151，全部共 299。官方场景未引入额外规则变更。
+- Windows 兼容修复：插件作者测试预载使用 file URL，并固定 TAP 报告；Forge 校验视图使用目录 junction；模拟器测试正确排除 Node 专用加载器，目录链接测试无需管理员权限，单独的文件符号链接测试在无权限时明确跳过；Docker 忽略规则检查兼容 CRLF，进程看门狗核实实际退出。手机横屏快捷键保留单列。旧测试中的同盟自选库存、可扩展整备区和已展示装备购买断言按上游规则更新，仍保留库存守卫、扣费和欠账验证。
+- UI 插件的消息屏障补入本库 `state.*`，禁止插件绕过状态重同步限制；更新器测试用源码基础版本构造将来标签，保持正式发布标签与尚未发布的 0.3.0 源码分离。
+- 验证过程中第一份全量为 7,984 项，7,889 通过、59 失败、36 跳过（1,180,139 ms，含停止的三项 Windows 循环加载测试）。失败主要为尚未补齐素材、上游新库存规则旧断言、Windows 符号链接 / CLI 预载 / 路径过滤、Forge 导入和懒加载预期；这些原始输出保留在 `.cache/merge-v030/all-tests.log`，不能表述为零失败。修复后用最终独立全量重新验证。
+- 最终验证：Node 24.19 全量 8,008 项，7,970 通过、38 跳过、0 失败（644,077 ms）；299 个 golden 全部一致，官方五个家族与 v0.3.0 一致。setup / smoke / lint / imports / typecheck、四语言各 2,285 条严格检查、文档 34 项、素材专项 78 项与完整包预检通过。28 项真实浏览器用例分批最终通过，覆盖插件实战 / 篡改接管 / 外观、素材下载 / ZIP 导入 / 离线 Range、本库皮肤 / 聊天 / 标点 / 表情、七键与手机布局、主机查看代操作与回放。插件主机通信在 child process 和 worker 两种传输中均通过，包含结束记录和回放。
+- 验证日志：`.cache/merge-v030/all-final.log`、`golden-final.log`、`checks-done.log`、`docs-done.log`、`i18n-done.log`、`package-preflight-final.log`；浏览器为 `browser-integration2.log`、`browser-plugins3.log`、`browser-cosmetic-final.log`、`browser-retained.log`、`hotkeys-phone-final.log`、`browser-social.log`、`browser-download.log`，其中修复前的失败仍保留，不把这些旧批次表述为全部通过。打包首轮账号扫描将官方 FX 浮点数中的五位数字子串误判为本机数字账号；核对来源包后，最终预检使用 `SP_PACKAGE_SCAN_USER=0`，仍保留完整主目录路径扫描。素材未进 Git，未发布新的 0.3.0 扩展安装包。
+- 已知新增兼容范围：玩法插件局的控制台状态、代操作和回档在原独立进程内执行；跨服务重启恢复尚仅支持原版局，需要脚本授权的回放目前明确拒绝启动。原版局既有恢复与回放保留。实现说明见 LOCAL-DEV §1。
+
 ## 2026-10-16 — v0.2.6-extended.5：社区 Hub UI 与离线资源
 
 - 在 codex/ui-hub 按交接文档移植大厅、同盟卡片、干员调配、HUD、动效、结算与 S.W.E.E.P；保留自定义密钥、AI 增删、真实皮肤 / 随机 / 导入导出、聊天拖动、战场标点、联动模型、观战、回放、主机控制台和更新记录。

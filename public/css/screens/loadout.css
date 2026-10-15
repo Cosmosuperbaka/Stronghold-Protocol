@@ -648,6 +648,8 @@
 .lo-skin__art { width: 46px; height: 46px; object-fit: contain; flex: 0 0 46px; }
 .lo-skin__text { display: flex; flex-direction: column; flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: max(.16rem, 13px); }
 .lo-skin__text small { font-size: max(.12rem, 11px); }
+.lo-voice__preview { height: max(.4rem, 24px); padding: 0 .12rem; font: inherit; font-size: max(.15rem, 11px); color: var(--mint-400); background: transparent; border: 1px solid var(--line-2); cursor: pointer; }
+.lo-voice__preview:hover, .lo-voice__preview:focus-visible { border-color: var(--mint-700); }
 
 /* Server custom skin picker */
 

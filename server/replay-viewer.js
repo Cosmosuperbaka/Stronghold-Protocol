@@ -66,6 +66,15 @@ async function play() {
       import('/js/battle/runner.js'), import('/js/render/app.js'), import('/js/data.js'), import('/js/assets.js'), import('/sim/spec.js'),
     ]);
     await data.loadAll('chess', 'tokens', 'items', 'enemies', 'stages', 'bonds', 'config');
+    let replayContent = null, contentIndex = null;
+    if (f.spec.cs) {
+      const { loadContentSet } = await import('/js/content.js');
+      const set = await loadContentSet(f.spec.cs);
+      if (set.canSim === false) throw new Error('该回放需要脚本插件授权，请在原房间确认脚本后查看实时战场');
+      contentIndex = set.index;
+      data.setContent({ id: set.cs, values: set.values });
+      replayContent = { cs: set.cs, data: Object.fromEntries(set.values), bounds: set.bounds, scripts: set.scripts || [], hashInput: set.index, nativeVerified: set.nativeVerified };
+    } else data.setContent(null);
     await assets.ready();
     if (seq !== sequence) return;
     $('field').hidden = false;
@@ -74,7 +83,8 @@ async function play() {
     view = nextView;
     view.setStage(data.lookup('stages', f.spec.stageId));
     const net = { on: () => () => {}, send() {}, request: async () => ({ ok: true }) };
-    runner = createBattleRunner({ net, store: null });
+    runner = createBattleRunner({ net, store: null, vanillaCs: () => contentIndex?.vanilla ? f.spec.cs : 'original',
+      simContent: () => replayContent, contentFor: async () => replayContent });
     runner.on('field', (field) => { view.enterBattle(field); view.setCamera(f.kind, { rect: field.rect, side: 'L', instant: true }); });
     runner.on('snap', (snap) => view.pushSnapshot(snap));
     runner.on('ev', (ev) => view.pushEvents(ev));

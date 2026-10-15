@@ -23,6 +23,11 @@ import { enabled as federationEnabled, currentNode } from '../federation.js';
 // Spectator seats (community report #26, a remake feature): a co-op room with spectators shows the 观战席 strip under
 // the seats — names, offline marks, the host's ✕ (room.removeSpectator) — and a spectator's own view swaps the ready
 // button for 观战中 and offers 入座 (room.join of the room) while a player seat is free.
+// Plugins (DESIGN §32 P1a): the tag under the title — 「原版」 or 「插件 ×N」 — opens the 插件 panel (ui/pluginPanel.js:
+// the host switches the room's plugins, everybody else reads them). With gameplay plugins (§32.6: a content set of its
+// own — the tag reads 「非官方」 too) every seat shows whether its page has loaded and checked the room's content
+// (seats[].content: 载入中 / 就绪 / 校验失败), 准备就绪 and 开始模拟 wait for it (the server refuses them before:
+// CONTENT_NOT_READY), and a plugin mode the host chose shows beside the difficulty.
 // Texts go through t() (docs/I18N.md).
 
 import { useEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
@@ -41,6 +46,8 @@ import { openFriends } from '../ui/friends.js';
 import { NameCardLayer } from '../ui/namecards.js';
 import { SettingsButton } from '../ui/settings.js';
 import { LoadoutButton } from './loadout.js';
+import { PluginTag, isModdedRoom } from '../ui/pluginTag.js';
+import { hasScriptConsent, rememberScriptConsent } from '../content.js';
 import { net } from '../net.js';
 import { store, useStore, shallowEqual, emptyMatch, isSpectating, serverNow, loadPref, savePref } from '../store.js';
 import { data, useData } from '../data.js';
@@ -91,11 +98,17 @@ export function roomFacts(room, myId) {
   const isReady = (s) => !!s.ready || s.playerId === room?.hostId;
   const readyHumans = humans.filter(isReady).length;
   const othersReady = others.every((s) => s.ready && s.connected !== false);
+  // a room with gameplay plugins (DESIGN §32.6): every player's page has loaded and checked its content (the host's too)
+  const modded = isModdedRoom(room);
+  const contentReady = !modded || humans.every((s) => s.content === 'ready');
   return {
     seats, occupied, humans, mine, isHost, readyHumans, isReady,
     emptySeats: seats.filter((s) => !s).length,
-    canStart: isHost && othersReady && !!mine,
+    canStart: isHost && othersReady && !!mine && contentReady && (!room?.content?.trusted || humans.every(s => room.content.trusted.consent[s.seat])),
     othersReady,
+    modded,
+    contentReady,
+    myContent: modded ? (mine?.content || 'loading') : 'ready',
     // spectator seats (never players: not in `humans`, never counted for ready / start)
     spectators: Array.isArray(room?.spectators) ? room.spectators.filter((s) => s && typeof s === 'object') : [],
     spectating: isSpectating(room, myId),
@@ -189,6 +202,7 @@ function SeatCard({ seat, index, room, facts, myId, busy, online, onKick, onInvi
       </div>
     </article>`;
   }
+  const consent = room.content?.trusted?.consent?.[seat.seat];
   const isMe = seat.playerId === myId;
   const isHostSeat = seat.playerId === room.hostId;
   const offline = seat.connected === false && !seat.isBot;
@@ -198,6 +212,8 @@ function SeatCard({ seat, index, room, facts, myId, busy, online, onKick, onInvi
   const canPick = isMe && !seat.isBot && !!onPickCard;
   return html`<article class=${`rseat${ready ? ' is-ready' : ''}${flash ? ' is-flash' : ''}${isMe ? ' is-me' : ''}${isHostSeat ? ' is-host' : ''}${offline ? ' is-offline' : ''}${seat.isBot ? ' is-bot' : ''}`}
       style=${`--i:${index}`}>
+    ${consent ? html`<span data-testid="script-consented">${t('已同意')}</span>` : null}
+    ${facts.modded && !seat.isBot ? html`<span class=${`seat__content is-${seat.content || 'loading'}`} data-testid="seat-content">${seat.content === 'ready' ? t('插件内容就绪') : seat.content === 'failed' ? t('插件内容校验失败') : t('插件内容载入中')}</span>` : null}
     <span class="rseat__clip" aria-hidden="true"></span>
     <header class="rseat__strip"><i></i><span class="num">P${index + 1}</span></header>
     <div class=${`rseat__art${canPick ? ' is-pickable' : ''}`} onClick=${canPick ? onPickCard : undefined} title=${canPick ? t('点击更换名片干员') : undefined}>
@@ -487,6 +503,8 @@ export function RoomScreen() {
       ? html`<span class="t-lo"><${Icon} name="eye" />${t('观战中 · 不占博士席位，模拟开始后可切换观看各位博士')}</span>`
     : !coop
       ? html`<span class="t-mint">${t('*模拟协议已就绪，准许进入模拟')}</span>`
+    : facts.modded && !facts.contentReady
+      ? html`<span class="t-lo">${t('等待所有博士载入房间的插件内容')}</span>`
     : facts.isHost
       ? facts.canStart
         ? facts.emptySeats && searchable
@@ -517,6 +535,8 @@ export function RoomScreen() {
         </div>
       </div>
       <div class="rs-top__right">
+        <${PluginTag} room=${room} myId=${me.playerId} />
+        ${room.content?.modeId ? html`<span class="room-mode" data-testid="room-mode">${(room.content.modes || []).find((m) => m.id === room.content.modeId)?.name || room.content.modeId}</span>` : null}
         ${facts.mine ? html`<${BondPlanControl} />` : null}
         <${LoadoutButton} from="room" size="md" class="hub-plate hub-plate--loadout rs-loadout" label=${t('干员调配')} />
         ${coop ? html`<div class="rs-key">
@@ -567,13 +587,13 @@ export function RoomScreen() {
               <${Icon} name="search" />${t('开始搜寻')}${busy === 'match' ? html`<${Spinner} size="sm" />` : null}</button>` : null}
         ${facts.isHost
           ? html`<button type="button" class="proto-start rs-go" disabled=${!facts.canStart || !online || busy === 'start'} onClick=${start}
-              title=${facts.canStart ? undefined : t('仍有博士未准备就绪')}>
+              title=${facts.canStart ? undefined : !facts.contentReady ? t('仍有博士未载入房间的插件内容') : t('仍有博士未准备就绪')}>
               <span class="proto-start__mark" aria-hidden="true"><span class="proto-start__rook"><i>[</i><${Icon} name="rook" /><i>]</i></span><small>STRONGHOLD<br />PROTOCOL</small></span>
               <span class="proto-start__label">${busy === 'start' ? html`<${Spinner} size="sm" />` : null}${t('开始模拟')}</span>
               <span class="proto-start__deco" aria-hidden="true"></span></button>`
           : facts.spectating
             ? html`<button type="button" class="proto-start rs-go" disabled=${true}><span class="proto-start__label"><${Icon} name="eye" />${t('观战中')}</span></button>`
-          : html`<button type="button" class=${`proto-start rs-go${myReady ? ' is-ready' : ''}`} disabled=${!online || !facts.mine || busy === 'ready'} onClick=${toggleReady}
+          : html`<button type="button" class=${`proto-start rs-go${myReady ? ' is-ready' : ''}`} disabled=${!online || !facts.mine || busy === 'ready' || (!myReady && facts.myContent !== 'ready')} onClick=${toggleReady}
               title=${myReady ? t('再次点击取消就绪') : undefined}>
               <span class="rs-go__box" aria-hidden="true">${myReady ? html`<${Icon} name="check" />` : null}</span>
               <span class="proto-start__label">${busy === 'ready' ? html`<${Spinner} size="sm" />` : null}${myReady ? t('已就绪') : t('准备就绪')}</span>
@@ -590,4 +610,47 @@ export function RoomScreen() {
     ${picking ? html`<${CardPicker} current=${myCard} list=${cardList} m=${m} onPick=${pickCard} onClose=${() => setPicking(false)} />` : null}
     ${protoShown ? html`<${RoomProtocol} room=${room} variant=${variant} busy=${busy} onClose=${() => setPicker(false)} onPick=${setDifficulty} leaving=${protoLeaving} />` : null}
   </div>`;
+}
+
+/** Persistent across room/game routes, including spectators who never consent. */
+export function TrustedNotice() {
+  const state = useStore(s => s);
+  const room = state.room, cs = room?.content?.cs, trusted = room?.content?.trusted;
+  const seat = room?.seats?.find(s => s && s.playerId === state.me?.playerId);
+  const [dismissed,setDismissed] = useState(null);
+  const [busy,setBusy] = useState(false);
+  const [review,setReview] = useState(false);
+  const choose = async accept => {
+    setBusy(true);
+    try {
+      if (seat) await net.request('room.consent',{cs,accept});
+      rememberScriptConsent(cs,accept);
+      setDismissed(cs); setReview(false);
+      if (accept && trusted.plugins.some(p => p.permissions.includes('trusted.page'))) {
+        const url = new URL(location.href); url.searchParams.set('cs',cs); url.searchParams.set('room',room.code);
+        location.assign(url.href); return;
+      }
+      store.set({room:{...store.get().room}}); // wake the content loader after local persistence
+    } catch (e) { toastError(e); }
+    finally { setBusy(false); }
+  };
+  useEffect(() => {
+    if (trusted && seat && hasScriptConsent(cs) && !trusted.consent?.[seat.seat] && !room.inMatch) {
+      net.request('room.consent',{cs,accept:true}).catch(toastError);
+    }
+  },[cs,seat?.seat,!!trusted?.consent?.[seat?.seat]]);
+  if (!trusted) return null;
+  return html`<aside class="trusted-banner" data-testid="trusted-banner">
+    <strong>${t('受信任插件')}</strong>
+    <button onClick=${() => setReview(true)}>${t('查看风险与同意状态')}</button>
+    <${Modal} open=${review || (dismissed !== cs && !hasScriptConsent(cs))} title=${t('受信任插件')} tone="red" closeOnBackdrop=${false}
+      onClose=${() => room.inMatch ? setReview(false) : choose(false)} actions=${html`<${Button} disabled=${busy} onClick=${() => choose(false)} data-testid="script-decline">${t('拒绝')}<//>
+        <${Button} disabled=${busy} onClick=${() => choose(true)} data-testid="script-accept">${t('同意运行')}<//>`}>
+      <p>${t('它可以完全控制你的游戏页面')}</p>
+      <p>${t('仅在你信任所有作者及以下代码时同意。换了内容组合需要重新同意。')}</p>
+      <ul>${trusted.plugins.map(p => html`<li key=${p.id}><strong>${p.id} ${p.version}</strong>
+        <p>${t('作者：{authors}',{authors:(p.authors || []).join(', ') || '—'})}</p>
+        <p class="trusted-hash">SHA-256: ${p.hash}</p><p>${t('权限：{permissions}',{permissions:p.permissions.join(', ')})}</p></li>`)}</ul>
+    <//>
+  </aside>`;
 }

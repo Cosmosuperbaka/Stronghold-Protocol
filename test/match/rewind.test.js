@@ -19,6 +19,20 @@ function fingerprint(m) {
   });
 }
 
+test('upstream merge: rewind restores equipment debt and cancels abandoned delegated rehearsals', t => {
+  const h = makeMatch({ mode: 'coop', humans: 1, bots: 0, fake: true }).start().toPrep();
+  const m = h.m;
+  t.after(() => m.dispose());
+  m.itemPool.debt.set('item-fixture', 2);
+  m.prepSnapshots.set(m.round, capturePrep(m));
+  m.itemPool.debt.set('item-fixture', 5);
+  m.itemPool.debt.set('abandoned', 1);
+  m._rehearsalTasks.set('abandoned', { id: 'abandoned', executor: 'p0', timer: null });
+  assert.deepEqual(rewindToPrep(m, m.round), { ok: true, round: m.round });
+  assert.deepEqual([...m.itemPool.debt], [['item-fixture', 2]]);
+  assert.equal(m._rehearsalTasks.size, 0);
+});
+
 const play = (seed) => makeMatch({ mode: 'coop', humans: 1, bots: 3, seed }).start().autoHumans();
 
 test('0.2.5: rewind restores boss partners and sides, or clears pairing before the boss round', t => {
@@ -142,14 +156,14 @@ test('自选编队 (0.2.0): the DIY stock is rewound in place, the picks stay', 
   const ps = h.m.players.get('p_0');
   const stock = ps.diyStock;
   const { diy, gd } = ps;
-  assert.deepEqual(stock.snapshot(), { chess_char_5_diy1_a: 8 });
+  assert.deepEqual(stock.snapshot(), { chess_char_5_diy1_a: 16 });
   h.drive(() => h.m.phase === PHASE.PREP && h.m.round === 3);
   const atPrep = fingerprint(h.m);
   assert.equal(stock.take('chess_char_5_diy1_a', 3), 3);
   h.drive(() => h.m.phase === PHASE.SETTLE && h.m.round === 3);
   assert.deepEqual(rewindToPrep(h.m), { ok: true, round: 3 });
   assert.equal(ps.diyStock, stock, 'the same DiyStock instance');
-  assert.deepEqual(stock.snapshot(), { chess_char_5_diy1_a: 8 });
+  assert.deepEqual(stock.snapshot(), { chess_char_5_diy1_a: 16 });
   assert.ok(ps.diy === diy && ps.gd === gd, 'picks and the player data view kept');
   assert.equal(fingerprint(h.m), atPrep);
   checkInvariants(h.m);

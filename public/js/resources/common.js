@@ -24,7 +24,7 @@ export const TIER_ESSENTIAL = 1;
 /** Optional: operator skins, voices, sound effects, music and tutorial illustrations. */
 export const TIER_REST = 2;
 export const MANIFEST_URL = '/data/resource-manifest.json';
-export const SW_URL = '/resource-sw.js';
+export const SW_URL = '/sw.js';
 
 export const RESOURCE_GROUPS = Object.freeze({
   map: { name: N_('地图与棋盘'), tier: TIER_ESSENTIAL },

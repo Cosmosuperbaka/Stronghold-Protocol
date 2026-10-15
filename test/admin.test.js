@@ -207,11 +207,12 @@ test('console item stock: confirmation, forced merge, occupancy, removal and rew
   assert.equal(m.itemPool.held(id), 4);
   assert.ok(ps.hand.some(p => p?.adminStockCopies === 2), 'an equipped forced twin merges with its incoming copy');
   checkInvariants(m);
-  // A forced grant still cannot exceed hand + temporary capacity.
-  while (ps.hand.some(p => !p) || ps.temp.some(p => !p)) {
-    if (!ps.acquireItem('chess_item_6_09_e_a', { requirePool: false })) break;
-  }
-  assert.match(act({ id, force: true }).error, /都满了/);
+  // Upstream 0.3.0 expands temporary storage rather than refusing a confirmed grant.
+  while (ps.hand.some(p => !p)) ps.acquireItem('chess_item_6_09_e_a', { requirePool: false });
+  const heldBefore = m.itemPool.held(id);
+  assert.deepEqual(act({ id, force: true }), { ok: true });
+  assert.equal(m.itemPool.held(id), heldBefore + 1);
+  checkInvariants(m);
 });
 
 test('console: bond layers (add / set) and count bonus', () => {
@@ -378,7 +379,7 @@ test('console (0.2.0): a 自选编队 piece is listed under its picked operator'
   assert.equal(h.view().pieces.find((p) => p.uid === piece.uid).name, ps.gd.chess('chess_char_5_diy1_a').name);
   assert.notEqual(ps.gd.chess('chess_char_5_diy1_a').name, m.gd.chess('chess_char_5_diy1_a').name);
   assert.deepEqual(h.act('pieceRemove', piece.uid), { ok: true });
-  assert.deepEqual(ps.diyStock.snapshot(), { chess_char_5_diy1_a: 8 }, 'its copy went back to the player\'s own stock');
+  assert.deepEqual(ps.diyStock.snapshot(), { chess_char_5_diy1_a: 16 }, 'its copy went back to the player\'s own stock');
   checkInvariants(m);
   m.dispose();
 });

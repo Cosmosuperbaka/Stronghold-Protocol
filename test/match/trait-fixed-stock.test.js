@@ -46,9 +46,14 @@ for (const repeat of [1, 2, 3]) {
     assert.equal(ps.acquireItem(ISO), null, 'ordinary acquisition still requires stock');
     ps.shop.slots[1] = { kind: 'item', id: ISO, basePrice: 1, sold: false, frozen: false };
     const funds = ps.funds;
-    assert.equal(ps.buy(1).error, 'SOLD_OUT');
-    assert.equal(ps.funds, funds);
-    assert.equal(ps.shop.slots[1].sold, false);
+    // v0.3.0: an already displayed item is purchasable even after its pool is exhausted (#624).
+    const held = m.itemPool.held(ISO);
+    assert.equal(ps.buy(1).ok, true);
+    assert.equal(ps.funds, funds - 1);
+    assert.equal(ps.shop.slots[1].sold, true);
+    assert.equal(m.itemPool.held(ISO), held + 1);
+    assert.equal(m.itemPool.debtOf(ISO), 1);
+    checkInvariants(m);
     assert.equal(h.logs.error.length, 0);
   });
 }

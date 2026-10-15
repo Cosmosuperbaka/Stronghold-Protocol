@@ -1,7 +1,7 @@
 // public/js/resources/index.js — the page side of the optional asset preload (docs/ASSETS.md「Preload」).
 //
 // Off by default (设置 ▸ 预载资源). When the player turns it on, this module fetches /data/resource-manifest.json,
-// registers the Service Worker (public/resource-sw.js, so the cached files are also served with no network) and fills
+// registers the Service Worker (public/sw.js, so the cached files are also served with no network) and fills
 // Cache Storage with required visuals first, then optional audio/tutorials when selected. Turning it off stops the
 // downloads; 「清理缓存」 deletes them. Nothing here touches the match: a player who never enables it never downloads
 // anything, and a failed download only costs a console message.
@@ -148,19 +148,19 @@ export function resourceContext() {
 async function ensureWorker() {
   const nav = globalThis.navigator;
   if (!nav?.serviceWorker) throw new Error('不支持 Service Worker');
-  const reg = await nav.serviceWorker.register(SW_URL, { type: 'module', scope: '/', updateViaCache: 'none' });
+  const reg = await nav.serviceWorker.register(SW_URL, { scope: '/', updateViaCache: 'none' });
   set({ worker: '' });
   return reg;
 }
 
-/** Unregister the worker (nothing to serve from the cache any more). */
+/** Retire only the legacy preload worker; the unified worker also serves imported upstream packs. */
 async function dropWorker() {
   const nav = globalThis.navigator;
   if (!nav?.serviceWorker) return;
   try {
     for (const reg of await nav.serviceWorker.getRegistrations()) {
       const url = reg.active?.scriptURL || reg.installing?.scriptURL || reg.waiting?.scriptURL || '';
-      if (url.endsWith(SW_URL)) await reg.unregister();
+      if (url.endsWith('/resource-sw.js')) await reg.unregister();
     }
   } catch { /* the worker is optional */ }
 }

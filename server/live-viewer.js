@@ -8,6 +8,9 @@ import { battleRunner } from '/js/battle/runner.js';
 import { ToastHost, toast } from '/js/ui/toasts.js';
 import { closeAllDialogs } from '/js/ui/components.js';
 import { audio } from '/js/audio.js';
+import { installContent, installContentSet } from '/js/content.js';
+installContent({ toast });
+installContentSet({ net: null, toast });
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -84,7 +87,8 @@ async function sync() {
       $('live-game').hidden = false;
       store.set({ me: { playerId, name: next.name, token: null }, session: { entered: true },
         connection: { status: 'online', ping: null, everOnline: true },
-        room: { code: room, inMatch: true, spectators: [], seats: next.players },
+        room: { code: room, inMatch: true, spectators: [], seats: next.players, ...(next.content ? { content: next.content } : {}) },
+        content: next.vanilla ? { vanilla: next.vanilla } : null,
         clock: { offset: next.public.serverNow - Date.now(), rtt: null, synced: true } });
       store.patch('match', { public: next.public, private: next.private });
       if (!mounted) { render(h(GameScreen), $('live-game')); mounted = true; }

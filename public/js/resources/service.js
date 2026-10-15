@@ -40,7 +40,8 @@ export async function handleResourceRequest(request, { caches = globalThis.cache
  * @returns {string[]}
  */
 function cacheKeys(url) {
-  const candidates = mediaCandidates(url.pathname);
+  const plainPath = splitHashedPath(url.pathname).path;
+  const candidates = mediaCandidates(plainPath);
   if (!candidates.length) {
     const key = absoluteUrl(url.href);
     const legacy = key.replace(/%5B/gi, '[').replace(/%5D/gi, ']');
@@ -56,7 +57,11 @@ function cacheKeys(url) {
   }
   const keys = [];
   for (const path of candidates) {
-    try { keys.push(new URL(path, url).href); } catch { /* one impossible candidate less */ }
+    try {
+      const hash = splitHashedPath(url.pathname).hash;
+      if (hash) keys.push(new URL(path.replace('/assets/', `/assets/~${hash}/`), url).href);
+      keys.push(new URL(path, url).href);
+    } catch { /* one impossible candidate less */ }
   }
   return keys.length ? keys : [url.href];
 }

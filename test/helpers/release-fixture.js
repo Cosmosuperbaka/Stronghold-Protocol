@@ -31,7 +31,8 @@ export function storedZip(entries) {
   end.writeUInt32LE(0x06054b50); end.writeUInt16LE(entries.length, 8); end.writeUInt16LE(entries.length, 10); end.writeUInt32LE(cd.length, 12); end.writeUInt32LE(offset, 16);
   return Buffer.concat([...locals, cd, end]);
 }
-export const tag = RELEASE_TAG.replace(/\d+$/, (revision) => String(Number(revision) + 1));
+export const tag = RELEASE_TAG.startsWith(`v${APP_VERSION}-`)
+  ? RELEASE_TAG.replace(/\d+$/, revision => String(Number(revision) + 1)) : `v${APP_VERSION}-extended.1`;
 export const files = { 'package.json': JSON.stringify({ version: APP_VERSION, type: 'module' }), 'server/index.js': '// new server', 'server/new.js': '// new file' };
 export const archive = (extra = []) => storedZip([...Object.entries({ ...files, 'MANIFEST.json': manifest(files) }).map(([name, body]) => [`Stronghold-Protocol/${name}`, body]), ...extra]);
 export function releaseFor(zip = archive(), version = tag) {

@@ -197,6 +197,7 @@ function launchArrow(battle, unit, bb) {
   const flight = battle.every(TICK, () => {
     age += TICK;
     travelled = Math.min(maxD, travelled + ARROW_SPEED * TICK);
+    // loop-cap: mark increases to maxD / step; step and maxD are positive and the field ends the flight.
     while ((mark + 1) * step <= travelled + 1e-9) {
       mark++;
       const d = mark * step, x = x0 + fc * d, y = y0 + fr * d;
@@ -298,6 +299,7 @@ export default {
           const s = stateOf(unit).s2;
           if (!s) return;
           const t = battle.time - s.t0 + 1e-9; // (from the cast, whichever phase of its tick the cast came in)
+          // loop-cap: fire advances next through the finite authored counts array.
           while (s.next < counts.length && t >= s.begin + s.next * S2_LOOP + S2_LOOP_HIT) fire(battle, unit, s);
           if (!s.landed && s.next >= counts.length && t >= s.landAt) land(battle, unit, s);
         },
@@ -305,7 +307,8 @@ export default {
           const st = stateOf(unit), s = st.s2;
           st.s2 = null;
           if (s && !s.landed && reason === 'duration' && up(unit)) {
-            while (s.next < counts.length) fire(battle, unit, s);
+            // loop-cap: fire advances next through the finite authored counts array.
+          while (s.next < counts.length) fire(battle, unit, s);
             land(battle, unit, s);
           }
           battle.removeBuff(unit, FLIGHT_KEY);

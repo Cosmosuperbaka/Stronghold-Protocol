@@ -65,7 +65,7 @@ export function createRecovery({ lobby, root, dir = path.join(root, 'logs', 'rec
       enabled = value;
       // Disabling removes stale snapshots so a later opt-in cannot revive an abandoned match.
       if (!enabled) for (const f of files()) remove(f.slice(0, -4));
-      else for (const r of lobby.rooms.values()) if (r.match?.prepSnapshots.size) manager.save(r, r.match, [...r.match.prepSnapshots.values()].at(-1));
+      else for (const r of lobby.rooms.values()) if (r.match?.prepSnapshots?.size) manager.save(r, r.match, [...r.match.prepSnapshots.values()].at(-1));
       return { ok: true, ...manager.status() };
     },
     delete(id) { if (!ID.test(id)) return { error: '恢复文件名无效' }; remove(id.slice(0, -4)); return { ok: true, ...manager.status() }; },

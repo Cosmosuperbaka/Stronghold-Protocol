@@ -97,7 +97,7 @@ function playerDetail(m, ps) {
   };
 }
 
-function matchView(m) {
+export function matchView(m) {
   return {
     phase: m.phase, phaseName: PHASE_NAMES[m.phase] || m.phase, round: m.round, ended: m.ended, paused: m.paused, solo: m.isSolo,
     left: m.deadline ? Math.max(0, Math.round((m.deadline - m.sched.now()) / 1000)) : null,
@@ -130,6 +130,13 @@ function statsOf(ps) {
 
 /** GET /api/rooms */
 export function roomsView(lobby) {
+  if ([...lobby.rooms.values()].some(r => r.match?.hosted)) {
+    return Promise.all([...lobby.rooms.values()].map(async room => {
+      const view = roomsView({ rooms: new Map([[room.code, { ...room, match: room.match?.hosted ? null : room.match }]]) })[0];
+      if (room.match?.hosted) view.match = await room.match.admin('view');
+      return view;
+    }));
+  }
   return [...lobby.rooms.values()].map((r) => ({
     code: r.code, mode: r.mode, difficulty: r.difficulty,
     seats: r.seats.filter(Boolean).map((s) => ({ id: s.playerId, seat: s.seat, left: !!s.left, muted: !!r.chat?.muted.has(s.playerId), name: s.name, bot: s.isBot, connected: s.connected && !s.left })),
@@ -145,6 +152,7 @@ export function roomsView(lobby) {
 /** GET /api/catalog?room= — what a grant can name, for the running match's mode. */
 export function catalogView(lobby, code) {
   const m = lobby.rooms.get(String(code))?.match;
+  if (m?.hosted) return m.admin('catalog');
   if (!m || !m.gd) return { chess: [], items: [] };
   const gd = m.gd;
   return {
@@ -424,6 +432,10 @@ export function handleAction(lobby, body) {
   if (action === 'announce') return lobby.announcements.set(value);
   const room = lobby.rooms.get(String(code));
   if (!room) return { error: '房间不存在' };
+  if (room.match?.hosted && (Object.hasOwn(MATCH_ACTIONS, action) || Object.hasOwn(PLAYER_ACTIONS, action))) {
+    const match = room.match;
+    return match.admin('action', body).then(result => { room.adminLog = match.adminLog; return result; });
+  }
   // the player's name as it was when the action ran (before the action: a closed room has no log to keep)
   const player = room.match?.players?.get(String(playerId)) || room.seatOf?.(playerId) || room.spectatorOf?.(playerId);
   if (room.match?.order) recordReplayAdmin(room.match, { action: String(action), player: player?.name || null, value, round: room.match.round });
@@ -486,6 +498,10 @@ function runAction(lobby, room, action, playerId, value) {
 
 /** The saved record: the m.result summary with the names the console shows (no game data on the page), plus history. */
 export function resultRecord(room, m, summary, now = new Date()) {
+  if (m.hosted) {
+    if (!m.extensionEnd?.record) throw new Error('插件对局未返回统计记录');
+    return m.extensionEnd.record;
+  }
   const gd = m.gd;
   const players = (summary.players || []).map((p) => {
     const ps = m.players.get(p.playerId);
@@ -630,7 +646,7 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
   setReplayConfig({ enabled: process.env.SP_REPLAY !== '0', identity, release });
   loadSettings(settingsFile, log);
   const serveStatic = createStaticHandler({ publicDir: path.join(root, 'public'), dataDir: path.join(root, 'data'),
-    sharedDir: path.join(root, 'shared'), simDir: path.join(root, 'server', 'sim'), packsDir: path.join(root, 'packs'), log });
+    sharedDir: path.join(root, 'shared'), simDir: path.join(root, 'server', 'sim'), packsDir: path.join(root, 'packs'), ...(lobby.staticOptions || {}), log });
   const updater = createReleaseUpdater({ ...updateOptions, root, log, onReady: onUpdateReady,
     hasActive: () => [...lobby.rooms.values()].some((r) => r.match && !r.match.ended && !r.match.disposed) });
   const idleUpdater = createIdleUpdater({ updater, file: path.join(path.dirname(settingsFile), 'auto-update.json'),
@@ -705,13 +721,13 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
       if (req.method === 'GET' && url.pathname === '/live-viewer.js' && session(req)) {
         return send(200, fs.readFileSync(path.join(DIR, 'live-viewer.js'), 'utf8'), 'text/javascript; charset=utf-8');
       }
-      if (['GET', 'HEAD'].includes(req.method) && session(req) && /^\/(?:js\/|css\/|vendor\/|assets\/|fonts\/|data\/|shared\/|sim\/|packs\/|media\/|data\.js$)/.test(url.pathname)) {
+      if (['GET', 'HEAD'].includes(req.method) && session(req) && /^\/(?:js\/|css\/|vendor\/|assets\/|fonts\/|data\/|shared\/|sim\/|packs\/|media\/|cs\/|vs\/|p\/|plugins\/|data\.js$)/.test(url.pathname)) {
         res.setHeader('X-Frame-Options', 'DENY');
         return await serveStatic(req, res, url.pathname, url.search.slice(1));
       }
       if (!url.pathname.startsWith('/api/')) return send(404, { error: 'not found' });
       if (!authed(req)) return send(403, { error: 'bad token' });
-      if (req.method === 'GET' && url.pathname === '/api/wall') return send(200, wallView(lobby, url.searchParams.get('room')));
+      if (req.method === 'GET' && url.pathname === '/api/wall') return send(200, await wallView(lobby, url.searchParams.get('room')));
       if (req.method === 'GET' && url.pathname === '/api/recovery') return send(200, lobby.recovery?.status() || { enabled: false, unavailable: true, issues: [] });
       if (req.method === 'POST' && url.pathname === '/api/recovery') {
         const body = await readJson(req);
@@ -724,11 +740,11 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
       if (req.method === 'GET' && url.pathname === '/api/resources') return send(200, resources.snapshot());
       if (req.method === 'GET' && url.pathname === '/api/release-notes') return send(200, notes);
       if (req.method === 'GET' && url.pathname === '/api/live') {
-        return send(200, liveState(lobby, Object.fromEntries(url.searchParams)));
+        return send(200, await liveState(lobby, Object.fromEntries(url.searchParams)));
       }
       if (req.method === 'POST' && url.pathname === '/api/live') {
         const body = await readJson(req);
-        return send(200, liveIntent(lobby, body));
+        return send(200, await liveIntent(lobby, body));
       }
       if (req.method === 'GET' && url.pathname === '/api/replay') {
         const replay = readReplay(replaysDir, url.searchParams.get('id'), identity);
@@ -816,8 +832,8 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
         if (body.action === 'install') return send(200, { ...(updater.install({ tag: body.tag, force: body.force === true, allowDowngrade: body.allowDowngrade === true })), automatic: idleUpdater.status() });
         return send(400, { error: '未知更新操作' });
       }
-      if (req.method === 'GET' && url.pathname === '/api/rooms') return send(200, { rooms: roomsView(lobby), announcement: lobby.announcements.frame().announcement });
-      if (req.method === 'GET' && url.pathname === '/api/catalog') return send(200, catalogView(lobby, url.searchParams.get('room')));
+      if (req.method === 'GET' && url.pathname === '/api/rooms') return send(200, { rooms: await roomsView(lobby), announcement: lobby.announcements.frame().announcement });
+      if (req.method === 'GET' && url.pathname === '/api/catalog') return send(200, await catalogView(lobby, url.searchParams.get('room')));
       if (req.method === 'GET' && url.pathname === '/api/results-summary') return send(200, summarizeResults(Object.fromEntries(url.searchParams)));
       if (req.method === 'GET' && url.pathname === '/api/results') return send(200, { records: listRecords(resultsDir) });
       if (req.method === 'GET' && url.pathname === '/api/settings') return send(200, { prep: getPrep(), uniteLayerGains: getUniteLayerGains(), replay: { enabled: getReplayConfig().enabled, keep: 50, forcedOff: process.env.SP_REPLAY === '0' }, file: settingsFile, defaults: prepDefaults(lobby.safeData()) });
@@ -829,6 +845,7 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
         if (r.ok && !getReplayConfig().enabled) for (const room of lobby.rooms.values()) {
           if (room.match) { room.match.replayDisabled = true; delete room.match.replay; }
         }
+        if (r.ok) for (const room of lobby.rooms.values()) room.match?.syncExtensions?.();
         log.info(`[admin] settings ${JSON.stringify(body)} → ${r.ok ? 'ok' : r.error}`);
         return send(200, r);
       }
@@ -839,7 +856,7 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
       if (req.method === 'POST' && url.pathname === '/api/action') {
         const body = await readJson(req);
         if (!body) return send(400, { error: '请求格式错误' });
-        const r = handleAction(lobby, body);
+        const r = await handleAction(lobby, body);
         log.info(`[admin] ${body.room} ${body.action}${body.playerId ? ' ' + body.playerId : ''}${body.value != null ? ' ' + JSON.stringify(body.value) : ''} → ${r.ok ? 'ok' : r.error}`);
         return send(200, r);
       }
@@ -871,7 +888,8 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
         id = saveRecord(resultsDir, room, rec, log);
       } catch (e) { log.error('[admin] saving the result failed', e); }
       if (id) try {
-        const replay = replayRecord(ctx.match, { savedAt: rec.savedAt, room: room.code, resultId: id });
+        const replayExtra = { savedAt: rec.savedAt, room: room.code, resultId: id };
+        const replay = ctx.match.hosted ? ctx.match.extensionEnd?.replay && { ...ctx.match.extensionEnd.replay, ...replayExtra } : replayRecord(ctx.match, replayExtra);
         if (replay) saveReplay(replaysDir, id, replay, 50);
       } catch (e) { log.error('[replay] saving failed', e); }
       room.adminLastMatch = rec ? lastMatchView(rec, id) : null;

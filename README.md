@@ -1,7 +1,7 @@
 # 卫戍协议：盟约 · Stronghold Protocol: Alliance
 
 ![扩展版本](https://img.shields.io/badge/version-0.2.6--extended.5-blue)
-![上游基础版本](https://img.shields.io/badge/version-0.2.6-2ea44f)
+![上游基础版本](https://img.shields.io/badge/version-0.3.0-2ea44f)
 
 A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance*, with host tools, collab operators and optional skins.
 
@@ -9,7 +9,7 @@ A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance
 
 [下载本库整合包](https://github.com/zhewang448/Stronghold-Protocol/releases/latest) · [扩展更新记录](docs/LOCAL-CHANGELOG.md) · [玩法指南](docs/PLAYING.md) · [反馈问题](https://github.com/zhewang448/Stronghold-Protocol/issues)
 
-> 当前版本为 **`v0.2.6-extended.5`**，基于上游 `0.2.6`；游戏内显示基础版本 `0.2.6`，扩展修订号以下载页标签和附件文件名为准。本版移植社区 Hub 大厅、等待室、调配、HUD 与结算，新增核心盟约预选、作战统计、帧率限制、12 页表情、全站公告、离线资源 / ZIP 管理及状态增量同步；保留本库皮肤、聊天标点、回放与主机扩展。各版内容见[扩展更新记录](docs/LOCAL-CHANGELOG.md)，上游改动见 [CHANGELOG.md](CHANGELOG.md)。
+> 当前版本为 **`v0.2.6-extended.5`**（最新已发布附件，基础版本 `0.2.6`）。当前 `main` 源码已合入上游 `v0.3.0`（`c24e17ee`），运行显示基础版本 `0.3.0`，尚未另发基于 0.3.0 的扩展安装包；扩展修订号以下载页标签和附件文件名为准。已发布版移植社区 Hub 大厅、等待室、调配、HUD 与结算，新增核心盟约预选、作战统计、帧率限制、12 页表情、全站公告、离线资源 / ZIP 管理及状态增量同步；保留本库皮肤、聊天标点、回放与主机扩展。各版内容见[扩展更新记录](docs/LOCAL-CHANGELOG.md)，上游改动见 [CHANGELOG.md](CHANGELOG.md)。
 >
 > 非官方、非商业同人项目，与《明日方舟》官方无隶属或授权关系。游戏名称、美术、音频、文本与数据的权利归原权利人；仅供学习和个人非商业使用。
 

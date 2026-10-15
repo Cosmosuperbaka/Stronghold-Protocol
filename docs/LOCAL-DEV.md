@@ -1,6 +1,6 @@
 # 扩展分支开发笔记
 
-这份文档记录本仓库在上游 [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol) 之上做的改动，以及读代码时摸清的结构和坑，方便之后继续开发。上游自己的架构文档见 [DESIGN.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.2.6/docs/DESIGN.md)（总体）、[META.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.2.6/docs/META.md)（对局与经济）、[SIM.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.2.6/docs/SIM.md)（战斗模拟）。
+这份文档记录本仓库在上游 [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol) 之上做的改动，以及读代码时摸清的结构和坑，方便之后继续开发。上游自己的架构文档见 [DESIGN.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.3.0/docs/DESIGN.md)（总体）、[META.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.3.0/docs/META.md)（对局与经济）、[SIM.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.3.0/docs/SIM.md)（战斗模拟）。
 
 ## 1. 仓库与分支
 
@@ -14,6 +14,17 @@
 - 同步上游：`git fetch upstream` → `git merge upstream/master` → `npm install` → `npm run setup`（上游常会加素材）→ `node --test`。
 - 素材 `public/assets/`、`.cache/`、`.claude/` 都在 `.gitignore` 里，不进仓库。新机器 clone 后要先 `npm install && npm run setup`。
 - 当前版本为 `v0.2.6-extended.5`，基于上游 `v0.2.6`（`488db49f`），新增聊天管理、四席完整监控墙、资源与详细统计、重启恢复、空闲更新和更新记录；聊天可拖动记住位置，房间休整期配置默认继承全局。保留带名标点、服务控制、代操作、回放与 Release 发布签名。完整素材包沿用 `v0.2.5-extended.1` 导入的上游完整包中的 `public/assets/local/` 和 `data/local-assets.json`，包括 11 个官方战场场景；来源和固定 SHA-256 见 DEPLOY §6。发布预检与构建都加 `--require-local-art`，同时核对场景清单为 11 个、所有文件哈希与源包一致；该参数只保证存在有效本地素材清单，不替代场景完整性验证。lite 不含官方本地素材。素材不随 Git 分支移动，切换旧代码版本时也要注意素材版本匹配。
+
+当前源码另已整合上游 **v0.3.0（c24e17ee）**；`package.json` / APP_VERSION 为 0.3.0，最新发布附件仍为上面的 v0.2.6-extended.5。`server/release-version.js` 保留最新正式扩展标签，不能把源码合并写成已发布的新 Release。
+
+上游合并的兼容处理：
+
+- 保留社区 Hub UI、皮肤、7 名联动、聊天标点、公告、盟约预选、帧率、ZIP 资源管理和状态增量；快捷键随上游扩成七项，加入 W 悬停购买；作战统计默认关闭，开启后仍用浏览器只读统计。
+- 两套素材功能统一注册 classic `/sw.js`：上游导入包使用独立缓存，本库预载保留按哈希校验、音频别名和 Range。关闭预载停止下载，清理只删除本库缓存，统一 worker 继续服务上游导入素材。旧 `/resource-sw.js` 只保留升级兼容，不再注册争用 scope。
+- 回档补入上游 `itemPool.debt`，取消废弃时间线的浏览器 AI 预演。沿用上游同盟自选库存翻倍、整备区扩展和已展示装备欠账规则；强制发放的库存标记仍保留。
+- `server/match/host/extensions.js` 通过既有 IPC 在玩法插件独立进程内调用控制台能力，支持状态、目录、监控墙、代操作、改属性、回档、结果与回放记录；父进程不执行插件代码。皮肤、盟约预选及全局计时 / 回放配置也跨进程同步。
+- 上游 Forge 导入的临时校验目录在 Windows 使用 junction，CLI 预载使用 file URL；UI 插件消息校验包含本库 `state.*`。这些适配不改变模拟规则。
+- 原版局自动重启恢复保留；玩法插件局尚不保存跨进程恢复快照。普通数据插件可尝试回放；需要额外脚本授权的回放会明确拒绝启动，避免错误地用原版数据播放。完整脚本回放授权流程和插件局重启恢复仍待实现。
 
 各版上游合并、主机扩展与发布验证见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md)。
 

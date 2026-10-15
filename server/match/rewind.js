@@ -41,7 +41,7 @@ export function capturePrep(m) {
     const match = {};
     for (const k of MATCH_KEYS) match[k] = m[k];
     // one clone for everything: pieces shared between a player's areas stay shared
-    const data = structuredClone({ players, diyStock, match, pool: m.pool.entries, rng: RNGS.map((k) => m[k].state()) });
+    const data = structuredClone({ players, diyStock, match, pool: m.pool.entries, itemDebt: m.itemPool.debt, rng: RNGS.map((k) => m[k].state()) });
     // class instances / PlayerState references: kept by reference (replaced, never mutated, after this point)
     return { round: m.round, at: m.sched.now(), data, refs: { bossPool: m.bossPool, uniteBounds: m._uniteBounds } };
   } catch (e) {
@@ -58,10 +58,11 @@ export function rewindToPrep(m, round) {
   const snap = m.prepSnapshots.get(r);
   if (!snap) return { error: `没有第 ${round} 回合的快照` };
   const errors = m.errorCount;
-  const { players, diyStock, match, pool, rng } = structuredClone(snap.data);
+  const { players, diyStock, match, pool, itemDebt, rng } = structuredClone(snap.data);
   m.guard(() => {
     if (m.runner) { try { m.runner.stop(); } catch { /* ignore */ } m.runner = null; }
     m._stopClientCombat();
+    m._cancelRehearsal();
     for (const h of m._timers) { try { m.sched.clearTimeout(h); } catch { /* ignore */ } }
     m._timers.clear();
     m._phaseTimer = null;
@@ -79,6 +80,7 @@ export function rewindToPrep(m, round) {
     m.bossPool = snap.refs.bossPool;
     m._uniteBounds = snap.refs.uniteBounds;
     m.pool.entries = pool;
+    m.itemPool.debt = itemDebt || new Map();
     // the timeline after round r is gone; r itself is re-captured by enterPrep below
     for (const k of [...m.prepSnapshots.keys()]) if (k > r) m.prepSnapshots.delete(k);
     truncateReplay(m, r);
