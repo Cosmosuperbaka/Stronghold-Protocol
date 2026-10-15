@@ -42,7 +42,6 @@ import { createStaticHandler } from './http/static.js';
 import { getReplayConfig, setReplayConfig, replayRecord, recordReplayAdmin } from './match/replay.js';
 import { replayIdentity, saveReplay, readReplay, replayFiles, recordFiles, deleteRecordFiles, replayAdminLogs, REPLAY_ID } from './replay-store.js';
 import { liveState, liveIntent } from './admin-live.js';
-import { cleanChatText } from './chat.js';
 import { sendSession } from './net.js';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -422,11 +421,7 @@ const MATCH_ACTIONS = {
 /** POST /api/action { room, action, playerId?, value? } → { ok } | { error, detail? }; kept in the room's action log. */
 export function handleAction(lobby, body) {
   const { room: code, action, playerId, value } = body || {};
-  if (code === '*' && action === 'announce') {
-    if (!cleanChatText(value)) return { error: '公告须为 1–200 字且不超过 1024 字节' };
-    for (const room of lobby.rooms.values()) handleAction(lobby, { ...body, room: room.code });
-    return OK;
-  }
+  if (action === 'announce') return lobby.announcements.set(value);
   const room = lobby.rooms.get(String(code));
   if (!room) return { error: '房间不存在' };
   // the player's name as it was when the action ran (before the action: a closed room has no log to keep)
@@ -444,12 +439,6 @@ export function handleAction(lobby, body) {
 }
 
 function runAction(lobby, room, action, playerId, value) {
-  if (action === 'announce') {
-    const text = cleanChatText(value);
-    if (!text) return { error: '公告须为 1–200 字且不超过 1024 字节' };
-    lobby.broadcastRoom(room, room.chat.announce(room, text, lobby.now()));
-    return OK;
-  }
   if (action === 'chatClear') {
     room.chat.clearMessages();
     lobby.broadcastRoom(room, room.chat.history(room.code));
@@ -646,7 +635,7 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
     hasActive: () => [...lobby.rooms.values()].some((r) => r.match && !r.match.ended && !r.match.disposed) });
   const idleUpdater = createIdleUpdater({ updater, file: path.join(path.dirname(settingsFile), 'auto-update.json'),
     hasActive: () => [...lobby.rooms.values()].some((r) => r.match && !r.match.ended && !r.match.disposed),
-    announce: (text) => handleAction(lobby, { room: '*', action: 'announce', value: text }) });
+    announce: (text) => handleAction(lobby, { room: '*', action: 'announce', value: { text, level: 'warning', startAt: lobby.now(), endAt: lobby.now() + 120000 } }) });
   const hadStart = Object.hasOwn(lobby, 'startMatch'), originalStart = lobby.startMatch;
   lobby.startMatch = function (room, ...args) {
     const before = room.match;
@@ -827,7 +816,7 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
         if (body.action === 'install') return send(200, { ...(updater.install({ tag: body.tag, force: body.force === true, allowDowngrade: body.allowDowngrade === true })), automatic: idleUpdater.status() });
         return send(400, { error: '未知更新操作' });
       }
-      if (req.method === 'GET' && url.pathname === '/api/rooms') return send(200, { rooms: roomsView(lobby) });
+      if (req.method === 'GET' && url.pathname === '/api/rooms') return send(200, { rooms: roomsView(lobby), announcement: lobby.announcements.frame().announcement });
       if (req.method === 'GET' && url.pathname === '/api/catalog') return send(200, catalogView(lobby, url.searchParams.get('room')));
       if (req.method === 'GET' && url.pathname === '/api/results-summary') return send(200, summarizeResults(Object.fromEntries(url.searchParams)));
       if (req.method === 'GET' && url.pathname === '/api/results') return send(200, { records: listRecords(resultsDir) });

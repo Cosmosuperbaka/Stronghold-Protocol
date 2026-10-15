@@ -110,6 +110,18 @@
   <button data-service="shutdown" class="danger" disabled>关闭服务</button>
   <span id="service-status" class="meta" role="status" aria-live="polite">正在读取服务状态…</span>
 </div>
+<section id="site-announcement" class="room" aria-label="全站公告">
+  <h2>全站公告</h2>
+  <p class="meta" id="site-notice-status">暂无公告</p>
+  <label>公告正文 <textarea id="site-notice-text" maxlength="1000" rows="3" aria-label="公告正文"></textarea></label>
+  <div class="row">
+    <label>级别 <select id="site-notice-level"><option value="info">通知</option><option value="warning">提醒</option><option value="urgent">紧急通知</option></select></label>
+    <label>开始时间 <input id="site-notice-start" type="datetime-local" aria-label="公告开始时间"></label>
+    <label>结束时间 <input id="site-notice-end" type="datetime-local" aria-label="公告结束时间"></label>
+    <button data-site-notice="save">发布全站公告</button><button data-site-notice="remove" class="danger">立即撤下</button>
+  </div>
+  <p class="meta">所有页面与房间可见。时间留空：立即开始，一小时后结束。编辑后点击发布替换当前公告，重启服务后清空。</p>
+</section>
 <main id="rooms"></main>
 <main id="records" hidden></main>
 <main id="settings" hidden></main>
@@ -377,8 +389,7 @@ function chatPanel(r) {
     panel = document.createElement('details');
     panel.dataset.chatPanel = r.code;
     panel.innerHTML = `<summary>聊天管理</summary><div class="chat-log" role="log" aria-label="房间聊天记录"></div>
-      <div class="row"><label>公告 <input id="notice-${r.code}" maxlength="400" aria-label="公告内容"></label>
-      <button data-notice="${r.code}">发送到本房间</button><button data-notice="*" data-source="${r.code}">发送到全部房间</button>
+      <div class="row">
       <button class="danger" data-click="chatClear" data-room="${r.code}" data-label="清空聊天" data-confirm="清空本房间所有聊天记录？在线玩家也会同步清空。">清空聊天</button></div><div class="chat-members"></div>`;
     chatPanels.set(r.code, panel);
   }
@@ -1351,11 +1362,12 @@ let lastJson = '';
 async function refresh(force = false) {
   if (servicePending) return;
   // never re-render under the user's cursor: typing into a field would lose its value
-  const typing = document.activeElement?.matches('input, select');
-  if (typing && !document.activeElement.closest('[data-chat-panel]')) return;
+  const typing = document.activeElement?.matches('input, select, textarea');
+  if (typing && !document.activeElement.closest('[data-chat-panel], #site-announcement')) return;
   if ($('#rooms').hidden && !force) return;
   let data;
   try { data = await api('/api/rooms'); } catch { if (!servicePending) $('#status').textContent = '无法连接服务器'; return; }
+  $('#site-notice-status').textContent = data.announcement ? `${data.announcement.level} · ${new Date(data.announcement.startAt).toLocaleString()} → ${new Date(data.announcement.endAt).toLocaleString()} · ${data.announcement.text}` : '暂无公告';
   if (servicePending) return;
   if (data.error) { $('#status').textContent = data.error; return; }
   if (document.activeElement?.matches('input, select')) { for (const r of data.rooms) chatPanel(r); return; }
@@ -1374,8 +1386,12 @@ async function refresh(force = false) {
 }
 
 document.addEventListener('click', (e) => {
-  const notice = e.target.closest('button[data-notice]');
-  if (notice) { const text = $(`#notice-${notice.dataset.source || notice.dataset.notice}`).value; act(notice.dataset.notice, 'announce', null, text, '主机公告'); return; }
+  const notice = e.target.closest('button[data-site-notice]');
+  if (notice) {
+    const startAt = $('#site-notice-start').value ? new Date($('#site-notice-start').value).getTime() : Date.now();
+    const endAt = $('#site-notice-end').value ? new Date($('#site-notice-end').value).getTime() : startAt + 3600000;
+    act('*', 'announce', null, notice.dataset.siteNotice === 'remove' ? null : { text: $('#site-notice-text').value, level: $('#site-notice-level').value, startAt, endAt }, '全站公告'); return;
+  }
   const serviceButton = e.target.closest('button[data-service]');
   if (serviceButton && !serviceButton.disabled) { controlService(serviceButton.dataset.service); return; }
   const tab = e.target.closest('button[data-tab]');

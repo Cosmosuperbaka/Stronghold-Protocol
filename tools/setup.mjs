@@ -586,6 +586,12 @@ async function main() {
     }
   }
 
+  // Machine-local inventory includes installed outfits and optional client art.
+  if (!opts.check) {
+    const resources = run(process.execPath, [path.join(ROOT, 'tools/build-resource-manifest.mjs')]);
+    add(resources.ok ? 'ok' : 'warn', '预载资源清单', resources.ok ? '已生成' : '生成失败；服务器将在首次请求时重试');
+  }
+
   // summary
   log(c.bold('\n── 准备情况 ──────────────────────────────'));
   const width = Math.max(...summary.map((s) => displayWidth(s.label))) + 2;

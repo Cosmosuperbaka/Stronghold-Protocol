@@ -162,6 +162,7 @@ export class PlayerState {
     /** operator loadout (DESIGN §16): frozen { [baseChessId]: { skill, module } }, {} = every chess on its defaults */
     this.loadout = Object.freeze({});
     this.skins = Object.freeze(this.isBot ? {} : cleanSkins(seat.skins, this.gd.raw.skins || { chars: {} }));
+    this.bondPlan = !this.isBot && typeof seat.bondPlan === 'string' && Object.hasOwn(this.gd.raw.bonds, seat.bondPlan) && this.gd.raw.bonds[seat.bondPlan]?.isCore ? seat.bondPlan : null;
     // 0.2.2: the per-operator 潜能 / 练度 ({} = every operator 潜能 6, 精英2 Lv.60 — bots always)
     this.ops = Object.freeze({});
     if (!this.isBot && (seat.loadout || seat.ops)) this.setLoadout(seat.loadout ?? null, seat.ops ?? null);

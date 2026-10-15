@@ -30,10 +30,12 @@ describe('custom alliance key form', { skip: !ENABLED }, () => {
         });
         await page.goto(base, { waitUntil: 'domcontentloaded' });
         await page.waitForFunction(() => globalThis.__SP__?.store.get().connection.status === 'online' && document.querySelector('.lobby-screen'));
+        await page.evaluate(() => [...document.querySelectorAll('.hub-entry')].find(e => e.textContent.includes('同盟模拟')).click());
+        await page.waitForSelector('[name="custom-room-code"]');
         return page;
       };
       const input = '[name="custom-room-code"]';
-      const create = '.create-box .btn--primary';
+      const create = '[data-testid="create-alliance"]';
       try {
         const host = await pageIn();
         await host.type(input, 'AB-C');
@@ -64,8 +66,8 @@ describe('custom alliance key form', { skip: !ENABLED }, () => {
         await guest.waitForFunction(() => document.body.textContent.includes('该同盟密钥已被使用'));
         assert.equal(await guest.evaluate(() => globalThis.__SP__.store.get().room), null);
         assert.equal(await guest.$eval(input, (e) => e.value), key.toUpperCase());
-        await guest.type('.join-panel input', key.toLowerCase());
-        await guest.click('.join-panel .btn--amber');
+        await guest.type('.ally-key input', key.toLowerCase());
+        await guest.click('.ally-card__bar--join');
         await guest.waitForFunction((code) => globalThis.__SP__.store.get().room?.code === code, {}, key.toUpperCase());
 
         const random = await pageIn();

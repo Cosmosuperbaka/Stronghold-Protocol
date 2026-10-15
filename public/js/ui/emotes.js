@@ -1,5 +1,5 @@
 // Emotes (交流, research 09 §4): the 36 official in-match emotes of 盟约 — 6 themes × 6 (shared/constants.js
-// EMOTE_THEMES / EMOTES, generated reference data/emotes.json). Official emotes are pictures only: nothing here ever
+// ALL_EMOTE_THEMES / EMOTES, generated reference data/emotes.json). Official emotes are pictures only: nothing here ever
 // renders an emote's text (our labels are aria-labels only).
 //
 //   EmoteArt    the emote picture: the local-client art (data/local-assets.json → emoticon/<dir>/<picId>) first, else
@@ -20,7 +20,7 @@
 // Styles: public/css/emotes.css (injected on first use when the page does not link it).
 
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
-import { EMOTE_THEMES, EMOTE_COOLDOWN_MS, EMOTE_BUBBLE_MS, emoteInfo, emoteArtGroup } from '../../../shared/constants.js';
+import { ALL_EMOTE_THEMES, EMOTE_COOLDOWN_MS, EMOTE_BUBBLE_MS, emoteInfo, emoteArtGroup, emoteArtPath } from '../../../shared/constants.js';
 import { html } from './components.js';
 import { GIcon } from './gameComponents.js';
 import { data, useData, localAsset, artUrls, nextArtUrl } from '../data.js';
@@ -59,6 +59,7 @@ export function ensureEmoteCss(doc = globalThis.document) {
  */
 export function emoteArtUrls(id) {
   const e = emoteInfo(id);
+  if (e?.custom) return [emoteArtPath(id)];
   return e ? artUrls(emoteArtGroup(id), e.picId) : [];
 }
 
@@ -78,7 +79,7 @@ export const emoteUiSprite = (name) => localAsset('ui/battle', name);
 
 /** Index of a theme in the wheel (0 when unknown). */
 export function themeIndex(themeId) {
-  const i = EMOTE_THEMES.findIndex((t) => t.themeId === themeId);
+  const i = ALL_EMOTE_THEMES.findIndex((t) => t.themeId === themeId);
   return i < 0 ? 0 : i;
 }
 
@@ -90,11 +91,11 @@ export function lastThemeIndex() {
 
 /** Remember the theme of a sent emote. */
 export function rememberTheme(themeId) {
-  if (EMOTE_THEMES.some((t) => t.themeId === themeId)) savePref(PREF_THEME, themeId);
+  if (ALL_EMOTE_THEMES.some((t) => t.themeId === themeId)) savePref(PREF_THEME, themeId);
 }
 
 /** Clamp a page index into the wheel. */
-export const clampPage = (i) => Math.max(0, Math.min(EMOTE_THEMES.length - 1, Math.trunc(Number(i)) || 0));
+export const clampPage = (i) => Math.max(0, Math.min(ALL_EMOTE_THEMES.length - 1, Math.trunc(Number(i)) || 0));
 
 /**
  * Page change for a finished horizontal drag / swipe: -1 (previous), +1 (next) or 0.
@@ -177,7 +178,7 @@ export function EmoteArt({ id, class: cls }) {
     return html`<img key=${src} class=${cx('eart', cls)} src=${src} alt="" draggable=${false} decoding="async"
       onError=${() => setBad((s) => new Set(s).add(src))} />`;
   }
-  if (emoteInfo(id) && artManifestsPending()) return html`<span class=${cx('eart', 'eart--pending', cls)} aria-hidden="true"></span>`;
+  if (emoteInfo(id) && !emoteInfo(id).custom && artManifestsPending()) return html`<span class=${cx('eart', 'eart--pending', cls)} aria-hidden="true"></span>`;
   return html`<${EmoteGlyph} class=${cls} />`;
 }
 
@@ -281,7 +282,7 @@ export function EmoteWheel({ onSend, open, onToggle, disabled = false, cooldownM
     const off = e.clientX - d.x0;
     if (!d.moved && Math.abs(off) < DRAG_SLOP_PX) return;
     if (!d.moved) { d.moved = true; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* ignore */ } }
-    const edge = (off > 0 && live.current.page === 0) || (off < 0 && live.current.page === EMOTE_THEMES.length - 1);
+    const edge = (off > 0 && live.current.page === 0) || (off < 0 && live.current.page === ALL_EMOTE_THEMES.length - 1);
     setDx(edge ? off / 3 : off); // rubber band at the first / last page
   };
   const endDrag = (e, cancelled) => {
@@ -302,7 +303,7 @@ export function EmoteWheel({ onSend, open, onToggle, disabled = false, cooldownM
     if (step) go(live.current.page + step);
   };
 
-  const theme = EMOTE_THEMES[clampPage(page)];
+  const theme = ALL_EMOTE_THEMES[clampPage(page)];
   const btnSprite = emoteUiSprite(disabled || cooling ? 'emoji_btn_disable' : 'emoji_btn');
   const panelBg = emoteUiSprite('emoji_bkg');
   const cellBg = emoteUiSprite('emoji_cell_bkg');
@@ -325,11 +326,8 @@ export function EmoteWheel({ onSend, open, onToggle, disabled = false, cooldownM
         </div>
       </div>
       <button type="button" class="ewheel__nav is-prev" aria-label=${t('上一组表情')} disabled=${page <= 0} onClick=${() => go(page - 1)}><${GIcon} name="chevronLeft" /></button>
-      <button type="button" class="ewheel__nav is-next" aria-label=${t('下一组表情')} disabled=${page >= EMOTE_THEMES.length - 1} onClick=${() => go(page + 1)}><${GIcon} name="chevronRight" /></button>
-      <div class="ewheel__dots" role="tablist" aria-label=${t('表情主题')}>
-        ${EMOTE_THEMES.map((th, i) => html`<button key=${th.themeId} type="button" role="tab" class=${cx('ewheel__dot', i === page && 'is-on')}
-          aria-selected=${i === page ? 'true' : 'false'} aria-label=${`${t(th.name)} ${i + 1}/${EMOTE_THEMES.length}`} onClick=${() => go(i)}></button>`)}
-      </div>
+      <button type="button" class="ewheel__nav is-next" aria-label=${t('下一组表情')} disabled=${page >= ALL_EMOTE_THEMES.length - 1} onClick=${() => go(page + 1)}><${GIcon} name="chevronRight" /></button>
+      <span class="ewheel__count" role="status" aria-label=${`${t(theme.name)} ${page + 1}/${ALL_EMOTE_THEMES.length}`}>${page + 1}/${ALL_EMOTE_THEMES.length}</span>
     </div>` : null}
   </div>`;
 }

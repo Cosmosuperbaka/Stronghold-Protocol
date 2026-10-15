@@ -73,3 +73,12 @@ GPL-3.0-or-later); the English game texts (`data/i18n/en.json`) are official EN 
 `public/js/ui/chat.js`, are adapted from [RyantArgnisan/Stronghold-Protocol](https://github.com/RyantArgnisan/Stronghold-Protocol),
 commit [a649d92dc3ffd3249f4c1dbe9d2ee1c9811bbfd6](https://github.com/RyantArgnisan/Stronghold-Protocol/commit/a649d92dc3ffd3249f4c1dbe9d2ee1c9811bbfd6),
 under GPL-3.0-or-later. Adaptation keeps the current room API, four-player rules and official emote wheel.
+
+**社区 UI 致谢**：大厅、同盟等待室、物资调配、对局 HUD 与结算界面改编自
+[isomerpoi/Stronghold-Protocol](https://github.com/isomerpoi/Stronghold-Protocol) 的
+`ui-redesign-upstream` 分支，提交 `b2bd17afa91783e5be05262fb9acd03a2cd4737b`，作者
+**isomerpoi（雨千代chiyo）**，按 GPL-3.0-or-later 沿用；保留本仓库的皮肤、聊天、战场标点与主机扩展。
+补充界面译文及后续界面适配参考了 [社区部署](https://weishuxieyi.xiaolubao.com/) 公开分发的源码
+（GPL 衍生作品，抓取日期 2026-10-15；额外修改的原作者不明）。不引入赞助、付费或玩家端控制台。
+
+社区自制表情素材：按用户授权于 2026-10-16 从参考站点公布的素材地址下载 6 套（超辉夜姬、鹿乃、十年星扉、十年星扉动态、星白、迷迭香），36 张 PNG / GIF，共 2,603,782 字节。来源为该站点的 local.xiaolubao.com/Stronghold-Protocol/assets/local/emoticon/，仅存本机被忽略的 public/assets/local/emoticon/，运行时使用同源路径。逐文件 SHA-256 记录在本机 .cache/ui-hub-port/emote-downloads.json。这些社区图片不属于官方游戏表情清单，作者 / 独立素材许可未在站点源码中注明；代码 GPL 致谢不授予这些图片的权利。

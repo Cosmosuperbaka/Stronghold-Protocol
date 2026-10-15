@@ -3,6 +3,8 @@
 import { VOICE_LANGS, sanitizeVoiceOverrides } from '../../voicePrefs.js';
 export { VOICE_LANGS } from '../../voicePrefs.js';
 
+import { normalizeFrameRate } from '../../frameRate.js';
+import { normalizePreloadVoiceLang } from '../../resources/common.js';
 import { clamp, isObj } from './shared.js';
 import { DEFAULT_HOTKEYS, sanitizeHotkeys } from './shortcuts.js';
 
@@ -26,14 +28,14 @@ export const TEXT_SIZES = Object.freeze(['sm', 'md', 'lg', 'xl']);
  *  textSize: TEXT_SIZES (css/theme.css `--t`, applied by ui/settings.js applyTextSize). ammoCount: 设置「弹药数量」 — the
  *  rounds left / the magazine under an ammo skill's bar (render/units.js; PR #552), off by default: the official HUD has no
  *  such number (the maintainer's decision of 2026-10-13). */
-export const DEFAULT_SETTINGS = Object.freeze({ bgm: 0.6, sfx: 0.8, voice: 0.8, voiceLang: 'cn', voiceOverrides: Object.freeze({}), muted: false, damageNumbers: true, officialDamageNumbers: false, ammoCount: false, quality: 'high', textSize: 'sm', keys: DEFAULT_HOTKEYS });
+export const DEFAULT_SETTINGS = Object.freeze({ bgm: 0.6, sfx: 0.8, voice: 0.8, voiceLang: 'cn', voiceOverrides: Object.freeze({}), muted: false, damageNumbers: true, officialDamageNumbers: false, ammoCount: false, quality: 'high', textSize: 'sm', fpsLimit: 0, preload: false, preloadOptional: false, preloadVoiceLang: 'all', keys: DEFAULT_HOTKEYS });
 const QUALITIES = ['high', 'medium', 'low'];
 
 /**
  * Sanitize persisted settings.
  * @param {any} raw
  * @returns {{ bgm: number, sfx: number, voice: number, voiceLang: 'cn'|'jp', voiceOverrides: Record<string, string>, muted: boolean, damageNumbers: boolean, officialDamageNumbers: boolean, ammoCount: boolean, quality: 'high'|'medium'|'low',
- *   textSize: 'sm'|'md'|'lg'|'xl', keys: Record<'refresh'|'freeze'|'levelUp'|'retreat'|'sell'|'ready', string> }}
+ *   textSize: 'sm'|'md'|'lg'|'xl', fpsLimit: number, preload: boolean, preloadOptional: boolean, preloadVoiceLang: string, keys: Record<'refresh'|'freeze'|'levelUp'|'retreat'|'sell'|'ready', string> }}
  */
 export function sanitizeSettings(raw) {
   const r = isObj(raw) ? raw : {};
@@ -50,6 +52,10 @@ export function sanitizeSettings(raw) {
     ammoCount: typeof r.ammoCount === 'boolean' ? r.ammoCount : DEFAULT_SETTINGS.ammoCount,
     quality: QUALITIES.includes(r.quality) ? r.quality : DEFAULT_SETTINGS.quality,
     textSize: TEXT_SIZES.includes(r.textSize) ? r.textSize : DEFAULT_SETTINGS.textSize,
+    fpsLimit: normalizeFrameRate(r.fpsLimit),
+    preload: r.preload === true,
+    preloadOptional: r.preloadOptional === true,
+    preloadVoiceLang: normalizePreloadVoiceLang(r.preloadVoiceLang, 'all'),
     keys: sanitizeHotkeys(r.keys),
   };
 }

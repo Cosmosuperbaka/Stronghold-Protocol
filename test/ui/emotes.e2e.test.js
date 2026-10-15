@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { EMOTE_THEMES } from '../../shared/constants.js';
+import { ALL_EMOTE_THEMES as EMOTE_THEMES } from '../../shared/constants.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'test/e2e/out');
@@ -83,7 +83,7 @@ describe('official emotes in the browser', { skip: !ENABLED && 'set SP_E2E=1 (an
       glyphs: document.querySelectorAll(`${root} .ewheel__item .eart--glyph`.trim()).length,
       panelText: panel ? panel.textContent.trim() : '',
       btnDisabled: q('.ewheel__btn')?.disabled ?? null,
-      dotOn: [...document.querySelectorAll(`${root} .ewheel__dot`.trim())].findIndex((d) => d.classList.contains('is-on')),
+      pageOn: Number(q('.ewheel__count')?.textContent.split('/')[0]) - 1,
     };
   }, root);
 
@@ -99,8 +99,8 @@ describe('official emotes in the browser', { skip: !ENABLED && 'set SP_E2E=1 (an
     assert.equal(s.theme, EMOTE_THEMES[0].themeId, 'first page by default');
     assert.equal(s.items, 6, '3×2 cells');
     assert.equal(s.imgs, 6, 'official pictures loaded');
-    assert.equal(s.panelText, '', 'no text in the panel');
-    assert.equal(s.dotOn, 0);
+    assert.equal(s.panelText, '1/12', 'only the page number is visible; emote labels stay accessible');
+    assert.equal(s.pageOn, 0);
     assert.equal(await page.$$eval('.emo-cat img', (els) => els.filter((i) => i.complete && i.naturalWidth > 0).length), 36, 'all 36 pictures load');
     await section.screenshot({ path: path.join(OUT, 'emotes-uikit.png') });
 
@@ -132,11 +132,11 @@ describe('official emotes in the browser', { skip: !ENABLED && 'set SP_E2E=1 (an
     await page.keyboard.press('ArrowRight');
     await sleep(200);
     assert.equal((await wheelState(page, '#emo-stage')).theme, EMOTE_THEMES[3].themeId);
-    await page.click('#emo-stage .ewheel__dot:nth-child(5)');
+    await page.click('#emo-stage .ewheel__nav.is-next');
     await sleep(250);
     s = await wheelState(page, '#emo-stage');
-    assert.equal(s.theme, EMOTE_THEMES[4].themeId, 'dot → page');
-    assert.equal(s.dotOn, 4);
+    assert.equal(s.theme, EMOTE_THEMES[4].themeId, 'next button → page');
+    assert.equal(s.pageOn, 4);
     assert.equal(s.imgs, 6);
     await section.screenshot({ path: path.join(OUT, 'emotes-uikit-page5.png') });
 
@@ -303,7 +303,7 @@ describe('official emotes in the browser', { skip: !ENABLED && 'set SP_E2E=1 (an
       block: /\/assets\/(?:~[0-9a-f]{16}\/)?ui\/emoticon\//,
       ignore: [/nope_404\.png/, /\/assets\/(?:~[0-9a-f]{16}\/)?ui\/emoticon\//, /Failed to load resource/],
     });
-    await page.evaluate(() => localStorage.removeItem('sp.pref.emoteTheme'));
+    await page.evaluate(() => localStorage.setItem('sp.pref.emoteTheme', JSON.stringify('emoticon_autochess_basic')));
     await page.reload({ waitUntil: 'networkidle0' });
     await page.waitForSelector('#emo-stage .ewheel__panel');
     await sleep(400);
@@ -311,7 +311,7 @@ describe('official emotes in the browser', { skip: !ENABLED && 'set SP_E2E=1 (an
     assert.equal(s.items, 6);
     assert.equal(s.imgs, 0);
     assert.equal(s.glyphs, 6, 'unlisted and broken pictures both fall back to the glyph');
-    assert.equal(s.panelText, '');
+    assert.equal(s.panelText, '2/12');
     const bubbles = await page.$$eval('.ebubble', (els) => els.map((b) => ({ text: b.textContent.trim(), glyph: !!b.querySelector('.eart--glyph') })));
     assert.ok(bubbles.length >= 7);
     for (const b of bubbles) assert.deepEqual(b, { text: '', glyph: true });
@@ -329,7 +329,11 @@ describe('official emotes in the browser', { skip: !ENABLED && 'set SP_E2E=1 (an
     const s = await wheelState(page);
     assert.equal(s.items, 6);
     assert.equal(s.imgs, 6);
-    assert.equal(s.panelText, '');
+    assert.match(s.panelText, /^\d+\/12$/);
+    // Network-idle and the new entrance may outlast the fixture's initial 3 s bubble. Emit a fresh mock event.
+    await page.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent === 'teammate emote').click());
+    await page.waitForSelector('.team__bubble');
+    await sleep(300);
     const geo = await page.$$eval('.team__row', (rows) => rows.filter((r) => r.querySelector('.team__bubble')).map((r) => {
       const row = r.getBoundingClientRect();
       const a = r.querySelector('.pavatar, .team__btn').getBoundingClientRect();

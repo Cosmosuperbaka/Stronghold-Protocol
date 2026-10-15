@@ -46,7 +46,7 @@ test('console: localhost only, token required, actions change the running match'
   assert.equal((await req(P, '/api/rooms', { headers: { ...auth, 'x-admin-token': 'f'.repeat(32) } })).status, 403);
   assert.equal((await req(P, '/api/rooms', { headers: { ...auth, host: 'evil.example' } })).status, 403);
   assert.equal((await req(P, '/', { headers: { host: `evil.example:${P}` } })).status, 403);
-  assert.deepEqual((await req(P, '/api/rooms', { headers: auth })).json, { rooms: [] });
+  assert.deepEqual((await req(P, '/api/rooms', { headers: auth })).json, { rooms: [], announcement: null });
 
   // a solo match through the real protocol
   const c = await TestClient.connect(`ws://127.0.0.1:${srv.port}/ws`);

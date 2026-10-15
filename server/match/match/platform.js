@@ -14,6 +14,14 @@ import { cleanSkins, isSkinSelection } from '../../../shared/skins.js';
 const GAME_TYPES = new Set(Object.keys(C2S).filter((t) => Object.hasOwn(C2S, t) && (t.startsWith('g.') || t.startsWith('b.'))));
 
 export class MatchPlatform {
+  setBondPlan(playerId, bondId) {
+    if (bondId !== null && (typeof bondId !== 'string' || !Object.hasOwn(this.gd.raw.bonds, bondId) || !this.gd.raw.bonds[bondId]?.isCore)) return fail(ERR.BAD_MSG);
+    const ps = this.players.get(playerId);
+    if (!ps || ps.isBot || ps.left || this.disposed) return fail(ERR.NOT_IN_ROOM);
+    this.guard(() => { ps.bondPlan = bondId; this.markPublic(); });
+    return OK;
+  }
+
   setSkins(playerId, skins) {
     if (!isSkinSelection(skins)) return fail(ERR.BAD_MSG);
     const ps = this.players.get(playerId);

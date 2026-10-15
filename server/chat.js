@@ -38,12 +38,6 @@ export class RoomChat {
     return message;
   }
 
-  announce(room, text, at) {
-    const message = this.message(room, { playerId: null, name: '', seat: null }, text, at);
-    message.role = 'system';
-    return message;
-  }
-
   history(code) { return { t: 'chat.history', code, messages: this.messages.slice(), lastId: this.lastId, clearedThrough: this.clearedThrough }; }
 
   clearMessages() { this.messages = []; this.clearedThrough = this.lastId; }

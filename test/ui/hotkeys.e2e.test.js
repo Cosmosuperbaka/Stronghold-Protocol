@@ -44,7 +44,7 @@ describe('rebindable shortcuts (设置 → 快捷键)', { skip: !ENABLED && 'set
     const page = await browser.newPage();
     try {
       const problems = await open(page);
-      await page.click('.gm__gear');
+      await page.click('[data-testid="settings-btn"]');
       await page.waitForSelector('.modal .set-keys');
       assert.deepEqual(await page.$$eval('.set-key[data-action]', (els) => els.map((el) => el.textContent.trim())), ['R', 'F', 'D', 'Q', 'X', 'Space'],
         'the defaults are the keys of 0.1.4');
@@ -102,7 +102,7 @@ describe('rebindable shortcuts (设置 → 快捷键)', { skip: !ENABLED && 'set
       // the choice survives a reload; 恢复默认 brings Q back
       await page.reload({ waitUntil: 'domcontentloaded' });
       await page.waitForSelector('.ff-piece');
-      await page.click('.gm__gear');
+      await page.click('[data-testid="settings-btn"]');
       await page.waitForSelector('.modal .set-keys');
       assert.equal(await keyOf(page, 'retreat'), 'W');
       await page.click('.set-keys__reset');
@@ -115,7 +115,7 @@ describe('rebindable shortcuts (设置 → 快捷键)', { skip: !ENABLED && 'set
     const page = await browser.newPage();
     try {
       const problems = await open(page, { width: 640, height: 360, touch: true });
-      await page.tap('.gm__gear');
+      await page.tap('[data-testid="settings-btn"]');
       await page.waitForSelector('.modal .set-keys');
       assert.match(await page.$eval('.set-keys .set-hint', (el) => el.textContent), /快捷键需要实体键盘/);
       assert.equal(await page.$eval('.set-keys__more', (el) => el.open), false, 'the list is folded on a touch-only device');

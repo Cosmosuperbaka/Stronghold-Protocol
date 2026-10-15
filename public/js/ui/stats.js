@@ -264,18 +264,18 @@ function readRaw() {
  * not an envelope) is moved to `sp.pref.stats.damaged` — kept for a manual recovery — and the history starts again.
  * @returns {{ v: number, records: any[], newer: boolean, dropped: number, damaged: boolean }}
  */
-export function loadStats() {
+export function loadStats({ repair = true } = {}) {
   const raw = readRaw();
   if (raw == null) return { ...emptyStats(), newer: false, dropped: 0, damaged: false };
   let parsed;
   try { parsed = JSON.parse(raw); } catch { parsed = undefined; }
   if (!isObj(parsed) || !Array.isArray(parsed.records)) {
     // keep the bad value where a person can find it; if even that write fails the next save simply replaces it
-    try { globalThis.localStorage?.setItem(DAMAGED_KEY, raw); globalThis.localStorage?.removeItem(FULL_KEY); } catch { /* keep it in place */ }
+    if (repair) try { globalThis.localStorage?.setItem(DAMAGED_KEY, raw); globalThis.localStorage?.removeItem(FULL_KEY); } catch { /* keep it in place */ }
     return { ...emptyStats(), newer: false, dropped: 0, damaged: true };
   }
   const { stats, changed, newer, dropped } = migrateStats(parsed);
-  if (!newer && changed) saveStats(stats);
+  if (repair && !newer && changed) saveStats(stats);
   return { ...stats, newer, dropped, damaged: false };
 }
 

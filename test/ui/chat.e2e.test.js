@@ -187,6 +187,8 @@ test('room chat in browser: IME, escaped text, unread, drafts and responsive lay
       const root = document.createElement('div'); document.body.append(root); render(html`<${ChatPanel} />`, root);
     });
     await page.waitForSelector('.chat__toggle');
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('.chat')).position === 'fixed'
+      && getComputedStyle(document.querySelector('.chat__toggle')).minHeight === '44px');
     assert.equal(await page.$('.gm__ended'), null);
     const overlap = await page.$eval('.chat__toggle', (el) => {
       const r = el.getBoundingClientRect();
@@ -196,6 +198,7 @@ test('room chat in browser: IME, escaped text, unread, drafts and responsive lay
     });
     assert.equal(overlap, false, `${phase} ${width}: chat button leaves HUD controls and side effects visible`);
     await page.click('.chat__toggle');
+    await page.waitForSelector('.chat__body');
     const panel = await page.$eval('.chat__body', (el) => {
       const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
     });

@@ -27,6 +27,7 @@ import { STATUS_META, sortedPlayers, teamFrameIds } from './gameLogic.js';
 import { MissTag, uniteRemaining } from './hud.js';
 import { localAsset } from '../data.js';
 import { t } from '../../../shared/i18n.js';
+import { BondPlanBadge } from './bondPlan.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -116,7 +117,7 @@ export function rowLpTip(lp, cap = 10) {
  *   observe?: null | { canObserve: (p:any) => { fieldId?: string, reason?: string|null, back?: boolean }, observing: boolean, onBack: () => void } }} props
  *   uniteLocal: the local 联防 replica's per-leaker counts while it is on screen (battle runner state().uniteLeft), else null
  */
-export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = false, observe = null, self: selfLive = null, cap = 10, uniteLocal = null }) {
+export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = false, observe = null, self: selfLive = null, cap = 10, uniteLocal = null, spMarks = null }) {
   const [openPid, setOpenPid] = useState(null);
   // the playerId whose avatar just called onWatch, so the other click of a double-click does not open the view again
   const askedAt = useRef(/** @type {{ id: string|null, at: number }} */ ({ id: null, at: 0 }));
@@ -175,9 +176,12 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
           <span class="team__seat num">P${(p.seat ?? 0) + 1}</span>
           ${p.isBot ? html`<span class="team__ai">AI</span>` : null}
           ${self ? html`<span class="team__you"><${Icon} name="user" /></span>` : null}
+          ${spMarks?.get(p.playerId) === 'done' ? html`<span class="team__spmark is-done" title=${t('已完成选择')}><${Icon} name="check" /></span>`
+            : spMarks?.get(p.playerId) === 'turn' ? html`<span class="team__spmark is-turn" title=${t('正在决策…')}><i></i><i></i><i></i></span>` : null}
         </button>
         <div class="team__info">
           <span class="team__name">${p.name || t('博士')}</span>
+          <${BondPlanBadge} bondId=${p.bondPlan} />
           <div class="team__line">
             <${LpTower} value=${lp.lp} size="sm" tone=${Number.isFinite(lp.lp) && lp.lp - lp.pending <= 5 ? 'danger' : null} pending=${lp.pending}
               tip=${rowLpTip(lp, cap)} />

@@ -13,7 +13,7 @@
 - 合并上游新版本时从 `main` 开功能分支，完成适配与测试后再合并回 `main`。
 - 同步上游：`git fetch upstream` → `git merge upstream/master` → `npm install` → `npm run setup`（上游常会加素材）→ `node --test`。
 - 素材 `public/assets/`、`.cache/`、`.claude/` 都在 `.gitignore` 里，不进仓库。新机器 clone 后要先 `npm install && npm run setup`。
-- 当前版本为 `v0.2.6-extended.4`，基于上游 `v0.2.6`（`488db49f`），新增聊天管理、四席完整监控墙、资源与详细统计、重启恢复、空闲更新和更新记录；聊天可拖动记住位置，房间休整期配置默认继承全局。保留带名标点、服务控制、代操作、回放与 Release 发布签名。完整素材包沿用 `v0.2.5-extended.1` 导入的上游完整包中的 `public/assets/local/` 和 `data/local-assets.json`，包括 11 个官方战场场景；来源和固定 SHA-256 见 DEPLOY §6。发布预检与构建都加 `--require-local-art`，同时核对场景清单为 11 个、所有文件哈希与源包一致；该参数只保证存在有效本地素材清单，不替代场景完整性验证。lite 不含官方本地素材。素材不随 Git 分支移动，切换旧代码版本时也要注意素材版本匹配。
+- 当前版本为 `v0.2.6-extended.5`，基于上游 `v0.2.6`（`488db49f`），新增聊天管理、四席完整监控墙、资源与详细统计、重启恢复、空闲更新和更新记录；聊天可拖动记住位置，房间休整期配置默认继承全局。保留带名标点、服务控制、代操作、回放与 Release 发布签名。完整素材包沿用 `v0.2.5-extended.1` 导入的上游完整包中的 `public/assets/local/` 和 `data/local-assets.json`，包括 11 个官方战场场景；来源和固定 SHA-256 见 DEPLOY §6。发布预检与构建都加 `--require-local-art`，同时核对场景清单为 11 个、所有文件哈希与源包一致；该参数只保证存在有效本地素材清单，不替代场景完整性验证。lite 不含官方本地素材。素材不随 Git 分支移动，切换旧代码版本时也要注意素材版本匹配。
 
 各版上游合并、主机扩展与发布验证见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md)。
 
@@ -78,6 +78,87 @@
 标点使用 `g.ping {fieldId, area, row, col, kind}` 与 `m.ping`；服务端校验场地可观察权限、棋盘坐标、五种类型及 500 ms 间隔，并附 `playerId` 和服务端的 `name`，客户端不能指定发送者。房间广播后，仅当前观察该战场的客户端显示 2.5 秒，不进入战斗模拟、回档或回放，也不在重连时补发。正式玩家包括淘汰玩家可发送，观战席只接收；切换场地不会重播旧标点音效。客户端保留最多 32 条，阶段或回合变化清空；动画包括落下、上浮与两圈落点扩散，减少动画设置下保留静态落点环。原创 Web Audio 音效沿用音效音量与静音设置，页面隐藏或未解锁音频时不补播。
 
 聊天借鉴 RyantArgnisan/Stronghold-Protocol 的 GPL 实现，署名见 NOTICE；标点参考 ApexPing 的交互思路，没有引入其代码或依赖。两者均为维护者请求的非官方扩展 `[ASSUMED]`，不改战斗规则或 golden。接口详见 META 与 design/network，专项测试见 `test/chat.test.js`、`test/ping.test.js`、`test/ui/chat.test.js` 及对应浏览器测试。
+
+### 社区 Hub UI 移植（2026-10-15）
+
+基于 isomerpoi（雨千代chiyo）的 `ui-redesign-upstream` / `b2bd17a`，按文件移植，未 merge 或 cherry-pick。
+
+直接移入（先确认本地相对 `488db49f` 没有改动）：
+
+- `public/css/components.css`
+- `public/css/devices.css`
+- `public/css/screens/draft.css`
+- `public/css/screens/game-panels.css`
+- `public/css/screens/result.css`
+- `public/js/federation.js`
+- `public/js/render/fx/arrivals.js`
+- `public/js/screens/bandDraft.js`
+- `public/js/screens/room.js`
+- `public/js/screens/settle.js`
+- `public/js/screens/sweep.js`
+- `public/js/screens/title.js`
+- `public/js/ui/accounts.js`
+- `public/js/ui/achievements.js`
+- `public/js/ui/choiceOverlay.js`
+- `public/js/ui/cloudStats.js`
+- `public/js/ui/components.js`
+- `public/js/ui/fieldHost.js`
+- `public/js/ui/friends.js`
+- `public/js/ui/hubBackdrop.js`
+- `public/js/ui/hud.js`
+- `public/js/ui/lobbyMusic.js`
+- `public/js/ui/matchFlow.js`
+- `public/js/ui/matchIntro.js`
+- `public/js/ui/matchPlates.js`
+- `public/js/ui/matchPopups.js`
+- `public/js/ui/matchmaking.js`
+- `public/js/ui/namecards.js`
+- `public/js/ui/ownerName.js`
+- `public/js/ui/pixbots.js`
+- `public/js/ui/protocolScene.js`
+- `public/js/ui/screenFit.js`
+- `public/js/ui/seatArt.js`
+- `public/js/ui/teamPanel.js`
+- `public/js/ui/transitions.js`
+- `public/js/ui/trophies.js`
+- `shared/randomMode.js`
+
+三方合并后检查本地扩展：
+
+- `public/css/screens/game.css`
+- `public/css/screens/loadout.css`
+- `public/css/screens/lobby.css`
+- `public/js/audio.js`
+- `public/js/render/app.js`
+- `public/js/render/units.js`
+- `public/js/screens/game.js`
+- `public/js/ui/loadoutModel.js`
+- `public/js/screens/loadout.js`
+- `public/js/screens/lobby.js`
+- `public/js/ui/settings.js`
+
+保留 `ui/skins.js`、`ui/skinPicker.js` 的真实实现与 `room.skins` 同步；皮肤先 `cleanSkins` 校验再合并导入，卡片和列表均提供随机皮肤与恢复默认。新同盟创建页保留自定义密钥；等待室重新接入已有 `room.addBot` / `room.removeBot`。聊天位置记忆、标点、联动干员和回放暂停逻辑不变。
+
+不支持的匹配、公开房间列表、好友、私密房间、无限火力和名片同步入口按真实协议能力隐藏。没有新增虚假 C2S，也没有玩家端开发者控制台。修复来源包的昵称正则和部署特效变量错误；新界面文字保留字号设置，不用局部 `--t` 覆盖屏蔽设置。
+
+四个 `public/i18n/{en,ja,ko,zh-TW}.json` 补充译文，已有译文优先，来源和授权见 NOTICE。`test/e2e/client.mjs` 新增真实 Hub 创建和密钥加入助手；原浏览器用例只调整新页面流程、选择器和异步加载等待，不删行为断言。验证记录见 LOCAL-CHANGELOG；后续范围与约束仍以 UI-HUB-PORT 为准。
+
+### Hub 第二阶段（2026-10-16，v0.2.6-extended.5）
+
+参考站点公开源码按功能拆入，没有整体替换本库网络、聊天或皮肤实现。完整验收与差异见 [UI-HUB-ACCEPTANCE.md](UI-HUB-ACCEPTANCE.md)。
+
+| 分类 | 新增 / 改动文件与适配 |
+|---|---|
+| 盟约预选 | 新增 `public/js/ui/bondPlan.js`；main、等待室、bandDraft、teamPanel 接入；server/lobby、PlayerState、platform、views、rewind、shared/protocol 保存、广播和校验八个核心盟约 |
+| 渲染上限 | 新增 public/js/frameRate.js；settings、gameLogic/settings 和 render/app 接入，不改变 runner 时钟 |
+| 表情 | shared/constants、protocol、match/intents 改用 72 个允许 ID；ui/emotes 与 emotes.css 分 12 页，保留官方清单；36 张自制图仅放本机 ignored assets |
+| 伤害统计 | 新增 battle/metrics、ui/combatMetrics、combatMetricsLayout；runner 收集只读指标，game 接入非模态面板；不写回 Battle |
+| 全站公告 | 新增 server/announcements、shared/announcements、ui/announcement；server/net、lobby、admin 和 main / title / lobby / room / game 接入；替换旧聊天公告，保留清空 / 禁言 / 踢出 |
+| 资源管理 | 新增 public/js/resources/、ui/resourcePanel、resource-sw、asset-cdn、shared/cdn、resourcePaths、server/http/resourceManifest、tools/build-resource-manifest.mjs；setup 和 static 接入。ZIP 用浏览器原生实现，不新增依赖 |
+| 状态增量 | 新增 shared/stateDelta、server/stateDelta；server/net、lobby、public/js/net 和 shared/protocol 只合传输适配。单独保存实现前快照与增量补丁 |
+| 界面细调 | 手合 components、lobby / room / result / game / title / draft / loadout CSS 与对应组件，移除赞助；保留密钥、皮肤工具栏、聊天、标点、默认六键和更新记录 |
+
+资源清单是机器安装库存：npm run setup 自动生成，单独更新用 node tools/build-resource-manifest.mjs。data/resource-manifest.json 被忽略，绝不手改官方 data 表。服务器首次请求时也按本机库存懒生成，新增素材后重启以更新服务端缓存。HTTPS / localhost 使用 SW；普通局域网 HTTP 或不支持 Cache Storage 的浏览器仍用旧 ui/preload.js / preloadSection.js。四个 vendor 库继续普通 HTTP 预热，SW 不缓存执行代码。缓存与 ZIP 限制详见 [ASSETS.md](ASSETS.md)。
 
 ## 3. 对局引擎速览
 
@@ -375,7 +456,7 @@ EN / JA / KO 客户端里没有焰狐龙梓兰和结城理，zh-TW 里还没有�
 
 ### 聊天、监控与资源
 
-聊天管理复用 `server/chat.js` 与普通离开规则，只允许本机控制台调用；公告使用 `role: 'system'`，不受玩家频率限制，长度限制不变。清空广播带 `clearedThrough` 的空历史；单调消息 ID 不重用，客户端丢弃迟到的废弃消息。禁言绑定房间 playerId，重连不解除；玩家发送返回 `CHAT_MUTED`。轮询复用聊天节点，输入草稿与展开状态不丢失。
+聊天管理复用 `server/chat.js` 与普通离开规则，只允许本机控制台调用；v0.2.6-extended.5 起旧聊天公告改为独立全站公告，正文、级别和绝对起止时间由主机编辑，不进入聊天历史。清空广播带 `clearedThrough` 的空历史；单调消息 ID 不重用，客户端丢弃迟到的废弃消息。禁言绑定房间 playerId，重连不解除；玩家发送返回 `CHAT_MUTED`。轮询复用聊天节点，输入草稿与展开状态不丢失。
 
 `admin-wall.js` 输出四席摘要和对局标识，`monitor.html` 桌面 2×2、手机单列。每席内嵌 `/live?wall=1` 的完整游戏界面，包含棋盘、商店、盟约、HUD 与非权威战斗副本；按 1280×720 桌面视口缩放，可全屏或单独观察。墙内禁止代操作，不创建玩家 WebSocket 或上报战斗结果。仅已鉴权墙模式允许同源 iframe，普通实时页保持禁止嵌入。摘要每秒轮询、5 秒超时，同一对局 / 玩家不重建画面，结束或关闭移除 iframe，退出停止轮询与尺寸监听。局内聊天入口默认避开右侧效果及准备按钮，可拖动并按本机站点和昵称保存；展开面板跟随入口并自动限制在屏内。
 
@@ -405,4 +486,4 @@ EN / JA / KO 客户端里没有焰狐龙梓兰和结城理，zh-TW 里还没有�
 
 - 服务端：`test/admin-chat.test.js`、`resources-wall.test.js`、`match/history-details.test.js`、`result-summary.test.js`、`recovery.test.js`、`idle-update.test.js`、`release-notes.test.js`（除已写目录者外均在 test 根目录）。
 - 浏览器：`SP_E2E=1 node --test test/ui/admin-chat.e2e.test.js test/ui/admin-stats.e2e.test.js test/ui/next-features.e2e.test.js`；设 `CHROME_PATH`。监控墙真实 30 分钟验收另设 `SP_WALL_SOAK=1`，日常回归无需等待半小时。
-- 最终汇总见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md) 的 `v0.2.6-extended.4` 节；只在明确授权后提交。
+- 最终汇总见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md) 的 `v0.2.6-extended.5` 节；只在明确授权后提交。

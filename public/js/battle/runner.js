@@ -72,6 +72,7 @@
 import { net as appNet } from '../net.js';
 import { store as appStore } from '../store.js';
 import { unitStatsEntry, fxForm } from '../../../shared/protocol.js';
+import { trackCombat, combineCombat } from './metrics.js';
 import { spectateEffects } from './observe.js';
 import { recordError, setBattleSource } from '../diag.js';
 
@@ -205,6 +206,12 @@ export function createBattleRunner(deps) {
 
   /** @type {Map<string, any>} battleId → entry */
   const entries = new Map();
+  const combatHistory = new Map(); // compact snapshots of locally simulated battles in this match
+  const rememberCombat = (e) => {
+    if (!e.combatMetrics) return;
+    const record = e.combatMetrics();
+    if (!(combatHistory.get(e.battleId)?.seconds > record.seconds)) combatHistory.set(e.battleId, record);
+  };
   /** @type {Map<string, any>} battleId → entry of a b.start still being prepared (prepare(); `battle` null until built) */
   const pending = new Map();
   let cur = null;              // entry on screen
@@ -676,6 +683,7 @@ export function createBattleRunner(deps) {
       members: (msg.spec.players || []).map((p) => p && p.playerId).filter(Boolean),
       t0: null, lastProgressAt: -Infinity, done: false, resultSent: false,
       result: null, delivery: null,
+      combatMetrics: null,
       // counted leaks so far (normal fields; noteLeaks) and the Battle state they were counted at; 联防 fields: each
       // leaker's enemies still standing (noteUniteLeft)
       leaks: 0, leakMark: '', left: null,
@@ -721,6 +729,7 @@ export function createBattleRunner(deps) {
       e.sim = sim;
       e.battle = battle;
       e.meter = sim.spec.attachLpMeter(battle);
+      e.combatMetrics = trackCombat(battle);
       e.t0 = clock() - (e.elapsed / e.speed) * 1000;
       if (lastPool && battle.sharedBoss && typeof battle.sharedBoss.sync === 'function') {
         battle.sharedBoss.sync(lastPool.hp, lastPool.acked ? lastPool.acked[e.fieldId] : undefined);
@@ -789,16 +798,19 @@ export function createBattleRunner(deps) {
   }
 
   /** Drop every battle (a new round's prep, the match ended, the player left). */
-  function clear() {
+  function clear({ keepMetrics = false } = {}) {
     ++startSeq;
     loading = null;
     for (const e of entries.values()) {
       // never drop an unreported authoritative result (the round already moved on: the server has its own)
       if (e.authoritative && !e.resultSent && !e.battle.finished) { try { e.battle.forceEnd('forced'); } catch { /* ignore */ } }
+      rememberCombat(e);
     }
     // a battle still being prepared too: its preparation finds itself gone and stops (prepare)
+    for (const e of pending.values()) rememberCombat(e);
     pending.clear();
     entries.clear();
+    if (!keepMetrics) combatHistory.clear();
     cur = null;
     lastPool = null;
     if (rafH != null) { caf(rafH); rafH = null; }
@@ -816,16 +828,22 @@ export function createBattleRunner(deps) {
   }
   // phase changes: combat fields live until the next prep; leaving the match drops everything
   let lastPhase = null;
+  let lastRound = 0;
   if (store && typeof store.subscribe === 'function') {
     offs.push(store.subscribe((s) => {
       const pub = s && s.match && s.match.public ? s.match.public : null;
+      const round = Number(pub?.round) || 0;
+      const resetMetrics = (!pub && lastPhase != null) || round < lastRound
+        || (pub?.phase !== lastPhase && ['LOBBY', 'INFO_CHECK', 'BAND_DRAFT', 'BATTLE_CHECK'].includes(pub?.phase));
+      if (resetMetrics) combatHistory.clear();
+      lastRound = round;
       // solo pause (DESIGN §14): the local battle clocks follow m.public.paused
       setPaused(!!(pub && pub.paused));
       const phase = pub ? pub.phase : null;
-      if (phase === lastPhase) return;
+      if (phase === lastPhase && !resetMetrics) return;
       lastPhase = phase;
       if (!phase || ['PREP', 'ROUND_START', 'SP_DRAFT', 'RESULT', 'LOBBY', 'INFO_CHECK', 'BAND_DRAFT', 'BATTLE_CHECK'].includes(phase)) {
-        if (entries.size || pending.size) clear();
+        if (entries.size || pending.size) clear({ keepMetrics: !resetMetrics });
       }
       // warm the simulation up as soon as a match runs (the first b.start then starts at once)
       if (phase && phase !== 'LOBBY' && !simP) ensureSim().catch(() => {});
@@ -843,6 +861,22 @@ export function createBattleRunner(deps) {
       return () => listeners.get(type)?.delete(fn);
     },
     state,
+    /** Local-only damage/healing; current battle or the match so far. Read on demand, never sent to the server. */
+    combatMetrics({ scope = 'match', ownerId = null } = {}) {
+      const localEntries = [...entries.values(), ...pending.values()];
+      if (scope === 'battle') {
+        // Scouting another field must not replace the player's own current battle statistics.
+        const e = ownerId == null ? cur : localEntries.filter((entry) => entry.members.includes(ownerId))
+          .sort((a, b) => b.seq - a.seq)[0];
+        return combineCombat(e?.combatMetrics ? [e.combatMetrics()] : [], ownerId);
+      }
+      const records = new Map(combatHistory);
+      for (const e of localEntries) if (e.combatMetrics) {
+        const record = e.combatMetrics();
+        if (!(records.get(e.battleId)?.seconds > record.seconds)) records.set(e.battleId, record);
+      }
+      return combineCombat(records.values(), ownerId);
+    },
     /**
      * The battle on screen as a report attaches it (diag.js): its b.start fields and its game time; null without one.
      * @returns {{ battleId: string, fieldId: string, kind: string, spec: object, time: number|null }|null}

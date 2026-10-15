@@ -101,12 +101,14 @@
 import { randomBytes, randomInt } from 'node:crypto';
 import { ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor, CHAT_COOLDOWN_MS } from '../shared/constants.js';
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks } from '../shared/protocol.js';
-import { encode, isDroppable, isErrCode, sendRaw, sendSession } from './net.js';
+import { encode, isDroppable, isErrCode, sendRaw, sendSession, sendSessionFrame } from './net.js';
+import { isStateKind } from '../shared/stateDelta.js';
 import { RoomChat, cleanChatText } from './chat.js';
 import { getData as defaultGetData, lookup } from './data.js';
 import { Match as DefaultMatch } from './match/Match.js';
 import { KITTED_CHARS } from './sim/content/kits/index.js';
 import { cleanSkins, isSkinSelection } from '../shared/skins.js';
+import { SiteAnnouncements } from './announcements.js';
 
 /** Room code alphabet: uppercase letters without I and O (and no digits, so no 0/1). */
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -135,7 +137,7 @@ const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
  * @typedef {{ seat: number, playerId: string, name: string, isBot: boolean, ready: boolean,
  *             connected: boolean, left: boolean, loadout?: Record<string, { skill: number, module: string|null }> | null,
  *             ops?: Readonly<Record<string, { potential: number, cultivate: number }>> | null,
- *             skins?: Readonly<Record<string, string>> | null,
+ *             skins?: Readonly<Record<string, string>> | null, bondPlan?: string | null,
  *             notOwned?: readonly string[] | null, diy?: Readonly<Record<string, DiyLoadout>> | null }} Seat
  * @typedef {{ charId: string, skillIndex: number, uniEquipId: string|null }} DiyLoadout
  */
@@ -236,7 +238,7 @@ export class Room {
       inMatch: !!this.match,
       textChat: true,
       seats: this.seats.map((s) => (s
-        ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left }
+        ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left, bondPlan: s.bondPlan || null }
         : null)),
       spectators: this.spectators.map((s) => ({ playerId: s.playerId, name: s.name, connected: s.connected })),
     };
@@ -267,6 +269,9 @@ export class Lobby {
     /** @type {Map<string, Room>} */
     this.rooms = new Map();
     this.chatTimes = new WeakMap();
+    this.announcements = new SiteAnnouncements({ now: this.now, broadcast: (frame) => {
+      for (const session of this.registry.all()) if (session.connected) sendSession(session, frame);
+    } });
     /** @type {Map<string, NodeJS.Timeout>} lobby grace timers by playerId */
     this.graceTimers = new Map();
     /** @type {Map<string, NodeJS.Timeout>} deferred (coalesced) resyncs by playerId */
@@ -302,6 +307,7 @@ export class Lobby {
    * @param {{ resumed: boolean, repeat: boolean }} info
    */
   onHello(session, { resumed, repeat }) {
+    sendSession(session, this.announcements.frame());
     if (!resumed && !repeat) return;
     const room = this.roomOf(session);
     if (!room) {
@@ -310,7 +316,7 @@ export class Lobby {
         session.notice = null;
       }
       if (session.pendingResult) {
-        for (const frame of session.pendingResult) if (frame) sendRaw(session.ws, frame);
+        for (const frame of session.pendingResult) if (frame) sendSessionFrame(session, frame);
         session.pendingResult = null;
       }
       return;
@@ -339,6 +345,7 @@ export class Lobby {
    */
   onMessage(session, msg) {
     switch (msg.t) {
+      case 'state.resync': this.resync(session, true); return OK;
       case 'room.create': return this.create(session, msg);
       case 'room.join': return this.join(session, msg);
       case 'room.leave': return this.leave(session);
@@ -354,6 +361,7 @@ export class Lobby {
       case 'room.cancelReroll': return this.rerollSetup(session, msg, true);
       case 'room.loadout': return this.loadout(session, msg);
       case 'room.skins': return this.skins(session, msg);
+      case 'room.bondPlan': return this.bondPlan(session, msg);
       case 'room.ownership': return this.ownership(session, msg);
       case 'room.diy': return this.diy(session, msg);
       case 'room.spectate': return this.spectate(session, msg);
@@ -395,6 +403,7 @@ export class Lobby {
    * @param {string} [reason]
    */
   shutdown(reason = 'shutdown') {
+    this.announcements.dispose();
     for (const room of [...this.rooms.values()]) this.disposeRoom(room, reason);
     for (const t of this.graceTimers.values()) clearTimeout(t);
     this.graceTimers.clear();
@@ -752,6 +761,7 @@ export class Lobby {
       // DESIGN §16: the human's checked operator loadout and (0.2.2) per-operator 潜能 / 练度 (bots fight with the defaults)
       loadout: s.isBot ? null : s.loadout || null,
       skins: s.isBot ? null : s.skins || null,
+      bondPlan: s.isBot ? null : s.bondPlan || null,
       ops: s.isBot ? null : s.ops || null,
       // 0.2.0 补位: the chess the human marked as not owned (bots own every operator)
       notOwned: s.isBot ? null : s.notOwned || null,
@@ -908,13 +918,14 @@ export class Lobby {
     const room = this.roomOf(session);
     if (!room) return;
     session.resyncAt = this.now();
+    session.stateDelta?.reset();
     sendSession(session, room.chat.history(room.code));
     if (room.match) {
       this.callMatch(room, room.spectatorOf(session.playerId) ? 'addSpectator' : 'onReconnect', session.playerId);
       return;
     }
     const frames = this.replayFor(room, session.playerId);
-    if (frames) for (const frame of frames) sendRaw(session.ws, frame);
+    if (frames) for (const frame of frames) sendSessionFrame(session, frame);
   }
 
   clearResync(playerId) {
@@ -1017,6 +1028,18 @@ export class Lobby {
     return room;
   }
 
+  /** Announcing a core bond only changes public communication state. */
+  bondPlan(session, { bondId }) {
+    if (bondId !== null && (typeof bondId !== 'string' || !Object.hasOwn(this.safeData().bonds || {}, bondId) || !this.safeData().bonds[bondId]?.isCore)) return fail(ERR.BAD_MSG);
+    const room = this.roomOf(session);
+    const seat = room?.seatOf(session.playerId);
+    session.bondPlan = bondId;
+    if (seat) seat.bondPlan = bondId;
+    if (room?.match && seat) return room.match.setBondPlan(session.playerId, bondId);
+    if (room) this.broadcastState(room);
+    return OK;
+  }
+
   /** Cosmetic preferences may change during a match; they never touch its battle specification. */
   skins(session, { skins }) {
     if (!isSkinSelection(skins)) return fail(ERR.BAD_MSG);
@@ -1035,6 +1058,7 @@ export class Lobby {
       seat: idx, playerId: session.playerId, name: session.name, isBot: false, ready: false, connected: session.connected, left: false,
       loadout: session.loadout || null,
       skins: session.skins || null,
+      bondPlan: session.bondPlan || null,
       ops: session.ops || null,
       notOwned: session.notOwned || null,
       diy: session.diy || null,
@@ -1191,7 +1215,10 @@ export class Lobby {
     const data = encode(msg);
     if (data == null) { this.log.error(`[lobby] ${room.code} unserializable broadcast ${msg && msg.t}`); return null; }
     const droppable = isDroppable(msg);
-    for (const session of this.memberSessions(room)) sendRaw(session.ws, data, { droppable });
+    for (const session of this.memberSessions(room)) {
+      if (isStateKind(msg.t) || msg.t === 'room.closed' || msg.t === 'm.result') sendSession(session, msg);
+      else sendRaw(session.ws, data, { droppable });
+    }
     return data;
   }
 

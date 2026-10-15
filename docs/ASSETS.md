@@ -16,6 +16,20 @@ Optional operator outfits are installed by `tools/install-skins.mjs` and stored 
 preserves installed outfits through the same parser. See [SKINS.md](SKINS.md) for installation, fallbacks,
 sources and manual browser-cache preloading.
 
+## Preload（Hub 本机适配，2026-10-16）
+
+设置与资源入口提供必需画面、可选音频、语音语言筛选、暂停 / 继续、重试、清缓存和 ZIP 导入导出。必需项包含全部已安装的皮肤、场景、指南、社区表情和字体；音频为可选项。缺失的未安装素材不会凭空出现在清单中。
+
+工具 node tools/build-resource-manifest.mjs 扫描 public/assets 与 public/fonts，用 SHA-1 的前 12 位校验 ZIP / 预载内容，同时记录现有哈希 URL 使用的 SHA-256 前 16 位 assetHash。输出 data/resource-manifest.json 是被忽略的机器文件；npm run setup 自动生成，HTTP 服务首次读取时也会懒生成本机库存。更换素材后重新生成并重启服务器。不会修改 data/assets.json 或任何官方数据表。
+
+安全上下文（HTTPS 或 localhost）使用可取消、可续传的 Cache Storage；Service Worker 的注册 scope 为 /，但仅拦截资源 GET（/assets、/fonts、/media），不拦代码、vendor、游戏数据、API 或 WebSocket。带内容哈希的 URL 只匹配缓存里相同 assetHash 的字节，音频 Range 请求返回 206。关闭预载会撤销 worker，保留缓存；清缓存只删除本功能自己的缓存。浏览器清站点数据后需要重新预载，不等于游戏本体可完全离线运行。
+
+普通局域网 HTTP 和不支持 SW / Cache Storage 的浏览器保留 ui/preload.js 的 HTTP 缓存预热及取消功能。四个 vendor 渲染库沿用普通 HTTP 预热，不交给 SW 缓存执行代码。两种路径复用本库已有素材、皮肤和语音选择，不依赖参考站点 CDN；ASSETS_CDN / DATA_CDN 为空字符串。
+
+ZIP 仅导入清单里仍有效、大小和内容哈希一致的资源，拒绝危险路径与损坏文件；缺项可继续下载。无额外依赖的 ZIP32 适配器写 stored，读 stored / 原生 DEFLATE，校验结构和 CRC，不支持 ZIP64 / 加密档，限制 2 GiB。批量下载每文件超时 30 秒，最大单文件 24 MiB，取消保留已完成进度。验证见 test/ui/resources.test.js 与 resources.e2e.test.js。
+
+按用户授权于 2026-10-16 下载的 6 套社区表情（36 张 PNG / GIF，2,603,782 字节）只在 public/assets/local/emoticon/，不进入 Git。来源、作者及非代码素材边界见 [NOTICE.md](../NOTICE.md)。未安装时显示既有图片缺失回退，官方 36 张清单没有改动。
+
 ## Original project application icons (#413)
 
 By the maintainer's revised decision of 2026-10-10, **沿用 0.2.x 的薄荷绿城堡并精修**.

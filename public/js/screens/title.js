@@ -26,6 +26,10 @@ import { t, N_ } from '../../../shared/i18n.js';
 import { scriptOf } from '../../../shared/i18nPacks.js';
 import { GIcon } from '../ui/gameComponents.js';
 import { SettingsModal } from '../ui/settings.js';
+import { AnnouncementButton } from '../ui/announcement.js';
+import { ResourceLauncher } from '../ui/resourcePanel.js';
+import { useSettings } from '../ui/settings.js';
+import { unsupportedReason } from '../resources/index.js';
 
 // Same character classes as server/net.js sanitizeName (control, zero-width, bidi, BOM), so a name
 // the client accepts is never rejected by the server's hello validation.
@@ -137,7 +141,7 @@ const EMBLEM = [
   'XXXXXXXXXXXXX',
 ];
 
-function Emblem() {
+export function Emblem() {
   const dots = useMemo(() => {
     const out = [];
     EMBLEM.forEach((row, r) => {
@@ -189,6 +193,7 @@ const STATUS_TEXT = {
 
 /** Title screen component. */
 export function TitleScreen() {
+  const settings = useSettings();
   const conn = useStore((s) => s.connection, shallowEqual);
   const pendingJoin = useStore((s) => s.ui.pendingJoin);
   useLang(); // re-render on a language switch
@@ -278,6 +283,7 @@ export function TitleScreen() {
           <span>${STATUS_TEXT[conn.status] ? t(STATUS_TEXT[conn.status]) : conn.status}</span>
           ${conn.status === 'online' ? html`<${PingPill} ms=${conn.ping} />` : null}
           <${GuideButton} class="title-guide" label=${t('玩法说明')} />
+          <${AnnouncementButton} class="title-notice" />
           <button type="button" class="title-settings fsbtn tapx" aria-label=${t('设置')} title=${t('设置')}
             onClick=${() => setSettingsOpen(true)}><${GIcon} name="gear" /></button>
           <${FullscreenButton} class="title-fs" />
@@ -285,6 +291,7 @@ export function TitleScreen() {
       </div>
     </main>
 
+    ${unsupportedReason() ? null : html`<div class="title-preload"><${ResourceLauncher} enabled=${settings.preload} /></div>`}
     <${SettingsModal} open=${settingsOpen} onClose=${() => setSettingsOpen(false)} />
 
     <footer class="title-foot">

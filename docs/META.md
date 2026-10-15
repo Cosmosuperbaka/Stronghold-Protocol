@@ -5,6 +5,8 @@ the **UI owner** consuming `m.public` / `m.private` / `m.result`, and anyone dri
 Normative contracts stay in DESIGN.md §6 and §8 ([design/match.md](design/match.md),
 [design/network.md](design/network.md)); this file documents the implementation and every assumption it makes.
 
+Hub 的公告和状态增量是平台 / 传输功能，不进入确定性模拟。盟约预选仅供沟通；表情扩展沿用原权限和冷却；伤害统计只在浏览器读取事件。契约见 [design/network.md](design/network.md)，资源与离线缓存见 [ASSETS.md](ASSETS.md)，移植验收见 [UI-HUB-ACCEPTANCE.md](UI-HUB-ACCEPTANCE.md)。
+
 Optional cosmetics: lobby `room.skins` stores a catalogue-filtered operator map on the session / seat.
 PlayerState takes a frozen copy; `Match.setSkins` can update it during any active phase and flush the public
 player's non-empty `skins` map. No gameplay state or battle input changes. See [SKINS.md](SKINS.md).
@@ -1036,6 +1038,10 @@ The global collapsible text panel preserves history and drafts across match phas
 escapes user text via Preact and clears its state on leave/kick/room or identity change. Enter sends (Chinese IME
 composition does not), Shift+Enter edits and Esc collapses. Failure preserves the draft; offline requests are never
 queued. The original picture-only emote wheel is retained. No battle rules or golden results change.
+
+### 预选盟约（2026-10-16）
+
+`room.bondPlan {bondId: string | null}` 保存浏览器宣布的核心盟约。服务端仅接受 `data/bonds.json` 中 `isCore` 的八个 ID 或 `null`，会话、房间席位和 `m.public.players[].bondPlan` 同步；重连恢复，回档保留当前偏好。等待室、策略选择和队伍栏可见。它只供沟通，不改卡池、盟约层数、战斗输入或结算；对局内更新经过 `m.guard` / `markPublic`。非核心或未知 ID 拒绝。
 
 ## 本机扩展：逐回合记录与重启恢复
 

@@ -95,6 +95,7 @@ export class MatchViews {
       players: this.order.map((ps) => ({
         playerId: ps.playerId,
         ...(Object.keys(ps.skins || {}).length ? { skins: ps.skins } : {}),
+        bondPlan: ps.bondPlan || null,
         seat: ps.seat,
         name: ps.name,
         isBot: ps.isBot,

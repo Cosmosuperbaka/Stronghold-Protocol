@@ -37,10 +37,12 @@ import { useErrorBoundary } from '../vendor/hooks.module.js';
 import { html, UiHosts, Button, MicroLabel, closeAllDialogs } from './ui/components.js';
 import { ChatPanel } from './ui/chat.js';
 import { installChatSync } from './ui/chatStore.js';
+import { AnnouncementBanner, AnnouncementHost } from './ui/announcement.js';
+import { announcementFromMessage } from '../../shared/announcements.js';
 import { ConnectionBanner } from './ui/connBanner.js';
 import { ToastHost, toast, toastError, describeError } from './ui/toasts.js';
 import { net, identity, NetError } from './net.js';
-import { store, useStore, emptyMatch, selectRoute, sessionResetNotice, isSpectating } from './store.js';
+import { store, useStore, shallowEqual, emptyMatch, selectRoute, sessionResetNotice, isSpectating } from './store.js';
 import { data } from './data.js';
 import { GAME_FILES } from './ui/gameComponents.js';
 import { TitleScreen, sanitizeName } from './screens/title.js';
@@ -48,7 +50,9 @@ import { LobbyScreen, rememberRoom, parseRoomParam } from './screens/lobby.js';
 import { RoomScreen } from './screens/room.js';
 import { GameScreen } from './screens/game.js';
 import { audio, installAudio } from './audio.js';
-import { settingsStore } from './ui/settings.js';
+import { settingsStore, updateSettings } from './ui/settings.js';
+import { ResourceHost } from './ui/resourcePanel.js';
+import { syncResources, unsupportedReason } from './resources/index.js';
 import { GuideHost } from './ui/guide.js';
 import { installDeviceSupport } from './ui/device.js';
 import { LoadoutHost } from './screens/loadout.js';
@@ -56,6 +60,7 @@ import { StatsHost } from './screens/stats.js';
 import { recordResult, installStatsRecorder } from './ui/stats.js';
 import { installLoadoutSync, installOwnershipSync, installDiySync } from './ui/loadoutSync.js';
 import { installSkinsSync } from './ui/skins.js';
+import { installBondPlanSync } from './ui/bondPlan.js';
 import { startBuildGuard } from './ui/buildGuard.js';
 import { initLang, useLang, tickerText } from './ui/lang.js';
 import { t, N_, translateWire } from '../../shared/i18n.js';
@@ -228,6 +233,7 @@ function wireNet() {
   net.on('replaced', () => toast(t('该身份已在其他页面登录，本页已断开'), 'warn', { ttl: 6000 }));
   net.on('unhandledError', (err) => toastError(err));
   net.on('room.state', onRoomState);
+  net.on('site.announcement', (message) => store.set({ announcement: announcementFromMessage(message) }));
   net.on('room.closed', (msg) => {
     backToLobby();
     const known = Object.hasOwn(CLOSE_REASON, String(msg.reason)) ? CLOSE_REASON[msg.reason] : null;
@@ -315,16 +321,21 @@ function App() {
   useLang(); // a language switch re-renders the whole tree in place
   const [error, resetError] = useErrorBoundary((err) => console.error('[ui] screen crashed', err));
   const Screen = SCREENS[route] || LobbyScreen;
+  const resources = useStore((s) => s, shallowEqual, settingsStore);
   return html`<div class="app-root">
     <div class="app-bg" aria-hidden="true"></div>
     ${error ? html`<${ScreenCrashed} error=${error} reset=${resetError} />` : html`<${Screen} key=${route} />`}
     <${ChatPanel} />
+    <${AnnouncementBanner} /><${AnnouncementHost} />
     <${ConnectionBanner} />
     <${ToastHost} />
     <${UiHosts} />
     <${GuideHost} />
     <${LoadoutHost} />
     <${StatsHost} />
+    <${ResourceHost} enabled=${resources.preload} optional=${resources.preloadOptional} voiceLang=${resources.preloadVoiceLang}
+      onChange=${(preload) => updateSettings({ preload })} onOptional=${(preloadOptional) => updateSettings({ preloadOptional })}
+      onVoiceLang=${(preloadVoiceLang) => updateSettings({ preloadVoiceLang })} />
   </div>`;
 }
 
@@ -382,9 +393,12 @@ async function boot() {
   }));
 
   wireNet();
+  const syncPreload = (s) => { if (!unsupportedReason()) void syncResources(s.preload, s.preloadOptional, s.preloadVoiceLang); };
+  settingsStore.subscribe(syncPreload); syncPreload(settingsStore.get());
   installStatsRecorder(store); // follows the match on screen, so a 放弃模拟 can be recorded (ui/stats.js)
   installLoadoutSync({ net });
   installSkinsSync({ net });
+  installBondPlanSync({ net });
   installOwnershipSync({ net });
   installDiySync({ net });
   net.attachBrowserHooks();

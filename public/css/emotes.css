@@ -148,3 +148,10 @@
   .ewheel__panel, .ewheel__page, .ewheel__page.is-from-right, .ewheel__page.is-from-left { animation: none; }
   .ebubble { animation: emo-bubble-out 1ms linear calc(var(--ebubble-ttl) - 1ms - var(--ebubble-age)) forwards; }
 }
+
+.ewheel__count {
+  position: absolute; left: .15rem; width: 2.82rem; top: 1.99rem; height: .12rem;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255, 255, 255, .8); font-size: .11rem; line-height: 1; letter-spacing: .02em;
+  font-variant-numeric: tabular-nums; pointer-events: none; user-select: none;
+}

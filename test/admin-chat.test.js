@@ -24,20 +24,19 @@ function fixture(t) {
 }
 test('host announcements bypass player throttles, reach every room and remain server-only', (t) => {
   const f = fixture(t);
-  for (let i = 0; i < 12; i++) assert.deepEqual(f.act('announce', null, 'notice'), { ok: true });
-  assert.equal(f.room.chat.messages.length, 12);
-  assert.equal(f.room.chat.messages[0].role, 'system');
-  assert.ok(f.viewer.frames.some((m) => m.role === 'system'));
-  assert.ok(f.act('announce', null, 'x'.repeat(201)).error);
+  const notice = text => ({ text, level: 'info', startAt: Date.now(), endAt: Date.now() + 60000 });
+  for (let i = 0; i < 12; i++) assert.deepEqual(f.act('announce', null, notice('notice')), { ok: true });
+  assert.equal(f.room.chat.messages.length, 0, 'site notices do not enter chat history');
+  assert.ok(f.viewer.frames.some(m => m.t === 'site.announcement' && m.announcement.text === 'notice'));
+  assert.ok(f.act('announce', null, notice('x'.repeat(501))).error);
   const otherHost = f.player('Other'); f.lobby.create(otherHost, { mode: 'solo', difficulty: 'NORMAL' });
   const otherRoom = f.lobby.roomOf(otherHost);
-  assert.deepEqual(handleAction(f.lobby, { room: '*', action: 'announce', value: 'all' }), { ok: true });
-  assert.equal(f.room.chat.messages.at(-1).text, 'all');
-  assert.equal(otherRoom.chat.messages.at(-1).text, 'all');
-  assert.ok(otherHost.frames.some((m) => m.role === 'system' && m.text === 'all'));
+  assert.deepEqual(handleAction(f.lobby, { room: '*', action: 'announce', value: notice('all') }), { ok: true });
+  assert.equal(f.room.chat.messages.length, 0);
+  assert.equal(otherRoom.chat.messages.length, 0);
+  assert.ok(otherHost.frames.some(m => m.t === 'site.announcement' && m.announcement.text === 'all'));
   for (const type of ['room.announce', 'room.chatClear', 'room.chatMute', 'room.chatKick']) assert.ok(validateC2S({ t: type }));
-  assert.equal(roomsView(f.lobby)[0].chat.messages.length, 13);
-  assert.equal(f.room.adminLog.filter((e) => e.action === 'announce' && e.ok).length, 13);
+  assert.equal(roomsView(f.lobby)[0].chat.messages.length, 0);
 });
 
 test('kicking during a match follows the existing permanent departure hook', (t) => {
@@ -50,14 +49,14 @@ test('kicking during a match follows the existing permanent departure hook', (t)
   assert.equal(f.room.match, match);
 });
 test('clear synchronizes clients and rejects stale messages without reusing IDs', (t) => {
-  const f = fixture(t); f.act('announce', null, 'old');
+  const f = fixture(t); f.lobby.chat(f.host, { clientId: 'old', text: 'old' });
   const old = f.room.chat.messages[0];
   let state = mergeChat(emptyChat(f.room.code), old);
   f.act('chatClear'); state = mergeChat(state, f.peer.frames.at(-1), true);
   assert.deepEqual(state.messages, []);
   state = mergeChat(state, old); assert.deepEqual(state.messages, []);
-  f.act('announce', null, 'new'); state = mergeChat(state, f.room.chat.messages[0]);
-  assert.equal(state.messages[0].id, 2); assert.equal(state.messages[0].role, 'system');
+  f.lobby.chat(f.peer, { clientId: 'new', text: 'new' }); state = mergeChat(state, f.room.chat.messages[0]);
+  assert.equal(state.messages[0].id, 2); assert.equal(state.messages[0].role, 'player');
 });
 test('mute persists through reconnect until explicitly unmuted; kicking uses normal departure', (t) => {
   const f = fixture(t), pid = f.peer.playerId;

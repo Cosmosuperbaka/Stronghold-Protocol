@@ -27,7 +27,12 @@ import { LangToggle, machineTranslationNote } from './lang.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
 import { errorCount, currentBattle, diagnosticsText } from '../diag.js';
 import { copyText } from './clipboard.js';
+import { FRAME_RATES } from '../frameRate.js';
 import { PreloadSection } from './preloadSection.js';
+import { ResourceRow } from './resourcePanel.js';
+import { unsupportedReason } from '../resources/index.js';
+// 异形屏适配 (ui/screenFit.js): imported here, ahead of main.js's first render, so the stored offsets are on at boot
+import { ScreenFitSection } from './screenFit.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -284,9 +289,16 @@ export function SettingsModal({ open, onClose }) {
         </div>
       </div>
       <p class="set-hint set-textsize-note">${t('调整界面文字大小，棋盘保持原比例。')}</p>
+      <div class="set-row">
+        <span class="set-row__label">${t('帧率上限')}<${MicroLabel}>FPS LIMIT<//></span>
+        <div class="set-seg" role="radiogroup" aria-label=${t('帧率上限')} data-testid="fps-limit">
+          ${FRAME_RATES.map((fps) => html`<button type="button" role="radio" aria-checked=${s.fpsLimit === fps ? 'true' : 'false'} onClick=${() => updateSettings({ fpsLimit: fps })}>${fps || t('不限')}</button>`)}
+        </div>
+      </div>
+      <${ScreenFitSection} />
       <${HotkeySection} keys=${s.keys} touchUi=${touchUi} />
       <${DiagSection} />
-      <${PreloadSection} />
+      ${unsupportedReason() ? html`<${PreloadSection} />` : html`<${ResourceRow} enabled=${s.preload} />`}
       <p class="set-hint">${touchUi ? t('触屏操作：点击单位选中（撤退 / 出售）· 长按单位或卡牌查看详情 · 拖动部署后滑动选择朝向') : t('右键查看详情')}</p>
     </div>
   <//>`;

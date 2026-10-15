@@ -2,6 +2,18 @@
 
 Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 
+本机扩展（2026-10-16）：`room.bondPlan {bondId: id | null}` 仅接受数据中八个 `isCore` 盟约；保存于会话和席位，并公开为房间席位及 `m.public.players[].bondPlan`。更新使用 `m.guard` / `markPublic`，重连恢复，回档保留当前偏好，仅供沟通，不影响 BattleSpec 或任何玩法计算。测试见 `test/bond-plan.test.js`。
+
+### Hub 传输扩展（2026-10-16）
+
+全站公告 S2C site.announcement {serverNow, announcement: {id,text,level,startAt,endAt} | null} 独立于房间与回合。hello / 重连下发当前公告；客户端按服务器绝对时间判断展示，服务器在开始 / 过期时广播。单条 1–500 字，仅认证的 loopback 控制台 action: announce 可编辑或传 null 撤下；重启不保留，没有玩家 C2S 管理入口。清空、禁言和踢出继续走本机控制台，公告不写入聊天历史。验证见 test/announcements.test.js 和 test/admin-chat.test.js。
+
+hello 可选 stateDelta: 1 启用 m.public / m.private 的 m.state 传输。每连接每 kind 独立 baseline；全帧为 {t:'m.state',kind,seq,full}，增量为 {t:'m.state',kind,seq,base,patch}。patch 操作为 [path,value] 设置、[path] 删除对象键，数组长度变化替换子树。仅 patch 更小时发送增量；失败的 socket 写入不推进 baseline。不协商的旧客户端照常收到原始帧。
+
+解码后仍向界面派发完整的 m.public / m.private；间隙或非法补丁暂停该通道并合并请求 state.resync，直到全帧恢复。重连、显式 resync、房间关闭和结果清理 baseline。回档保持原有 guard / flush 和状态语义，canonical 原始帧仍用于结果重播、回放及主机实时查看。观战绝不获得玩家私有帧。验证见 test/state-delta.test.js（新旧混联、丢帧、失败写入、重连、回档和结果重播）。
+
+表情白名单改为 shared/constants.js 的 EMOTE_IDS：36 个官方 ID 与 36 个社区自制 ID；官方 data/emotes.json 和生成清单不变。新增项只通过既有 g.emote / m.emote 路径，频率、权限和过期规则不变，聊天和标点协议不变。
+
 ## 8. Network protocol (shared/protocol.js is normative)
 
 Transport: one WebSocket per tab at `/ws`, JSON text frames `{ t: '<type>', ...payload }`. Client requests may carry `rid` (request id); the server's direct reply echoes `rid` (`ok` or `error`). Server pushes have no `rid`. Max frame 64 KB inbound (a compressed frame counts its inflated size); rate limit 40 msgs/s per connection (excess dropped with `error RATE`). Frames from 1 KB up are compressed with permessage-deflate (RFC 7692; `server/http/websocket.js WS_DEFLATE`: no server context takeover, a 2 KB server window, zlib memLevel 7 — about 72 KB of zlib state per connection); smaller frames go out plain, and a client that offers no compression, or caps the server window below 2 KB, gets plain frames. A measured solo session (rounds 3–5, `/healthz?traffic=1`): 173 KB of server frames → 60 KB on the wire.
@@ -204,8 +216,8 @@ No position, messages or drafts are added to the wire protocol or server persist
 
 ### Local host chat management and restart recovery (owner extension, 2026-10-15)
 
-Only the authenticated loopback console can announce, clear, mute or remove members; no C2S management intent exists.
-Announcements use `role: 'system'` and the existing length cap; `CHAT_MUTED` explicitly rejects a muted player's send.
+Only the authenticated loopback console can clear, mute or remove members; no C2S management intent exists.
+The old room-chat announcement is replaced by the global notice below; `CHAT_MUTED` explicitly rejects a muted player's send.
 `chat.history` also carries `clearedThrough`: clients discard entries at or below this watermark, including delayed frames;
 clearing never reuses message ids. Normal player chat is still memory-only. Host operation summaries may be recorded.
 

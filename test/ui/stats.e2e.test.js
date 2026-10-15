@@ -90,7 +90,9 @@ describe('统计数据 page (real server, headless Chrome)', { skip: !ENABLED &&
   const stored = (c) => c.page.evaluate(() => { const r = localStorage.getItem('sp.pref.stats'); return r ? JSON.parse(r) : null; });
   const openStats = async (c, from = '.lobby-screen .stats-entry') => {
     await c.click(from, from.includes('stats-entry') ? null : '统计');
+    if (from.includes('.lobby-screen .stats-entry')) await c.click('.lacct__btns button', '统计数据');
     await c.page.waitForSelector('.st .st-tab', { visible: true, timeout: 15000 });
+    await c.page.waitForFunction(() => !document.querySelector('.st-loading'));
   };
   const toast = (c) => c.page.waitForFunction(() => document.querySelector('.toast')?.textContent || false, { timeout: 8000 }).then((h) => h.jsonValue());
   const noProblems = (c) => assert.deepEqual(c.problems, [], 'no console errors / failed requests');
@@ -257,12 +259,9 @@ describe('统计数据: the real flows (a fast real server, headless Chrome)', {
 
   const stored = (c) => c.page.evaluate(() => { const r = localStorage.getItem('sp.pref.stats'); return r ? JSON.parse(r) : null; });
   async function toSoloMatch(c) {
-    await c.click('.mode-card', '独立模拟');
-    await sleep(300);
-    await c.click('.diff-card', '标准模拟');
-    await c.click('.create-box button', '开始独立模拟');
+    await c.createSimulation('独立模拟', '标准模拟');
     await c.waitFor((s) => !!s.room, 'solo room');
-    if (!(await c.st()).phase) await c.click('.room-bar__right button', '开始模拟', { timeout: 20000 });
+    if (!(await c.st()).phase) await c.click('.rs-foot__right button', '开始模拟', { timeout: 20000 });
     await c.waitFor((s) => s.phase === 'INFO_CHECK', 'briefing', 30000);
   }
   async function toPrep(c) {
@@ -306,6 +305,7 @@ describe('统计数据: the real flows (a fast real server, headless Chrome)', {
       assert.ok(env.records[0].players[0].bandId, 'its strategy');
       // the page: one game counted, one left out, both in the history
       await c.click('.lobby-screen .stats-entry');
+      await c.click('.lacct__btns button', '统计数据');
       await c.page.waitForSelector('.st .st-card', { visible: true });
       assert.equal((await c.page.$$eval('.st-card__num', (els) => els.map((e) => e.textContent)))[0], '1');
       assert.match(await c.page.$eval('.st-rule', (e) => e.textContent), /另有 1 局未计入统计/);
