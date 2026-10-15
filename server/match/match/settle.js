@@ -1,3 +1,4 @@
+import { normalLeakHistory } from '../leak-history.js';
 // server/match/match/settle.js — Match methods: SETTLE (the LP loss — a leaker's 联防 survivors —, stats, bounty coins,
 // the IN_BATTLE layer gains clamped by layerGainRoom, CHAR_DAMAGE tickers, eliminations, the 联防 outcome the SETTLE
 // view carries) and RESULT (finish: m.result to every human still here, onEnd).
@@ -40,6 +41,7 @@ export class MatchSettle {
       const counted = (r.leaked || []).filter((l) => l && l.counted !== false).length;
       const loss = uniteRan && plan.leakers.includes(ps) ? Math.min(cap, survivors.get(ps.playerId) || 0) : Math.min(cap, counted);
       if (this.uniteResultView) this.uniteResultView.losses[ps.playerId] = loss;
+      ps.leakHistory = normalLeakHistory(this, ps, r, { plan, uniteResult, uniteRan, loss });
       ps.lp -= loss;
       ps.stats.lpLost += loss;
       ps.stats.leaks += counted;

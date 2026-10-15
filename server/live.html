@@ -32,6 +32,8 @@
   #live-game[hidden] { display: none; }
   #live-message { padding: 28px; color: var(--text-hi); font: 16px/1.6 system-ui, "Microsoft YaHei", sans-serif; }
   .live-bar ::selection { background: var(--mint-700); color: var(--text-hi); }
+  .live-wall .live-bar { display: none; }
+  .live-wall #live-game { height: 100dvh; }
   @media (max-width: 600px) { .live-bar { padding: 8px 12px; gap: 8px 12px; } #live-status { flex-basis: 100%; } }
 </style>
 <script type="importmap">{ "imports": { "preact": "/vendor/preact.module.js", "preact/hooks": "/vendor/hooks.module.js", "htm": "/vendor/htm.module.js" } }</script>

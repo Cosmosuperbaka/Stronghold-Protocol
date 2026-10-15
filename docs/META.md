@@ -51,6 +51,8 @@ server/match/
 
 本分支主机可在终局记录打开整局回放，查看每回合实际阵容、敌人及已采纳结果；回到第 R 回合时回放显式截断 ≥ R 的废弃时间线，不进入回档快照。回放与三类清理的主机接口和限制见 [LOCAL-DEV.md](LOCAL-DEV.md) §5「整局回放与数据清理」，不改变对局流程。
 
+控制台房间计时只调整休整期：`prepOverride = null` 跟随当前主机设置，单独配置替换全局配置而不叠乘，下一次 `enterPrep` 生效，其他阶段时间不变。覆盖随休整期快照回档 / 恢复；内部测试选项 `timerScale` 保留，不由控制台设置。
+
 ```
 LOBBY → INFO_CHECK (co-op 25 s; solo and single-human matches untimed; all humans confirmed ⇒ next) → BAND_DRAFT → BATTLE_CHECK (3 s)
 → for r = 1..lastRound (+ hidden):
@@ -1034,3 +1036,7 @@ The global collapsible text panel preserves history and drafts across match phas
 escapes user text via Preact and clears its state on leave/kick/room or identity change. Enter sends (Chinese IME
 composition does not), Shift+Enter edits and Esc collapses. Failure preserves the draft; offline requests are never
 queued. The original picture-only emote wheel is retained. No battle rules or golden results change.
+
+## 本机扩展：逐回合记录与重启恢复
+
+2026-10-15 主机扩展为 `history` 增加漏怪来源明细、实际收入 / 支出与次数、激活盟约层数及档位；仅记录现有结算，不改战斗规则。旧记录缺失字段留空。用户确认重启恢复采用 rewind 的最近 PREP 自动效果前快照，保留当时机变，重打本回合，截断废弃回放；版本及规则指纹必须一致。原 token 重连，DIY、日程和主机规则保持原值，停机时间不计入对局。安全边界、存储和测试见 [LOCAL-DEV.md](LOCAL-DEV.md) §9。

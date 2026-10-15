@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>主机监控</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0c0f0e;color:#dfe6e2;font:14px/1.5 system-ui,"Microsoft YaHei",sans-serif}header{padding:12px 16px;border-bottom:1px solid #2f3a35}h1{margin:0;font-size:20px}a{color:#4ed8af;text-underline-offset:3px}main{padding:12px 16px}.wall{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.seat{min-width:0;color:inherit;background:#141816;border:1px solid #2f3a35;border-radius:4px;overflow:hidden}.seat-head{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;padding:8px 12px}.seat h2{font-size:16px;margin:0}.seat-summary{flex:1 1 200px;margin:0;font-variant-numeric:tabular-nums}.seat-actions{display:flex;align-items:center;gap:8px}.seat-actions a,.seat-actions button{min-height:36px;display:inline-flex;align-items:center}.seat-actions button{padding:4px 8px;border:1px solid #3e4b45;background:#1e2421;color:#dfe6e2;font:inherit;cursor:pointer}.seat-actions button:hover{border-color:#4ed8af}.viewport{position:relative;aspect-ratio:16/9;background:#0c0f0e;overflow:hidden}.viewport iframe{position:absolute;left:0;top:0;width:1280px;height:720px;border:0;transform-origin:0 0}.seat-empty{min-height:200px;display:grid;place-items:center;padding:24px}.seat:fullscreen{display:flex;flex-direction:column;background:#0c0f0e}.seat:fullscreen .viewport{flex:1;aspect-ratio:auto}.meta{color:#a6b8ae}.bad{color:#ff8c80}table{border-collapse:collapse;width:100%;margin:16px 0}td,th{text-align:left;padding:6px;border-bottom:1px solid #2f3a35}.scroll{overflow:auto}a:focus-visible,button:focus-visible{outline:2px solid #4ed8af;outline-offset:2px}::selection{background:#145443;color:#dfe6e2}*{scrollbar-color:#58675f #141816}@media(max-width:900px){.wall{grid-template-columns:1fr}header,main{padding:12px}.seat-actions a,.seat-actions button{min-height:44px}}
+</style>
+<style>.seat-actions[hidden],.viewport[hidden],.seat-empty[hidden]{display:none}</style>
+<header><h1 id="title">主机监控</h1><p id="status" role="status">正在连接…</p><a href="/">返回控制台</a></header><main id="content"></main>
+<script type="module">
+const token='__TOKEN__', params=new URLSearchParams(location.search), room=params.get('room');
+const esc=(s)=>String(s??'').replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const host=document.querySelector('#content'), status=document.querySelector('#status');
+document.querySelector('#title').textContent=room?'房间 '+room+' · 监控墙':'服务器资源';
+let signature='', stopped=false;
+const seats=new Map();
+const resize=new ResizeObserver((entries)=>{for(const {target} of entries){const frame=target.querySelector('iframe');if(frame){const scale=target.clientWidth/1280;frame.style.transform=`scale(${scale})`;frame.style.height=Math.max(720,target.clientHeight/scale)+'px';}}});
+window.addEventListener('pagehide',()=>{stopped=true;resize.disconnect();for(const view of seats.values())view.frame?.remove();});
+function drawWall(d){
+  host.className='wall';
+  for(let i=0;i<4;i++){
+    const s=d.seats[i], key=s&&d.matchId?`${d.matchId}:${s.playerId}`:'';
+    let view=seats.get(i);
+    if(!view){
+      const el=document.createElement('section');el.className='seat';
+      el.innerHTML='<div class="seat-head"><h2></h2><p class="seat-summary"></p><div class="seat-actions"><a target="_blank" rel="noopener">单独观察</a><button type="button">全屏</button></div></div><div class="viewport"></div><div class="seat-empty meta"></div>';
+      view={el,key:null,frame:null};seats.set(i,view);host.append(el);
+      el.querySelector('button').onclick=async()=>{try{if(document.fullscreenElement===el)await document.exitFullscreen();else await el.requestFullscreen();}catch{status.textContent='无法全屏，请使用单独观察。';}};
+      resize.observe(el.querySelector('.viewport'));
+    }
+    const {el}=view;
+    el.querySelector('h2').textContent=`${i+1} · ${s?.name||'空位'}`;
+    el.querySelector('.seat-summary').textContent=s?`LP ${s.lp??'—'} · 金币 ${s.funds??'—'} · 商店 ${s.level??'—'} · ${s.left?'已离开':s.alive===false?'已淘汰':s.ready?'已准备':'未准备'} · ${s.isBot?'AI':!s.connected?'掉线':s.autoplay?'托管':'在线'}`:'';
+    const link=el.querySelector('a');link.href=s?`/live?room=${encodeURIComponent(room)}&playerId=${encodeURIComponent(s.playerId)}`:'#';
+    el.querySelector('.seat-actions').hidden=!key;
+    el.querySelector('.viewport').hidden=!key;
+    el.querySelector('.seat-empty').hidden=!!key;
+    el.querySelector('.seat-empty').textContent=s?'对局未开始或已结束':'此座位暂无玩家';
+    if(view.key!==key){
+      view.frame?.remove();view.frame=null;view.key=key;
+      if(key){const frame=document.createElement('iframe');frame.title=`${s.name}的实时画面（只读）`;frame.src=link.getAttribute('href')+'&wall=1';view.frame=frame;el.querySelector('.viewport').append(frame);}
+    }
+  }
+}
+async function refresh(){
+  try{
+    const response=await fetch(room?'/api/wall?room='+encodeURIComponent(room):'/api/resources',{headers:{'X-Admin-Token':token},signal:AbortSignal.timeout(5000)});
+    if(!response.ok)throw new Error('读取失败 '+response.status);
+    const d=await response.json();
+    status.textContent=d.error|| (room?`${d.phase}${d.round==null?'':' · 第 '+d.round+' 回合'}`:'仅保留最近 10 分钟；CPU 以一个核心为 100%；流量为压缩前 WebSocket 消息字节。');
+    const next=JSON.stringify(d); if(next===signature)return; signature=next;
+    if(room){
+      drawWall(d);
+    }else{
+      const c=d.current, bytes=(n)=>(n/1024).toFixed(1)+' KiB/s';
+      host.innerHTML=`<p>运行 ${(c.uptime/3600).toFixed(2)} 小时 · RSS ${(c.rss/1048576).toFixed(1)} MiB · 堆 ${(c.heap/1048576).toFixed(1)} MiB · CPU ${c.cpu.toFixed(1)}%</p><p>在线会话 ${c.sessions} · 房间 ${c.rooms} · 对局 ${c.matches} · 观战 ${c.spectators}</p><p>WebSocket ↑ ${bytes(c.tx)} / ↓ ${bytes(c.rx)} · 静态素材 ↑ ${bytes(c.assets)}</p><div class="scroll"><table><caption>各房间 WebSocket</caption><tr><th>房间</th><th>发送</th><th>接收</th></tr>${c.byRoom.map((r)=>`<tr><td>${esc(r.code)}</td><td>${bytes(r.tx)}</td><td>${bytes(r.rx)}</td></tr>`).join('')}</table><table><caption>在线玩家 RTT（复用每 30 秒的协议心跳）</caption><tr><th>玩家</th><th>房间</th><th>往返延迟</th></tr>${d.players.map((p)=>`<tr><td>${esc(p.name)}</td><td>${esc(p.room||'大厅')}</td><td class="${p.rtt>300?'bad':''}">${p.rtt==null?'等待心跳':Math.round(p.rtt)+' ms'}</td></tr>`).join('')}</table></div>`;
+    }
+  }catch(e){status.textContent='连接中断：'+e.message;}
+  finally{if(!stopped)setTimeout(refresh,1000);}
+}
+refresh();
+</script></html>

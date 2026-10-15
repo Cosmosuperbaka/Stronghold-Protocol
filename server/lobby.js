@@ -467,6 +467,7 @@ export class Lobby {
     if (!room) return fail(ERR.NOT_IN_ROOM);
     const seat = room.seatOf(session.playerId);
     if (!seat || seat.isBot || seat.left) return fail(ERR.SPECTATOR);
+    if (room.chat.muted.has(session.playerId)) return fail(ERR.CHAT_MUTED);
     const clean = cleanChatText(text);
     if (clean === null || typeof clientId !== 'string' || !/^[A-Za-z0-9_\-.:]{1,64}$/.test(clientId)) return fail(ERR.BAD_MSG);
     if (room.chat.seen(session, clientId)) return OK;
@@ -743,7 +744,7 @@ export class Lobby {
   // ---------------------------------------------------------------------------------------------------
 
   /** @param {Room} room @param {string | null} [key] per-network limit key of the starter */
-  startMatch(room, key = null) {
+  startMatch(room, key = null, restored = null) {
     const host = room.seatOf(room.hostId);
     if (host) host.ready = true;
     const seats = room.seats.filter(Boolean).map((s) => ({
@@ -760,7 +761,8 @@ export class Lobby {
     // lastPublic / results: the latest m.public broadcast and the m.result frames (encoded), kept for the replay.
     const ctx = { live: true, ended: false, disposed: false, match: null, lastPublic: null, sharedResult: null, results: new Map() };
     let seed = 0;
-    try { seed = this.seedFn() >>> 0; } catch { seed = randomInt(2 ** 32); }
+    if (restored) seed = restored.seed;
+    else try { seed = this.seedFn() >>> 0; } catch { seed = randomInt(2 ** 32); }
     try {
       const match = new this.MatchClass({
         roomCode: room.code,
@@ -769,12 +771,13 @@ export class Lobby {
         modeId: modeIdFor(room.mode, room.difficulty),
         // 「AI 队友最后选择」 (GitHub #338): fixed for the match
         aiPicksLast: room.mode !== 'solo' && room.aiPicksLast === true,
-        seats,
+        seats: restored?.seats || seats,
         // the spectator seats (header): watched like eliminated players, never players
         spectators: room.spectators.map((s) => s.playerId),
-        seed,
+        seed: restored?.seed ?? seed,
         // the room's match number: with the seed it keeps battleIds unique across the room's matches (DESIGN §14)
-        matchNo: room.matchCount + 1,
+        matchNo: restored?.matchNo ?? room.matchCount + 1,
+        onPrepSnapshot: (m, snap) => this.recovery?.save(room, m, snap),
         data: this.safeData(),
         log: this.log,
         now: this.now,
@@ -790,7 +793,8 @@ export class Lobby {
       room.matchCount++;
       this.log.info(`[lobby] ${room.code} match #${room.matchCount} starting (${room.mode}/${room.difficulty}, ${seats.length} seats, seed ${seed})`);
       this.broadcastState(room);
-      match.start();
+      if (restored) this.recovery.restoreMatch(match, restored);
+      else match.start();
     } catch (e) {
       this.log.error(`[lobby] ${room.code} match failed to start`, e);
       if (room.matchCtx === ctx) { room.match = null; room.matchCtx = null; room.matchKey = null; }
@@ -804,6 +808,7 @@ export class Lobby {
   /** onEnd callback: return the room to LOBBY and dispose the match on the next macrotask. */
   onMatchEnd(room, ctx, summary) {
     if (ctx.ended || !ctx.live || room.matchCtx !== ctx || room.disposed) return;
+    this.recovery?.remove(room.code);
     ctx.ended = true;
     room.lastSummary = summary ?? null;
     room.match = null;
@@ -1116,6 +1121,7 @@ export class Lobby {
    */
   disposeRoom(room, reason) {
     if (room.disposed) return;
+    this.recovery?.roomClosed(room.code);
     room.disposed = true;
     if (this.rooms.get(room.code) === room) this.rooms.delete(room.code);
     const ctx = room.matchCtx;

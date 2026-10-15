@@ -195,3 +195,27 @@ The global collapsible text panel preserves history and drafts across match phas
 escapes user text via Preact and clears its state on leave/kick/room or identity change. Enter sends (Chinese IME
 composition does not), Shift+Enter edits and Esc collapses. Failure preserves the draft; offline requests are never
 queued. The original picture-only emote wheel is retained. No battle rules or golden results change.
+
+Owner follow-up (2026-10-15): the entry button and panel title can be dragged, or moved with arrow keys
+(Shift for 10 px). Placement is a localStorage preference per browser origin and nickname, so signing in again
+with the same name restores it even after server-session expiry; same-name users on that browser share it.
+Normalized coordinates follow viewport changes; the panel stays on screen and offers a default-position reset.
+No position, messages or drafts are added to the wire protocol or server persistence.
+
+### Local host chat management and restart recovery (owner extension, 2026-10-15)
+
+Only the authenticated loopback console can announce, clear, mute or remove members; no C2S management intent exists.
+Announcements use `role: 'system'` and the existing length cap; `CHAT_MUTED` explicitly rejects a muted player's send.
+`chat.history` also carries `clearedThrough`: clients discard entries at or below this watermark, including delayed frames;
+clearing never reuses message ids. Normal player chat is still memory-only. Host operation summaries may be recorded.
+
+The owner authorized automatic disk recovery to the latest pre-effect PREP boundary, retaining selected cards and
+discarding later history/replay. Original hello tokens restore identity; no nickname/IP matching or new C2S route is added.
+Recovery requires matching release/sim/data/meta fingerprints; LOCAL-DEV §9 defines persistence and failure behavior.
+Public `GET /release-notes.json` is read-only player release text. Wall, resources, aggregate results and recovery
+administration remain behind console token + Host validation on 127.0.0.1.
+
+Follow-up: the wall embeds four complete read-only live views, each running a non-authoritative battle replica;
+it never sends player mutations or battle results. Only authenticated wall-mode live pages permit same-origin
+framing. Room timer controls now configure PREP only: null inherits current host settings, a room override replaces
+them, and other phase timers stay unchanged. The room override follows the PREP rewind/recovery snapshot.

@@ -13,6 +13,8 @@
 // answers 500.
 
 import { PROTOCOL_VERSION, APP_VERSION } from '../../shared/constants.js';
+import { readReleaseNotes } from '../release-notes.js';
+import { ROOT } from './config.js';
 import { buildTag } from './buildTag.js';
 import { setSecurityHeaders, sendError, sendJson, splitUrl } from './common.js';
 import { clientAddress, isLocalIp } from '../net.js';
@@ -53,6 +55,7 @@ const wantsTraffic = (query) => /(?:^|&)traffic(?:=(?:1|true|yes))?(?:&|$)/i.tes
  * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => void}
  */
 export function createRequestHandler({ serveStatic, health, log, trustProxy = 'auto' }) {
+  const notes = readReleaseNotes(ROOT);
   async function handleRequest(req, res) {
     const url = req.url || '/';
     if (url.length > MAX_URL_LENGTH) { sendError(req, res, 414, '请求地址过长 · URI too long'); return; }
@@ -63,6 +66,7 @@ export function createRequestHandler({ serveStatic, health, log, trustProxy = 'a
       sendError(req, res, 405, '不支持的请求方法 · Method not allowed');
       return;
     }
+    if (parts.rawPath === '/release-notes.json') { sendJson(req, res, 200, notes); return; }
     if (parts.rawPath === '/healthz') {
       const withTraffic = wantsTraffic(parts.query) && isLocalIp(clientAddress(req, trustProxy).ip);
       sendJson(req, res, 200, healthReport(health, withTraffic));

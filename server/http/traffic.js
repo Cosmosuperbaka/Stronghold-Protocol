@@ -35,16 +35,19 @@ export function createTrafficCounter({ now = Date.now } = {}) {
   const ws = { connections: 0, wireOut: 0, wireIn: 0, payloadOut: 0, payloadIn: 0, messagesOut: 0, messagesIn: 0 };
   /** @type {Map<import('node:net').Socket, { out: number, in: number }>} live sockets and their counters at the upgrade */
   const live = new Map();
+  let observer = null;
 
   /** One finished HTTP response. */
   function record(path, status, bytes) {
     const c = http[trafficCategory(path)] || http.other;
     c.requests++;
     c.bytes += bytes;
+    observer?.({ kind: 'http', category: trafficCategory(path), bytes });
     if (status === 304) c.notModified++;
   }
 
   return {
+    observe(fn) { observer = fn; },
     /**
      * Count the body bytes of `res` (every res.write / res.end) under the category of `path`, once the response is
      * done or its connection gone.
@@ -78,9 +81,9 @@ export function createTrafficCounter({ now = Date.now } = {}) {
       ws.wireIn += Math.max(0, (socket.bytesRead || 0) - base.in);
     },
     /** A message handed to ws.send (its payload before compression). */
-    wsSent(data) { ws.messagesOut++; ws.payloadOut += payloadBytes(data); },
+    wsSent(data, socket) { const bytes = payloadBytes(data); ws.messagesOut++; ws.payloadOut += bytes; observer?.({ kind: 'ws', direction: 'out', bytes, socket }); },
     /** A message received (its payload after inflating). */
-    wsReceived(data) { ws.messagesIn++; ws.payloadIn += payloadBytes(data); },
+    wsReceived(data, socket) { const bytes = payloadBytes(data); ws.messagesIn++; ws.payloadIn += bytes; observer?.({ kind: 'ws', direction: 'in', bytes, socket }); },
     /** The counters now (plain JSON). */
     snapshot() {
       let wireOut = ws.wireOut;

@@ -1,3 +1,8 @@
+import { createResultSummary } from './result-summary.js';
+import { wallView } from './admin-wall.js';
+import { createResources } from './resources.js';
+import { createIdleUpdater } from './idle-update.js';
+import { readReleaseNotes } from './release-notes.js';
 // server/admin.js — the host's local console (server/admin.html): rooms, matches and players at a glance, plus host
 // actions — 回到第 N 回合休整期 (./match/rewind.js), funds, LP, shop level, free refreshes, operator / item grants, bond
 // layers and count bonuses, 托管, effects and 机变 cards, board edits, the enemy schedule (any composition for the current round before combat or any later
@@ -37,6 +42,8 @@ import { createStaticHandler } from './http/static.js';
 import { getReplayConfig, setReplayConfig, replayRecord, recordReplayAdmin } from './match/replay.js';
 import { replayIdentity, saveReplay, readReplay, replayFiles, recordFiles, deleteRecordFiles, replayAdminLogs, REPLAY_ID } from './replay-store.js';
 import { liveState, liveIntent } from './admin-live.js';
+import { cleanChatText } from './chat.js';
+import { sendSession } from './net.js';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const OK = { ok: true };
@@ -96,7 +103,8 @@ function matchView(m) {
     phase: m.phase, phaseName: PHASE_NAMES[m.phase] || m.phase, round: m.round, ended: m.ended, paused: m.paused, solo: m.isSolo,
     left: m.deadline ? Math.max(0, Math.round((m.deadline - m.sched.now()) / 1000)) : null,
     rewindRounds: [...m.prepSnapshots.keys()].sort((a, b) => a - b), errors: m.errorCount,
-    timerScale: m.timerScale, enemyPlan: planView(m, BEFORE_COMBAT.has(m.phase)),
+    timerScale: m.timerScale, prep: m.prepOverride ?? getPrep(), prepInherited: m.prepOverride == null,
+    enemyPlan: planView(m, BEFORE_COMBAT.has(m.phase)),
     fields: m.fields.filter((f) => f.cc && !f.done).map((f) => ({ id: f.fieldId, kind: f.kind, players: f.players.map((pid) => m.players.get(pid)?.name || pid) })),
     players: m.order.map((ps) => ({
       id: ps.playerId, name: ps.name, bot: ps.isBot, connected: ps.connected && !ps.left, alive: ps.alive, ready: ps.ready,
@@ -125,7 +133,9 @@ function statsOf(ps) {
 export function roomsView(lobby) {
   return [...lobby.rooms.values()].map((r) => ({
     code: r.code, mode: r.mode, difficulty: r.difficulty,
-    seats: r.seats.filter(Boolean).map((s) => ({ name: s.name, bot: s.isBot, connected: s.connected && !s.left })),
+    seats: r.seats.filter(Boolean).map((s) => ({ id: s.playerId, seat: s.seat, left: !!s.left, muted: !!r.chat?.muted.has(s.playerId), name: s.name, bot: s.isBot, connected: s.connected && !s.left })),
+    spectators: (r.spectators || []).map((s) => ({ id: s.playerId, name: s.name, connected: s.connected })),
+    chat: r.chat?.history(r.code) || { messages: [] },
     match: r.match && r.match.order ? matchView(r.match) : null,
     // the room's last ended match, while no new one runs: its statistics stay on the room card
     lastMatch: r.match ? null : r.adminLastMatch || null,
@@ -389,11 +399,18 @@ const MATCH_ACTIONS = {
   },
   battleWin: (m, v) => forceField(m, v, true),
   battleLose: (m, v) => forceField(m, v, false),
-  // phase / turn timers set from now on (a running countdown keeps its deadline)
+  // Legacy action name: now changes prep only, like the standing console settings.
   timerScale: (m, v) => {
     const n = Number(v);
     if (!(n >= 0.1 && n <= 10)) return { error: '倍率范围 0.1–10' };
-    m.timerScale = n;
+    m.prepOverride = { mode: 'scale', scale: n };
+    return OK;
+  },
+  prepTimer: (m, v) => {
+    if (v === null) { m.prepOverride = null; return OK; }
+    const r = normalizePrep(v);
+    if (r.error) return r;
+    m.prepOverride = r.prep;
     return OK;
   },
   endMatch: (m) => {
@@ -405,10 +422,15 @@ const MATCH_ACTIONS = {
 /** POST /api/action { room, action, playerId?, value? } → { ok } | { error, detail? }; kept in the room's action log. */
 export function handleAction(lobby, body) {
   const { room: code, action, playerId, value } = body || {};
+  if (code === '*' && action === 'announce') {
+    if (!cleanChatText(value)) return { error: '公告须为 1–200 字且不超过 1024 字节' };
+    for (const room of lobby.rooms.values()) handleAction(lobby, { ...body, room: room.code });
+    return OK;
+  }
   const room = lobby.rooms.get(String(code));
   if (!room) return { error: '房间不存在' };
   // the player's name as it was when the action ran (before the action: a closed room has no log to keep)
-  const player = room.match && room.match.players && room.match.players.get(String(playerId));
+  const player = room.match?.players?.get(String(playerId)) || room.seatOf?.(playerId) || room.spectatorOf?.(playerId);
   if (room.match?.order) recordReplayAdmin(room.match, { action: String(action), player: player?.name || null, value, round: room.match.round });
   const res = runAction(lobby, room, action, playerId, value);
   if (action !== 'closeRoom') {
@@ -422,6 +444,35 @@ export function handleAction(lobby, body) {
 }
 
 function runAction(lobby, room, action, playerId, value) {
+  if (action === 'announce') {
+    const text = cleanChatText(value);
+    if (!text) return { error: '公告须为 1–200 字且不超过 1024 字节' };
+    lobby.broadcastRoom(room, room.chat.announce(room, text, lobby.now()));
+    return OK;
+  }
+  if (action === 'chatClear') {
+    room.chat.clearMessages();
+    lobby.broadcastRoom(room, room.chat.history(room.code));
+    return OK;
+  }
+  if (action === 'chatMute') {
+    const seat = room.seatOf(playerId);
+    if (!seat || seat.isBot || seat.left) return { error: '玩家不存在' };
+    if (typeof value !== 'boolean') return { error: '禁言状态须为布尔值' };
+    if (value) room.chat.muted.add(playerId); else room.chat.muted.delete(playerId);
+    return OK;
+  }
+  if (action === 'chatKick') {
+    const seat = room.seatOf(playerId) || room.spectatorOf(playerId);
+    if (!seat || seat.isBot || seat.left) return { error: '玩家或观战者不存在' };
+    const target = lobby.registry.byId(playerId), replay = lobby.replayFor(room, playerId);
+    lobby.removeMember(room, playerId);
+    if (target) {
+      if (target.connected) sendSession(target, { t: 'room.closed', reason: 'kicked' });
+      else { target.notice = 'kicked'; target.pendingResult = replay; }
+    }
+    return OK;
+  }
   if (action === 'closeRoom') {
     lobby.disposeRoom(room, '控制台关闭');
     return OK;
@@ -533,7 +584,7 @@ export function prepDefaults(data) {
   return out;
 }
 
-function loadSettings(file, log) {
+export function loadSettings(file, log) {
   let raw;
   try { raw = fs.readFileSync(file, 'utf8'); } catch { return; } // none yet: the data's timers
   try {
@@ -581,7 +632,7 @@ function readJson(req, limit = 8192) {
 export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log = console, resultsDir = path.join(DIR, '..', 'logs', 'results'),
   settingsFile = path.join(DIR, '..', 'logs', 'admin-settings.json'), root = path.join(DIR, '..'), onUpdateReady,
   replaysDir = path.join(path.dirname(resultsDir), 'replays'),
-  updateOptions = {}, service = null }) {
+  updateOptions = {}, service = null, network = null, traffic = null }) {
   const oldReplayConfig = getReplayConfig();
   let identity = null;
   try { identity = replayIdentity(root); } catch (e) { log.error('[replay] fingerprint unavailable', e.message); }
@@ -593,10 +644,25 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
     sharedDir: path.join(root, 'shared'), simDir: path.join(root, 'server', 'sim'), packsDir: path.join(root, 'packs'), log });
   const updater = createReleaseUpdater({ ...updateOptions, root, log, onReady: onUpdateReady,
     hasActive: () => [...lobby.rooms.values()].some((r) => r.match && !r.match.ended && !r.match.disposed) });
+  const idleUpdater = createIdleUpdater({ updater, file: path.join(path.dirname(settingsFile), 'auto-update.json'),
+    hasActive: () => [...lobby.rooms.values()].some((r) => r.match && !r.match.ended && !r.match.disposed),
+    announce: (text) => handleAction(lobby, { room: '*', action: 'announce', value: text }) });
+  const hadStart = Object.hasOwn(lobby, 'startMatch'), originalStart = lobby.startMatch;
+  lobby.startMatch = function (room, ...args) {
+    const before = room.match;
+    const result = originalStart.call(this, room, ...args);
+    if (room.match && room.match !== before) idleUpdater.matchStarted();
+    return result;
+  };
+  const idleTimer = setInterval(() => { idleUpdater.tick().catch((e) => log.error('[auto-update]', e)); }, 1000);
+  idleTimer.unref();
+  const updateStatus = () => ({ ...updater.status(), automatic: idleUpdater.status() });
+  const notes = readReleaseNotes(root);
+  const resources = createResources({ lobby, network, traffic });
   const token = randomBytes(16).toString('hex');
   let serviceAction = null, serviceTimer = null, serviceCancel = null;
   const serviceView = () => ({ instanceId: process.pid, canRestart: !!service, canShutdown: !!service && !service.shutdownReason,
-    shutdownReason: service?.shutdownReason || '', action: serviceAction });
+    shutdownReason: service?.shutdownReason || '', action: serviceAction, recoveryEnabled: lobby.recovery?.status().enabled || false });
   const page = fs.readFileSync(path.join(DIR, 'admin.html'), 'utf8').replace('__TOKEN__', token);
   const tokenBuf = Buffer.from(token);
   const authed = (req) => {
@@ -604,6 +670,7 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
     return t.length === tokenBuf.length && timingSafeEqual(t, tokenBuf);
   };
   const session = (req) => (req.headers.cookie || '').split(';').some((s) => s.trim() === `sp_admin=${token}`);
+  const summarizeResults = createResultSummary(resultsDir);
   const resultFiles = () => recordFiles(resultsDir, [path.resolve(settingsFile)]);
   const storageView = () => ({ results: resultFiles().length, replays: replayFiles(replaysDir).length,
     adminLogs: replayAdminLogs(replaysDir) + [...lobby.rooms.values()].reduce((n, r) => n + (r.adminLog?.length || 0) + (r.match?.replay?.rounds || []).reduce((s, x) => s + x.admin.length, 0), 0) });
@@ -626,6 +693,9 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
         res.setHeader('Set-Cookie', `sp_admin=${token}; HttpOnly; SameSite=Strict; Path=/`);
         return send(200, page, 'text/html; charset=utf-8');
       }
+      if (req.method === 'GET' && ['/wall', '/resources'].includes(url.pathname) && session(req)) {
+        return send(200, fs.readFileSync(path.join(DIR, 'monitor.html'), 'utf8').replace('__TOKEN__', token), 'text/html; charset=utf-8');
+      }
       if (req.method === 'GET' && url.pathname === '/replay' && session(req)) {
         return send(200, fs.readFileSync(path.join(DIR, 'replay.html'), 'utf8').replace('__TOKEN__', token), 'text/html; charset=utf-8');
       }
@@ -633,6 +703,14 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
         return send(200, fs.readFileSync(path.join(DIR, 'replay-viewer.js'), 'utf8'), 'text/javascript; charset=utf-8');
       }
       if (req.method === 'GET' && url.pathname === '/live' && session(req)) {
+        // Only the read-only wall view can be framed, and only by this same local console origin.
+        if (url.searchParams.get('wall') === '1') {
+          res.setHeader('Content-Security-Policy', "frame-ancestors 'self'");
+          const html = fs.readFileSync(path.join(DIR, 'live.html'), 'utf8').replace('__TOKEN__', token);
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store',
+            'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'SAMEORIGIN' });
+          return res.end(html);
+        }
         return send(200, fs.readFileSync(path.join(DIR, 'live.html'), 'utf8').replace('__TOKEN__', token), 'text/html; charset=utf-8');
       }
       if (req.method === 'GET' && url.pathname === '/live-viewer.js' && session(req)) {
@@ -644,6 +722,18 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
       }
       if (!url.pathname.startsWith('/api/')) return send(404, { error: 'not found' });
       if (!authed(req)) return send(403, { error: 'bad token' });
+      if (req.method === 'GET' && url.pathname === '/api/wall') return send(200, wallView(lobby, url.searchParams.get('room')));
+      if (req.method === 'GET' && url.pathname === '/api/recovery') return send(200, lobby.recovery?.status() || { enabled: false, unavailable: true, issues: [] });
+      if (req.method === 'POST' && url.pathname === '/api/recovery') {
+        const body = await readJson(req);
+        if (!lobby.recovery) return send(400, { error: '当前启动方式未启用恢复管理' });
+        if (!body || body.confirm !== true) return send(400, { error: '操作需要确认' });
+        const result = body.action === 'delete' ? lobby.recovery.delete(body.id) : lobby.recovery.configure(body.enabled);
+        log.info(`[admin] recovery ${body.action || 'configure'} → ${result.ok ? 'ok' : result.error}`);
+        return send(200, result);
+      }
+      if (req.method === 'GET' && url.pathname === '/api/resources') return send(200, resources.snapshot());
+      if (req.method === 'GET' && url.pathname === '/api/release-notes') return send(200, notes);
       if (req.method === 'GET' && url.pathname === '/api/live') {
         return send(200, liveState(lobby, Object.fromEntries(url.searchParams)));
       }
@@ -724,20 +814,22 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
           return send(500, { error: `服务操作准备失败：${e.message}` });
         }
       }
-      if (req.method === 'GET' && url.pathname === '/api/update') return send(200, updater.status());
+      if (req.method === 'GET' && url.pathname === '/api/update') return send(200, updateStatus());
       if (req.method === 'POST' && url.pathname === '/api/update') {
         const body = await readJson(req);
         if (serviceAction) return send(409, { error: '正在操作服务，请稍后重试' });
         if (!body || typeof body !== 'object' || Array.isArray(body)) return send(400, { error: '请求格式错误' });
-        if (body.action === 'check') return send(200, await updater.check());
-        if (body.action === 'open') return send(200, await updater.open());
-        if (body.action === 'more') return send(200, await updater.check(true));
-        if (body.action === 'network') return send(200, updater.configure(body.network));
-        if (body.action === 'install') return send(200, updater.install({ tag: body.tag, force: body.force === true, allowDowngrade: body.allowDowngrade === true }));
+        if (body.action === 'automatic') { const r = idleUpdater.configure(body.enabled); return send(200, { ...updateStatus(), ...(r.error ? { error: r.error } : { ok: true }) }); }
+        if (body.action === 'check') return send(200, { ...(await updater.check()), automatic: idleUpdater.status() });
+        if (body.action === 'open') return send(200, { ...(await updater.open()), automatic: idleUpdater.status() });
+        if (body.action === 'more') return send(200, { ...(await updater.check(true)), automatic: idleUpdater.status() });
+        if (body.action === 'network') return send(200, { ...(updater.configure(body.network)), automatic: idleUpdater.status() });
+        if (body.action === 'install') return send(200, { ...(updater.install({ tag: body.tag, force: body.force === true, allowDowngrade: body.allowDowngrade === true })), automatic: idleUpdater.status() });
         return send(400, { error: '未知更新操作' });
       }
       if (req.method === 'GET' && url.pathname === '/api/rooms') return send(200, { rooms: roomsView(lobby) });
       if (req.method === 'GET' && url.pathname === '/api/catalog') return send(200, catalogView(lobby, url.searchParams.get('room')));
+      if (req.method === 'GET' && url.pathname === '/api/results-summary') return send(200, summarizeResults(Object.fromEntries(url.searchParams)));
       if (req.method === 'GET' && url.pathname === '/api/results') return send(200, { records: listRecords(resultsDir) });
       if (req.method === 'GET' && url.pathname === '/api/settings') return send(200, { prep: getPrep(), uniteLayerGains: getUniteLayerGains(), replay: { enabled: getReplayConfig().enabled, keep: 50, forcedOff: process.env.SP_REPLAY === '0' }, file: settingsFile, defaults: prepDefaults(lobby.safeData()) });
       if (req.method === 'POST' && url.pathname === '/api/settings') {
@@ -768,10 +860,15 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
       return send(500, { error: '控制台内部错误' });
     }
   });
-  await new Promise((resolve, reject) => {
+  try { await new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(port, host, () => { server.off('error', reject); resolve(); });
-  });
+  }); } catch (e) {
+    clearInterval(idleTimer); resources.close();
+    if (hadStart) lobby.startMatch = originalStart; else delete lobby.startMatch;
+    setReplayConfig(oldReplayConfig);
+    throw e;
+  }
   // every finished match is saved before the lobby lets it go (the match's onEnd calls lobby.onMatchEnd by name; a
   // wrapper here keeps server/lobby.js as upstream has it). The same checks as onMatchEnd: a stale onEnd saves nothing.
   const hadOwn = Object.hasOwn(lobby, 'onMatchEnd');
@@ -796,6 +893,9 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
   return {
     url: `http://${host}:${actual}`, port: actual, token, resultsDir, replaysDir,
     close: () => new Promise((r) => {
+      clearInterval(idleTimer);
+      resources.close();
+      if (hadStart) lobby.startMatch = originalStart; else delete lobby.startMatch;
       clearTimeout(serviceTimer);
       serviceCancel?.();
       if (hadOwn) lobby.onMatchEnd = onMatchEnd; else delete lobby.onMatchEnd;

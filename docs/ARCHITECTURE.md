@@ -27,7 +27,7 @@ effects), [DATA.md](DATA.md) (generated data), [ASSETS.md](ASSETS.md) (art and a
 
 - **The server** is one Node process: plain `node:http` plus `ws`, no framework (`server/index.js` wires
   `server/http/`). It serves the static client, the generated data and the sim's source files, and runs every room and
-  match in memory — rounds, shop, economy, bots, validation. Nothing is written to disk.
+  match in memory — rounds, shop, economy, bots, validation. The owner extension persists local results, replays, settings and PREP recovery snapshots under ignored `logs/`; LOCAL-DEV §5 documents their lifetimes.
 - **The browser** loads native ES modules with no bundler and no build step; the libraries are vendored into
   `public/vendor/` by `tools/vendor.mjs` on `npm install`.
 - **The battle simulation** (`server/sim/`) is pure ESM without any Node API, served read-only at `/sim/`. Both sides
@@ -82,6 +82,9 @@ so old imports keep working: `public/js/ui/gameLogic.js` (`public/js/ui/gameLogi
 | `server/http/` | `config.js` (environment), `websocket.js` (sessions, `/ws`, permessage-deflate), `static.js` (the mounts, the `~<hash>` asset routes), `media.js`, `files.js` (MIME, brotli / gzip, ETag, ranges), `buildTag.js`, `routes.js` (`/healthz`), `traffic.js` (bytes sent by category and on the WebSocket, `/healthz?traffic=1`), `assetIndex.js` (the content hashes of `public/assets/` and `public/fonts/`, cached in `.cache/asset-hashes.json`), `assetViews.js` (the served `/data/assets.json` and `/data/local-assets.json`: every art URL with its hash segment; ASSETS.md), `common.js`, `boot.js` (a pending update package first, banner, shutdown) |
 | `server/net.js` | sessions and reconnect tokens, rate limits, message validation |
 | `server/lobby.js` | rooms, seats, AI seats, spectators; starts a `Match`; routes room text chat to `server/chat.js` (bounded in-memory history) |
+| `server/admin-wall.js`, `server/monitor.html`, `server/resources.js` | local-only four-seat read-only wall and bounded resource/RTT/traffic monitoring |
+| `server/recovery.js`, `server/idle-update.js` | version-bound PREP recovery and opt-in idle signed-release updates |
+| `server/result-summary.js`, `server/match/leak-history.js`, `server/release-notes.js` | cached cross-match aggregates, per-enemy leaks and public read-only player release notes |
 | `server/data.js` | loads `data/*.json` once (frozen) |
 | `server/packs.js` | the content packs (PACKS.md): finds the language packs of `public/i18n/` and the pack folders of `packs/`, validates them, answers `/packs/index.json` and which pack files may be served; re-reads the folders when they change |
 | `server/update.js` | the update package on the player's machine (DEPLOY.md §1.5): before the server starts, an extracted `UPDATE.json` is finished — the install verified against `MANIFEST.json`, the files the new version dropped deleted, or the start refused when the install is another version; doctor's `MANIFEST.json` check |
