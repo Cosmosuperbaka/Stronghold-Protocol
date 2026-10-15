@@ -12,6 +12,9 @@ import { computeBonds, bondSnapshot, activatedLayers, bondsWithGains } from '../
 export class PlayerRound {
   startRound(r) {
     this.round = { refreshes: 0, buys: 0, sells: 0, spent: 0, gainedChess: 0, arts: 0 };
+    this.economy = { opening: this.funds, income: {}, expense: {} };
+    this.lastRoundBonds = null;
+    this.leakHistory = [];
     this.pendingLayerGains = null; // settled (or lapsed) at the last SETTLE
     if (r > 1) this.shop.upgradePrice = Math.max(0, this.shop.upgradePrice - 1);
     // onIncome handlers may rewrite ev.income / ev.pending (e.g. 老鲤 withholds R1–R2 income until R3)
@@ -19,7 +22,8 @@ export class PlayerRound {
     this.pendingFunds = 0;
     this.m.dispatch(this, 'onIncome', ev);
     const nonNeg = (v) => (Number.isFinite(v) && v > 0 ? Math.trunc(v) : 0);
-    this.addFunds(nonNeg(ev.income) + nonNeg(ev.pending), { reason: 'income' });
+    this.addFunds(nonNeg(ev.income), { reason: 'income' });
+    this.addFunds(nonNeg(ev.pending), { reason: 'pending' });
     // temp is NOT wiped here: the last prep's deadline resolved what the player could act on (endPrep); what overflowed
     // after it (battle-result grants, SETTLE merges, returned equipment) is shown and usable in this prep (tempDue).
     // Likewise reward offers of the last prep already expired at its end; what is still queued was earned after it —
@@ -43,7 +47,7 @@ export class PlayerRound {
     for (const uid of [...this._tempDue.keys()]) if (!this.temp.some((p) => p && p.uid === uid)) this._tempDue.delete(uid);
     this.offers = [];
     this.clearUnfrozenShop();
-    if (!this.gd.leftoverKeptBands.includes(this.bandId)) this.funds = 0;
+    if (!this.gd.leftoverKeptBands.includes(this.bandId)) { this.noteEconomy(-this.funds, 'discard'); this.funds = 0; }
     this.ready = true;
     this.dirty();
   }
@@ -51,6 +55,8 @@ export class PlayerRound {
   // `effects` are kept: a 信标 gift still pending is delivered to the teammate at the next round start (builtin_gift is
   // flagged afterElimination — GitHub #86); nothing else of an eliminated player is dispatched.
   eliminate(round) {
+    this.lastRoundBonds = structuredClone(this.bonds);
+    this.noteEconomy(-this.funds, 'eliminated');
     this.alive = false;
     this.ready = false;
     this.eliminatedRound = round;

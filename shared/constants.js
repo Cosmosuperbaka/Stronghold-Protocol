@@ -162,6 +162,7 @@ export const ANIM = Object.freeze({ IDLE: 0, MOVE: 1, ATTACK: 2, SKILL: 3, DIE: 
 
 export const ERR = Object.freeze({
   BAD_MSG: 'BAD_MSG',             // malformed / unknown message
+  CHAT_MUTED: 'CHAT_MUTED',
   SESSION_IN_USE: 'SESSION_IN_USE', // a local recovery candidate cannot replace the connected holder
   RATE: 'RATE',                   // rate limited
   NOT_IN_ROOM: 'NOT_IN_ROOM',
@@ -188,6 +189,7 @@ export const ERR = Object.freeze({
 });
 
 export const ERR_TEXT = {
+  CHAT_MUTED: N_('你已被主机禁言，请联系主机解除'),
   SESSION_IN_USE: N_('此对局仍在其他窗口中，或当前浏览器无法安全恢复。请关闭原窗口后重试。'),
   BAD_MSG: N_('无效的请求'), RATE: N_('操作过于频繁'), NOT_IN_ROOM: N_('你不在房间中'), ROOM_NOT_FOUND: N_('未找到该同盟密钥对应的房间'),
   ROOM_FULL: N_('房间已满'), ROOM_STARTED: N_('模拟已开始'), NOT_HOST: N_('只有房主可以操作'), NOT_READY: N_('仍有玩家未就绪'),
@@ -279,3 +281,14 @@ export const emoteArtGroup = (id) => { const e = emoteInfo(id); return e ? `emot
 export const emoteArtPath = (id) => { const e = emoteInfo(id); return e ? `/assets/local/emoticon/${e.dir}/${e.picId}.png` : null; };
 export const EMOTE_COOLDOWN_MS = 1000; // activity_table autoChessData.constData.chatCD (s)
 export const EMOTE_BUBBLE_MS = 3000;   // constData.chatTime (s): how long a bubble stays up
+
+// [ASSUMED] Remake-only field pings. They are ephemeral room events, independent of the official emote wheel.
+export const PING_KINDS = Object.freeze(['attention', 'attack', 'danger', 'retreat', 'question']);
+export const PING_COOLDOWN_MS = 500;
+export const PING_TTL_MS = 2500;
+export const PING_KEEP = 32;
+
+// [ASSUMED] Remake-only room text chat, requested by the owner; independent of the official emote wheel.
+export const CHAT_MAX_CHARS = 200;
+export const CHAT_HISTORY_LIMIT = 50;
+export const CHAT_COOLDOWN_MS = 1000;

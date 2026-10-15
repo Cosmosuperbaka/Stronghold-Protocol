@@ -99,9 +99,10 @@
 //     a player seat (the seat is kept and given back on resume).
 
 import { randomBytes, randomInt } from 'node:crypto';
-import { ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor } from '../shared/constants.js';
+import { ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor, CHAT_COOLDOWN_MS } from '../shared/constants.js';
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks } from '../shared/protocol.js';
 import { encode, isDroppable, isErrCode, sendRaw, sendSession } from './net.js';
+import { RoomChat, cleanChatText } from './chat.js';
 import { getData as defaultGetData, lookup } from './data.js';
 import { Match as DefaultMatch } from './match/Match.js';
 import { ROOM_EXTENSIONS_DEFAULT, normalizeExtensions } from '../shared/constants.js';
@@ -193,6 +194,7 @@ export class Room {
     this.seats = new Array(MAX_SEATS).fill(null);
     /** @type {{ playerId: string, name: string, connected: boolean }[]} spectator seats, ≤ MAX_SPECTATORS (header) */
     this.spectators = [];
+    this.chat = new RoomChat();
     /** @type {any} running Match instance */
     this.match = null;
     /** @type {{ live: boolean, ended: boolean, disposed: boolean, match: any } | null} */
@@ -239,6 +241,7 @@ export class Room {
       aiPicksLast: this.aiPicksLast,
       extensions: { ...this.extensions },
       inMatch: !!this.match,
+      textChat: true,
       seats: this.seats.map((s) => (s
         ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left }
         : null)),
@@ -270,6 +273,7 @@ export class Lobby {
     this.opts = { ...LOBBY_DEFAULTS, ...options };
     /** @type {Map<string, Room>} */
     this.rooms = new Map();
+    this.chatTimes = new WeakMap();
     /** @type {Map<string, NodeJS.Timeout>} lobby grace timers by playerId */
     this.graceTimers = new Map();
     /** @type {Map<string, NodeJS.Timeout>} deferred (coalesced) resyncs by playerId */
@@ -330,7 +334,7 @@ export class Lobby {
     if (!room.match && seat.name !== session.name) { seat.name = session.name; changed = true; }
     if (!room.hostId) { this.migrateHost(room); changed = true; }
     if (changed) this.broadcastState(room);
-    else this.sendState(room, session);
+    else this.sendState(room, session, false);
     this.resync(session, !resumed);
   }
 
@@ -346,6 +350,7 @@ export class Lobby {
       case 'room.join': return this.join(session, msg);
       case 'room.leave': return this.leave(session);
       case 'room.ready': return this.ready(session, msg);
+      case 'room.chat': return this.chat(session, msg);
       case 'room.setDifficulty': return this.setDifficulty(session, msg);
       case 'room.setAiPicksLast': return this.setAiPicksLast(session, msg);
       case 'room.setExtensions': return this.setExtensions(session, msg);
@@ -460,6 +465,25 @@ export class Lobby {
     session.pendingResult = null;
     if (!room.hostId) room.hostId = session.playerId;
     this.broadcastState(room);
+    sendSession(session, room.chat.history(room.code));
+    return OK;
+  }
+
+  // [ASSUMED] Owner-requested remake text chat; spectators read only, in every room/match phase.
+  chat(session, { text, clientId }) {
+    const room = this.roomOf(session);
+    if (!room) return fail(ERR.NOT_IN_ROOM);
+    const seat = room.seatOf(session.playerId);
+    if (!seat || seat.isBot || seat.left) return fail(ERR.SPECTATOR);
+    if (room.chat.muted.has(session.playerId)) return fail(ERR.CHAT_MUTED);
+    const clean = cleanChatText(text);
+    if (clean === null || typeof clientId !== 'string' || !/^[A-Za-z0-9_\-.:]{1,64}$/.test(clientId)) return fail(ERR.BAD_MSG);
+    if (room.chat.seen(session, clientId)) return OK;
+    const now = this.now();
+    if (now - (this.chatTimes.get(session) ?? -Infinity) < CHAT_COOLDOWN_MS || !room.chat.admit(now)) return fail(ERR.RATE);
+    this.chatTimes.set(session, now);
+    room.chat.remember(session, clientId);
+    this.broadcastRoom(room, room.chat.message(room, seat, clean, now));
     return OK;
   }
 
@@ -493,6 +517,7 @@ export class Lobby {
     session.notice = null;
     session.pendingResult = null;
     this.broadcastState(room);
+    sendSession(session, room.chat.history(room.code));
     if (room.match) this.callMatch(room, 'addSpectator', session.playerId);
     return OK;
   }
@@ -743,7 +768,7 @@ export class Lobby {
   // ---------------------------------------------------------------------------------------------------
 
   /** @param {Room} room @param {string | null} [key] per-network limit key of the starter */
-  startMatch(room, key = null) {
+  startMatch(room, key = null, restored = null) {
     const host = room.seatOf(room.hostId);
     if (host) host.ready = true;
     const seats = room.seats.filter(Boolean).map((s) => ({
@@ -760,7 +785,8 @@ export class Lobby {
     // lastPublic / results: the latest m.public broadcast and the m.result frames (encoded), kept for the replay.
     const ctx = { live: true, ended: false, disposed: false, match: null, lastPublic: null, sharedResult: null, results: new Map() };
     let seed = 0;
-    try { seed = this.seedFn() >>> 0; } catch { seed = randomInt(2 ** 32); }
+    if (restored) seed = restored.seed;
+    else try { seed = this.seedFn() >>> 0; } catch { seed = randomInt(2 ** 32); }
     try {
       const match = new this.MatchClass({
         roomCode: room.code,
@@ -771,12 +797,14 @@ export class Lobby {
         aiPicksLast: room.mode !== 'solo' && room.aiPicksLast === true,
         // 玩法扩展 (room.setExtensions): fixed for the match
         extensions: { ...room.extensions },
-        seats,
+        // 重启恢复 (extended.4): the restored lineup, else the room's seats
+        seats: restored?.seats || seats,
         // the spectator seats (header): watched like eliminated players, never players
         spectators: room.spectators.map((s) => s.playerId),
-        seed,
+        seed: restored?.seed ?? seed,
         // the room's match number: with the seed it keeps battleIds unique across the room's matches (DESIGN §14)
-        matchNo: room.matchCount + 1,
+        matchNo: restored?.matchNo ?? room.matchCount + 1,
+        onPrepSnapshot: (m, snap) => this.recovery?.save(room, m, snap),
         data: this.safeData(),
         log: this.log,
         now: this.now,
@@ -792,7 +820,8 @@ export class Lobby {
       room.matchCount++;
       this.log.info(`[lobby] ${room.code} match #${room.matchCount} starting (${room.mode}/${room.difficulty}, ${seats.length} seats, seed ${seed})`);
       this.broadcastState(room);
-      match.start();
+      if (restored) this.recovery.restoreMatch(match, restored);
+      else match.start();
     } catch (e) {
       this.log.error(`[lobby] ${room.code} match failed to start`, e);
       if (room.matchCtx === ctx) { room.match = null; room.matchCtx = null; room.matchKey = null; }
@@ -806,6 +835,7 @@ export class Lobby {
   /** onEnd callback: return the room to LOBBY and dispose the match on the next macrotask. */
   onMatchEnd(room, ctx, summary) {
     if (ctx.ended || !ctx.live || room.matchCtx !== ctx || room.disposed) return;
+    this.recovery?.remove(room.code);
     ctx.ended = true;
     room.lastSummary = summary ?? null;
     room.match = null;
@@ -905,6 +935,7 @@ export class Lobby {
     const room = this.roomOf(session);
     if (!room) return;
     session.resyncAt = this.now();
+    sendSession(session, room.chat.history(room.code));
     if (room.match) {
       this.callMatch(room, room.spectatorOf(session.playerId) ? 'addSpectator' : 'onReconnect', session.playerId);
       return;
@@ -1117,6 +1148,7 @@ export class Lobby {
    */
   disposeRoom(room, reason) {
     if (room.disposed) return;
+    this.recovery?.roomClosed(room.code);
     room.disposed = true;
     if (this.rooms.get(room.code) === room) this.rooms.delete(room.code);
     const ctx = room.matchCtx;
@@ -1175,8 +1207,9 @@ export class Lobby {
     for (const session of this.memberSessions(room)) sendRaw(session.ws, data);
   }
 
-  sendState(room, session) {
+  sendState(room, session, includeChat = true) {
     sendSession(session, room.toState());
+    if (includeChat) sendSession(session, room.chat.history(room.code));
   }
 
   /** Match broadcast: encode once, send to every connected member. @returns {string | null} the encoded frame */

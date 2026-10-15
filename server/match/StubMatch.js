@@ -60,8 +60,8 @@
 // onEnd — so the lobby's "play again" loop can be exercised, also from a browser that has no briefing UI.
 // 'g.emote' is relayed as m.emote (1 s cooldown) so clients can test broadcast plumbing.
 
-import { C2S } from '../../shared/protocol.js';
-import { PHASE, ERR, EMOTE_COOLDOWN_MS, GEO, modeIdFor } from '../../shared/constants.js';
+import { C2S, validateC2S } from '../../shared/protocol.js';
+import { PHASE, ERR, EMOTE_COOLDOWN_MS, PING_COOLDOWN_MS, GEO, modeIdFor } from '../../shared/constants.js';
 import { getConfig, getMode } from '../data.js';
 
 const GAME_TYPES = new Set(Object.keys(C2S).filter((t) => Object.hasOwn(C2S, t) && t.startsWith('g.')));
@@ -100,7 +100,7 @@ export class StubMatch {
     /** @type {Map<string, {seat:number, playerId:string, name:string, isBot:boolean, connected:boolean, left:boolean, ready:boolean, lastEmoteAt:number}>} */
     this.players = new Map();
     for (const s of opts.seats) {
-      this.players.set(s.playerId, { ...s, left: false, ready: !!s.isBot, lastEmoteAt: -Infinity });
+      this.players.set(s.playerId, { ...s, left: false, ready: !!s.isBot, lastEmoteAt: -Infinity, lastPingAt: -Infinity });
     }
     this.phase = PHASE.LOBBY;
     this.deadline = 0;
@@ -141,6 +141,14 @@ export class StubMatch {
         p.lastEmoteAt = now;
         this.broadcastFn({ t: 'm.emote', playerId, id: msg.id });
       }
+    } else if (msg.t === 'g.ping') {
+      if (validateC2S(msg)) return { error: ERR.BAD_MSG };
+      const target = msg.fieldId.startsWith('n:') ? this.players.get(msg.fieldId.slice(2)) : null;
+      if (!target || target.left) return { error: ERR.BAD_TARGET };
+      const now = this.now();
+      if (now - p.lastPingAt < PING_COOLDOWN_MS) return { error: ERR.RATE };
+      p.lastPingAt = now;
+      this.broadcastFn({ t: 'm.ping', playerId, name: p.name, fieldId: msg.fieldId, area: msg.area, row: msg.row, col: msg.col, kind: msg.kind });
     }
     return { ok: true };
   }

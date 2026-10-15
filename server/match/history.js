@@ -40,6 +40,11 @@ export function recordRound(m, { includeBattleResults = true } = {}) {
       killsTotal: s.kills,
       roundDmg: dmg - (b ? b.dmg : 0),
       perfect: !!r && s.leaks === (b ? b.leaksTotal : 0) && r.perfect !== false,
+      economy: ps.economy ? { ...structuredClone(ps.economy), closing: ps.funds, refreshes: ps.round.refreshes, buys: ps.round.buys, sells: ps.round.sells } : null,
+      income: ps.economy ? Object.values(ps.economy.income).reduce((n, v) => n + v, 0) : null,
+      expense: ps.economy ? Object.values(ps.economy.expense).reduce((n, v) => n + v, 0) : null,
+      bonds: Object.entries(ps.lastRoundBonds || ps.bonds || {}).map(([id,b]) => ({ id, name: ps.gd.bond(id)?.name || id, active: b.active, layers: b.layers, tier: b.tier })),
+      leakDetails: includeBattleResults ? structuredClone(ps.leakHistory || []) : [],
       units,
     };
   });

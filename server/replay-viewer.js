@@ -5,10 +5,13 @@ const $ = (id) => document.getElementById(id);
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const kindName = { normal: '各自行动', unite: '联防', boss: '最终攻势', hidden: '隐秘核心' };
 const sourceName = { client: '浏览器上报', server: '服务器接管', synthetic: '控制台判定或合成结果', 'boss-credited': '共享血池结算' };
-const reasonName = { 'shared-boss': '领袖战使用实时共享血池，仅展示当时的结果。', synthetic: '这场战斗采用合成结果，无法原样重放。', unfinished: '战斗未结束，没有可核对的结果。', version: '版本已变，无法保证原样重放。' };
+const reasonName = { 'shared-boss': '领袖战缺少实时共享血池与全队生命同步，尝试播放仅模拟当前战场，最长播放至记录时长，结果可能不同。', synthetic: '这场战斗采用合成结果，无法原样重放。', unfinished: '战斗未结束，没有可核对的结果。', version: '版本已变，无法保证原样重放。' };
 let replay, selected, runner, view, sequence = 0, paused = false, loading = false;
 const nameOf = (pid) => replay.players?.find((p) => p.playerId === pid)?.name || pid;
 const number = (n) => Number(n || 0).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+const bossLike = (f) => f.kind === 'boss' || f.kind === 'hidden';
+const warnings = (f) => [!replay.compatible && reasonName.version, bossLike(f) && reasonName['shared-boss']].filter(Boolean).join(' ');
+const playingText = () => selected.playable ? '正在播放，结束后核对结果…' : `正在尝试播放；${warnings(selected)}`;
 
 function stop() {
   sequence++;
@@ -43,15 +46,15 @@ function choose(index) {
   $('field-title').textContent = `${kindName[f.kind] || f.kind} · ${f.players.map(nameOf).join('、')}`;
   $('field-meta').textContent = `第 ${f.spec.round} 回合 · 战场 ${f.fieldId} · ${sourceName[f.source] || '尚无结果'}`;
   $('digest').className = f.reason ? 'warn' : 'meta';
-  $('digest').textContent = reasonName[f.reason] || '播放结束后，将核对模拟结果与已采纳结果。';
+  $('digest').textContent = (f.canAttempt && warnings(f)) || reasonName[f.reason] || '播放结束后，将核对模拟结果与已采纳结果。';
   $('play').disabled = !f.playable && !f.canAttempt;
-  $('play').textContent = !replay.compatible && f.canAttempt ? '仍然尝试播放' : '播放战斗';
+  $('play').textContent = !f.playable && f.canAttempt ? '仍然尝试播放' : '播放战斗';
   showDetails(f);
 }
 
 async function play() {
   if (!selected || loading || (!selected.playable && !selected.canAttempt)) return;
-  if (!replay.compatible && !window.confirm('录制与当前模拟器或数据版本不同，可能无法播放或得出不同结果。仍然尝试？')) return;
+  if (!selected.playable && !window.confirm(`${warnings(selected)} 可能无法播放或得出不同结果。仍然尝试？`)) return;
   stop();
   const seq = sequence, f = selected;
   loading = true;
@@ -79,19 +82,24 @@ async function play() {
     runner.on('result', ({ result }) => {
       const actual = resultDigest(result);
       const same = actual.json === f.digest?.json;
-      $('digest').className = same && replay.compatible ? 'good' : 'warn';
-      $('digest').textContent = replay.compatible
+      $('digest').className = same && f.playable ? 'good' : 'warn';
+      $('digest').textContent = bossLike(f)
+        ? `领袖战尝试播放结束：本次结果${same ? '摘要相同，仍无法保证原样重放。' : '与记录不同。'} ${warnings(f)}`
+        : replay.compatible
         ? same ? '与记录一致' : '与记录不一致：当时采纳的结果与本次模拟不同。'
         : `版本不一致：本次结果${same ? '摘要相同，仍无法保证原样重放。' : '与记录不同。'}`;
       $('pause').disabled = true;
     });
-    await runner.onStart({ t: 'b.start', spec: f.spec, battleId: f.battleId, fieldId: f.fieldId, kind: f.kind, elapsed: 0,
+    // No live b.pool / team-LP updates were recorded. End a boss attempt at its recorded game time
+    // so a field that depended on another field or the match's overtime drain cannot idle forever.
+    const spec = bossLike(f) ? { ...f.spec, timeLimit: Math.max(1 / 30, f.result.time) } : f.spec;
+    await runner.onStart({ t: 'b.start', spec, battleId: f.battleId, fieldId: f.fieldId, kind: f.kind, elapsed: 0,
       speed: Number($('speed').value), authoritative: true, watch: false, done: false });
     if (seq !== sequence) return;
     if (!runner.state()) throw new Error('模拟器无法读取此战斗');
     $('restart').disabled = false;
     $('pause').disabled = !!runner.state()?.done;
-    if (!runner.state()?.done) $('digest').textContent = replay.compatible ? '正在播放，结束后核对结果…' : '正在尝试播放；版本不一致。';
+    if (!runner.state()?.done) $('digest').textContent = playingText();
   } catch (e) {
     if (seq !== sequence) return;
     $('digest').className = 'bad';
@@ -108,8 +116,8 @@ $('pause').onclick = () => {
   runner?.setPaused(paused); view?.setPaused(paused);
   $('pause').textContent = paused ? '继续播放' : '暂停';
   if (!runner?.state()?.done) $('digest').textContent = paused
-    ? `已暂停${replay.compatible ? '，继续播放后核对结果。' : '；版本不一致。'}`
-    : replay.compatible ? '正在播放，结束后核对结果…' : '正在尝试播放；版本不一致。';
+    ? `已暂停${selected.playable ? '，继续播放后核对结果。' : `；${warnings(selected)}`}`
+    : playingText();
 };
 $('speed').onchange = () => runner?.setSpeed(Number($('speed').value));
 $('timeline').onclick = (e) => { const b = e.target.closest('[data-field]'); if (b) choose(Number(b.dataset.field)); };
@@ -124,7 +132,7 @@ async function init() {
     const modeName = replay.mode.startsWith('mode_single_') ? '独立模拟' : '同盟';
     $('match-meta').textContent = `房间 ${replay.room} · ${modeName} / ${DIFFICULTY_NAMES[replay.difficulty] || replay.difficulty} · ${new Date(replay.savedAt).toLocaleString('zh-CN')} · 种子 ${replay.seed} · ${replay.made.app}${replay.made.release ? ` / ${replay.made.release}` : ''}`;
     $('notice').className = replay.compatible ? 'meta' : 'warn';
-    $('notice').textContent = replay.compatible ? '录制与当前模拟器、数据指纹一致。领袖战和合成结果仅供查看。' : '版本已变，无法保证原样重放。阵容与结果仍可查看；普通战斗和联防可确认后尝试播放。';
+    $('notice').textContent = replay.compatible ? '录制与当前模拟器、数据指纹一致。最终攻势和隐秘核心可确认后尝试播放，无法保证原样重放；合成结果和未完成战斗仅供查看。' : '版本已变，无法保证原样重放。普通战斗、联防、最终攻势和隐秘核心可确认后尝试播放；合成结果和未完成战斗仅供查看。';
     const rounds = new Map(); let index = 0;
     for (const r of replay.rounds) {
       if (!rounds.has(r.round)) rounds.set(r.round, { fields: [], admin: [] });
@@ -133,7 +141,7 @@ async function init() {
       group.admin.push(...r.admin);
     }
     $('timeline').innerHTML = [...rounds.entries()].sort((a, b) => a[0] - b[0]).map(([round, r]) => `<details open><summary>第 ${round} 回合${r.admin.length ? ' · 有控制台干预' : ''}</summary>
-      ${r.fields.map(({ f, index: i }) => `<button class="field-choice" data-field="${i}" aria-pressed="false">${esc(kindName[f.kind] || f.kind)} · ${f.players.map((p) => esc(nameOf(p))).join('、')}<br><span class="meta">${esc(sourceName[f.source] || '未完成')}${f.playable ? ' · 可播放' : f.canAttempt ? ' · 版本不同' : ' · 仅查看'}</span></button>`).join('')}
+      ${r.fields.map(({ f, index: i }) => `<button class="field-choice" data-field="${i}" aria-pressed="false">${esc(kindName[f.kind] || f.kind)} · ${f.players.map((p) => esc(nameOf(p))).join('、')}<br><span class="meta">${esc(sourceName[f.source] || '未完成')}${f.playable ? ' · 可播放' : f.canAttempt ? ' · 可尝试播放' : ' · 仅查看'}</span></button>`).join('')}
       ${r.admin.length ? `<details><summary>控制台操作 ${r.admin.length} 条</summary><ul>${r.admin.map((a) => `<li>${esc(a.action)}${a.player ? ` · ${esc(a.player)}` : ''}${a.value != null ? ` · ${esc(JSON.stringify(a.value))}` : ''}</li>`).join('')}</ul></details>` : ''}</details>`).join('') || '<p class="meta">没有战斗输入。旧服务器串流模式或录制前结束的对局不可播放。</p>';
     document.querySelector('main').hidden = false;
     if (index) choose(0);

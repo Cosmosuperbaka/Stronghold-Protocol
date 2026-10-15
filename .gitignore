@@ -30,6 +30,8 @@ packs/index.json
 
 # --- tests & logs ----------------------------------------------------------------------------------
 test/e2e/out/
+# Local interface review screenshots and reports.
+.impeccable/
 logs/
 *.log
 

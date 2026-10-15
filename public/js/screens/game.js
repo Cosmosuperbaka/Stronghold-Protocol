@@ -69,7 +69,7 @@
 // phase). Its pill reads 观战中, never "你已被淘汰"; its exit only leaves the seat (ui/matchChrome.js ExitModal).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
-import { PHASE, GEO } from '../../../shared/constants.js';
+import { PHASE, GEO, PING_KINDS, PING_TTL_MS } from '../../../shared/constants.js';
 import { html, Spinner, PhaseBanner, ResultDialog, Icon, Button, confirmDialog, closeAllDialogs, useTicker } from '../ui/components.js';
 import { useGameData, GIcon } from '../ui/gameComponents.js';
 import { useFieldView } from '../ui/fieldHost.js';
@@ -90,6 +90,7 @@ import { SettingsModal, settingsStore } from '../ui/settings.js';
 import { ExitModal, AwayOverlay, awayStore } from '../ui/matchChrome.js';
 import { openGuide } from '../ui/guide.js';
 import { actions, onRefreshBusy } from '../ui/gameActions.js';
+import { PING_LABELS, PingIcon, activePings, pingTileAt } from '../ui/fieldPings.js';
 import { FacingWheel, holdPiece, setPieceDir, syncPieceDirs, showRange, useTileScreen } from '../ui/facingWheel.js';
 import { Underframe, underframeRect, TempRowNotice } from '../ui/underframe.js';
 import { StandInTags } from './game/standInTags.js';
@@ -155,6 +156,40 @@ export function GameScreen() {
 /** A card of a unit of the battle on screen: a unit's, or a crate's / turret's (a device card with its `unitId`, #228). */
 const inBattleCard = (d) => d?.kind === 'unit' || (d?.kind === 'device' && d.device?.unitId != null);
 
+function PingLayer({ pings, fieldId, view }) {
+  const [, redraw] = useState(0);
+  const heard = useRef(pings.at(-1)?.seq ?? 0);
+  useEffect(() => {
+    const fresh = activePings(pings, fieldId, Date.now()).filter((p) => p.seq > heard.current);
+    heard.current = pings.at(-1)?.seq ?? heard.current;
+    for (const p of fresh) audio.ping(p.kind);
+  }, [pings, fieldId]);
+  useEffect(() => {
+    if (!pings.length) return undefined;
+    const remaining = Math.max(...pings.map((p) => p.at + PING_TTL_MS - Date.now()));
+    if (!(remaining > 0)) return undefined;
+    const timer = setInterval(() => redraw((n) => n + 1), 50);
+    const expiry = setTimeout(() => { clearInterval(timer); redraw((n) => n + 1); }, remaining);
+    return () => { clearInterval(timer); clearTimeout(expiry); };
+  }, [pings]);
+  const now = Date.now();
+  if (!view || typeof view.tileScreen !== 'function' || typeof fieldId !== 'string') return null;
+  return html`<div class="gm__ping-layer" aria-hidden="true">
+    ${activePings(pings, fieldId, now).map((p) => {
+      const pos = view.tileScreen(p.row, p.col);
+      if (!pos) return null;
+      return html`<div key=${p.seq} class=${`gm__ping gm__ping--${p.kind}`} style=${{ left: `${pos.x}px`, top: `${pos.y}px` }}>
+        <span class="gm__ping-ring"></span><span class="gm__ping-ring gm__ping-ring--echo"></span>
+        <span class="gm__ping-stem"></span>
+        <span class="gm__ping-drop">
+          ${typeof p.name === 'string' && p.name ? html`<span class="gm__ping-name" title=${p.name}>${p.name}</span>` : null}
+          <span class="gm__ping-badge"><${PingIcon} kind=${p.kind} /></span>
+        </span>
+      </div>`;
+    })}
+  </div>`;
+}
+
 function MatchScreen() {
   useDocClass('sp-in-match');
   const pub = useStore((s) => s.match.public);
@@ -163,6 +198,7 @@ function MatchScreen() {
   const myId = useStore((s) => s.me.playerId);
   const conn = useStore((s) => s.connection, shallowEqual);
   const emotes = useStore((s) => s.emotes);
+  const pings = useStore((s) => s.pings);
   const roomSolo = useStore((s) => s.room?.mode === 'solo');
   const spectator = useStore((s) => isSpectating(s.room, s.me.playerId));
   // the room's spectator seats for the top bar's 观战席 capsule (ui/hud.js SpectatorPill; GitHub #120): room.state keeps coming
@@ -194,6 +230,8 @@ function MatchScreen() {
   useEffect(() => onRefreshBusy(setRefreshBusy), []);
   const [rewardMin, setRewardMin] = useState(false);
   const [emoteOpen, setEmoteOpen] = useState(false);
+  const [pingKind, setPingKind] = useState('attention');
+  const [pingArmed, setPingArmed] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exitOpen, setExitOpen] = useState(false);
   const [drag, setDrag] = useState(null);                // { uid, kind, id } while dragging a piece
@@ -296,7 +334,7 @@ function MatchScreen() {
     getChess: (id) => { const c = gd.chess(id); return ownDiyRecord(c, priv, { chess: data.get('chess'), backups: data.get('backups') }) || c; },
     getToken: gd.token, getItem: gd.item, getEffect: gd.effect, backups: gd.backups,
   }), [priv, pub?.stageId, editable, gd.ready, deployField]);
-  live.current = { pub, priv, field, editable, hasPersonalChoice, placeCtx, watching, watchWho, home, myId, alive, spectator, detail, drawer, bondOpen, emoteOpen, settingsOpen, exitOpen, drag, facing, sel, selBusy, pen, collapsedNow: collapsed, localDone: false, canPause: false, paused };
+  live.current = { pub, priv, field, editable, hasPersonalChoice, placeCtx, watching, watchWho, home, myId, alive, spectator, detail, drawer, bondOpen, emoteOpen, settingsOpen, exitOpen, drag, facing, sel, selBusy, pen, pingKind, collapsedNow: collapsed, localDone: false, canPause: false, paused };
 
   // ---- camera: every request goes through setCam, which remembers it for the pen's way back -----------------------
   // the own prep board: the normal board, or — in the prep of a boss round — the player's half of the boss field
@@ -1040,6 +1078,11 @@ function MatchScreen() {
       view.on('tileClick', (t) => {
         if (!t || !Number.isInteger(t.row) || !Number.isInteger(t.col)) return;
         const L = live.current;
+        const fieldId = isCombatPhase(L.pub?.phase) ? (L.field?.fieldId || L.watching || L.home) : (L.watching || ownFieldId(L.myId));
+        if (t.button === 2) {
+          if (!L.spectator && !L.pen && fieldId) actions.ping(fieldId, t.row, t.col, L.pingKind);
+          return;
+        }
         const [row, col] = L.terrainTile(t.row, t.col);
         const device = L.deviceBattle
           ? deviceTipAt(L.terrainStage, row, col, { units: [...deviceUnitsRef.current.values()], snap: snapUnitsRef.current })
@@ -1375,6 +1418,24 @@ function MatchScreen() {
   const bondPop = popupView({ open: bondOpen, pub, priv, myId, field, units: popOps, live: liveLayers });
   const openBond = (id, ownerId, from) => { setBondOpen((b) => toggleBond(b, id, ownerId, from)); audio.sfx('click', { volume: 0.4 }); };
   const watchingNow = combat ? (watching || field?.fieldId || home) : watching;
+  const pingFieldId = combat ? (field?.fieldId || watchingNow) : (watching || ownFieldId(myId));
+  useEffect(() => { setPingArmed(false); }, [pingFieldId, phase, pen, spectator]);
+  const pingAvailable = !!pingFieldId && !spectator && !pen && !drag && !facing
+    && (combat || phase === PHASE.ROUND_START || phase === PHASE.SP_DRAFT || phase === PHASE.PREP);
+  const placePing = (e) => {
+    e.preventDefault();
+    if (e.button !== 0 && e.button !== 2) return;
+    const rect = combat ? (field?.rect || GEO.NORMAL_RECT) : GEO.NORMAL_RECT;
+    const tile = pingTileAt(view, rect, e.clientX, e.clientY);
+    if (tile) actions.ping(pingFieldId, tile.row, tile.col, pingKind);
+    setPingArmed(false);
+  };
+  useEffect(() => {
+    if (!pingArmed) return undefined;
+    const cancel = (e) => { if (e.key === 'Escape') setPingArmed(false); };
+    window.addEventListener('keydown', cancel);
+    return () => window.removeEventListener('keydown', cancel);
+  }, [pingArmed]);
   const shopOpen = showShop && !collapsed;
   const ufShown = !!(selEntry && editable && !facing && !drag && showPrep && ufGeo);
   // the temp overflow row holds pieces (user playtest #3 item 3): framed and labelled on the own prep board
@@ -1452,6 +1513,8 @@ function MatchScreen() {
   return html`<div class=${cx('screen', 'gm', `gm--${mode}`, drag && 'is-dragging', collapsed && 'is-collapsed', (sp || hasPersonalChoice) && 'has-sp', pen && 'is-pen', readyWhy && 'has-readywhy', dpsPanelOn(pub) && dpsPanelVisible(pub) && 'has-dps')}
       data-camera=${pen ? 'pen' : camKind}>
     <div class="gm__field" ref=${hostRef} onContextMenu=${(e) => e.preventDefault()}></div>
+    <${PingLayer} pings=${pings} fieldId=${pingFieldId} view=${view} />
+    ${pingAvailable && pingArmed ? html`<div class="gm__ping-target" onPointerDown=${placePing} onContextMenu=${(e) => e.preventDefault()}></div>` : null}
     ${viewKind === 'loading' ? html`<div class="gm__loading"><${Spinner} label="LOADING FIELD" /></div>` : null}
     <div class="gm__vignette" aria-hidden="true"></div>
     ${tempNotice ? html`<${TempRowNotice} view=${view} count=${temp.count} items=${temp.items} label=${!drag && !facing}
@@ -1521,6 +1584,12 @@ function MatchScreen() {
       <${Ticker} />
 
       <div class="gm__corner">
+        ${pingAvailable && !emoteOpen ? html`<div class="gm__ping-tools" role="group" aria-label=${t('战场标点')}>
+          <span class="gm__ping-hint">${pingArmed ? t('点击格子发送标点') : t('选择标记，或右键地面')}</span>
+          <div class="gm__ping-buttons">
+            ${PING_KINDS.map((kind) => html`<button key=${kind} type="button" class=${cx('gm__ping-btn', pingKind === kind && 'is-on', `gm__ping-btn--${kind}`)} aria-label=${t(PING_LABELS[kind])} aria-pressed=${pingKind === kind && pingArmed} title=${t(PING_LABELS[kind])} onClick=${() => { setPingKind(kind); setPingArmed(!pingArmed || pingKind !== kind); }}><${PingIcon} kind=${kind} /></button>`)}
+          </div>
+        </div>` : null}
         ${spectator ? null : html`<${EmoteWheel} open=${emoteOpen} onToggle=${setEmoteOpen} onSend=${(id) => actions.emote(id)} disabled=${conn.status !== 'online'} />`}
         <button type="button" class="gm__gear" aria-label=${t('设置')} title=${t('设置')} onClick=${() => setSettingsOpen(true)}><${GIcon} name="gear" /></button>
         <button type="button" class="gm__gear gm__guide" aria-label=${t('玩法说明')} title=${t('玩法说明')} onClick=${() => openGuide(0)}><${Icon} name="book" /></button>

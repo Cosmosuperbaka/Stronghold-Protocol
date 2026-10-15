@@ -11,10 +11,13 @@
   header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--line); }
   h1 { margin: 0; font-size: 18px; color: var(--mint); }
   h2 { margin: 0; font-size: 16px; }
-  main { padding: 16px 20px; display: grid; gap: 16px; }
+  main { padding: 16px 20px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
   main[hidden] { display: none; }
   .room { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; }
   .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  [data-room-prep-rounds] { display: flex; flex-wrap: wrap; gap: 8px 16px; width: 100%; }
+  [data-room-prep] [hidden] { display: none; }
+  [data-room-prep-rounds] label { display: inline-flex; align-items: center; gap: 6px; }
   .meta { color: var(--dim); }
   .tag { padding: 1px 8px; border-radius: 10px; border: 1px solid var(--line); font-size: 12px; }
   .tag.phase { border-color: var(--mint); color: var(--mint); }
@@ -38,9 +41,14 @@
   .candidate-options [role="option"] { display: block; padding: 5px 8px; cursor: pointer; white-space: normal; overflow-wrap: anywhere; }
   .candidate-options [role="option"]:hover, .candidate-options [role="option"][aria-selected="true"] { background: #2b3c35; color: var(--mint); }
   #status { margin-left: auto; color: var(--dim); }
+  .service-bar { padding: 10px 20px; border-bottom: 1px solid var(--line); }
+  .service-bar button { min-height: 36px; }
+  #service-status { flex: 1 1 240px; }
   #msg { position: fixed; right: 20px; bottom: 20px; max-width: 420px; padding: 10px 14px; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); display: none; }
   #msg.err { border-color: var(--red); }
   .off { color: var(--dim); }
+  .live-link { display: inline-block; padding: 3px 6px; color: var(--mint); text-decoration: underline; text-underline-offset: 3px; }
+  .live-link:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
   .empty { color: var(--dim); padding: 40px; text-align: center; }
   tr.detail > td { white-space: normal; background: #101311; padding: 10px 12px 14px; }
   .panes { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
@@ -56,7 +64,7 @@
   nav button[aria-pressed="true"] { border-color: var(--mint); color: var(--mint); }
   details.stats { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
   details.stats > summary { cursor: pointer; color: var(--mint); }
-  .stats-body { display: grid; gap: 14px; margin-top: 8px; }
+  .stats-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 8px; }
   .stats-body h3 { margin: 0 0 4px; font-size: 13px; color: var(--mint); font-weight: normal; }
   .stats-body table { margin-top: 0; }
   .stats-body td, .stats-body th { padding: 3px 8px; }
@@ -85,15 +93,23 @@
     header > .meta { flex-basis: 100%; }
     #status { margin-left: 0; }
   }
+  .chat-log { max-height: 260px; overflow: auto; overflow-wrap: anywhere; }
+  .chat-members .row { margin-top: 8px; }
 </style>
 </head>
 <body>
 <header>
   <h1>主机控制台</h1>
+  <a class="live-link" href="/resources" target="_blank" rel="noopener">资源</a>
   <nav aria-label="页面"><button data-tab="rooms" aria-pressed="true">房间</button><button data-tab="records" aria-pressed="false">对局记录</button><button data-tab="settings" aria-pressed="false">设置</button></nav>
   <span class="meta">只能在这台电脑上打开 · 修改直接生效、不扣金币；只有「加层」「补发机变卡」「装备」会触发游戏效果</span>
   <span id="status" aria-live="polite"></span>
 </header>
+<div class="row service-bar" aria-label="服务控制">
+  <button data-service="restart" disabled>重启服务</button>
+  <button data-service="shutdown" class="danger" disabled>关闭服务</button>
+  <span id="service-status" class="meta" role="status" aria-live="polite">正在读取服务状态…</span>
+</div>
 <main id="rooms"></main>
 <main id="records" hidden></main>
 <main id="settings" hidden></main>
@@ -102,12 +118,75 @@
 <datalist id="equip-list"></datalist>
 <datalist id="card-list"></datalist>
 <div id="msg" role="status" aria-live="polite"></div>
-<script>
+<script type="module">
+import { showReleaseNotes, showReleaseUpdatePrompt } from "/js/ui/releaseNotes.js";
 const TOKEN = '__TOKEN__';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const api = (p, body) => fetch(p, { method: body ? 'POST' : 'GET', headers: { 'X-Admin-Token': TOKEN, 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) })
   .then((r) => r.json());
+let servicePending = false, recoveryEnabled = false;
+let roomPoll;
+async function loadService() {
+  try {
+    const state = await api('/api/service');
+    recoveryEnabled = state.recoveryEnabled;
+    $('[data-service="restart"]').disabled = !state.canRestart;
+    $('[data-service="shutdown"]').disabled = !state.canShutdown;
+    $('#service-status').textContent = state.shutdownReason || (state.canRestart ? (recoveryEnabled ? '重启后恢复至最近休整期开始，作战需要重打本回合。' : '恢复已关闭，服务操作会结束全部对局。') : '当前启动方式不支持服务控制。');
+    if (state.action) {
+      lockService();
+      waitService(state.action);
+    }
+  } catch { $('#service-status').textContent = '读取服务状态失败，请刷新页面重试。'; }
+}
+function lockService() {
+  servicePending = true;
+  clearInterval(roomPoll);
+  clearInterval(updatePoll); updatePoll = null;
+  for (const b of document.querySelectorAll('[data-service]')) b.disabled = true;
+  for (const main of document.querySelectorAll('main')) main.inert = true;
+}
+async function controlService(action) {
+  if (servicePending) return;
+  const label = action === 'restart' ? '重启' : '关闭';
+  if (!confirm(`确定${label}服务？${recoveryEnabled ? '重启后回到最近休整期开始，保留当时机变并重打本回合；尚未进入休整期的对局无法恢复。' : '恢复已关闭，这会结束全部对局。'}所有玩家将断开连接。${action === 'shutdown' ? '关闭后需要使用启动脚本或服务管理器重新启动。' : '控制台会在重启完成后自动刷新。'}`)) return;
+  servicePending = true;
+  for (const b of document.querySelectorAll('[data-service]')) b.disabled = true;
+  $('#service-status').textContent = `正在请求${label}服务…`;
+  try {
+    const result = await api('/api/service', { action, confirm: true });
+    if (!result.ok) throw new Error(result.error || '请求失败');
+    lockService();
+    waitService(action);
+  } catch (e) {
+    servicePending = false;
+    await loadService();
+    $('#service-status').textContent = `${label}请求未确认：${e.message}。请检查状态后重试。`;
+  }
+}
+async function waitService(action) {
+  const status = $('#service-status');
+  status.textContent = action === 'restart' ? '正在重启服务，等待恢复连接…' : '正在关闭服务…';
+  const deadline = Date.now() + 60000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 1000));
+    try {
+      const response = await fetch('/', { cache: 'no-store', signal: AbortSignal.timeout(2000) });
+      if (!response.ok) throw new Error('unavailable');
+      const page = await response.text();
+      const current = page.match(/const TOKEN = '([a-f0-9]+)'/);
+      if (current && current[1] !== TOKEN) { location.reload(); return; }
+    } catch {
+      if (action === 'shutdown') {
+        status.textContent = '服务已关闭。重新启动请使用启动脚本或服务管理器。';
+        $('#status').textContent = '服务已关闭';
+        return;
+      }
+    }
+  }
+  status.textContent = action === 'restart' ? '重启后未恢复连接，请检查 logs/service-restart.log 或服务管理器，然后刷新页面。' : '服务仍可连接，关闭未完成，请检查服务日志。';
+}
 
 let catalogRoom = null;
 let catalogPending = null;
@@ -273,7 +352,7 @@ function playerRow(code, p) {
   const who = `${esc(p.name)}${p.bot ? ' <span class="tag">AI</span>' : ''}${p.connected ? '' : ' <span class="tag off">离线</span>'}${p.alive ? '' : ' <span class="tag off">淘汰</span>'}`;
   const field = (action, value, label) => `<input class="num" type="number" value="${value}" aria-label="${esc(p.name)} ${label}" data-act="${action}" data-player="${esc(p.id)}" data-room="${code}" data-label="${label}">`;
   return `<tr>
-    <td>${who}</td>
+    <td>${who} <a class="live-link" target="_blank" rel="noopener" href="/live?room=${encodeURIComponent(code)}&playerId=${encodeURIComponent(p.id)}" aria-label="实时查看 ${esc(p.name)}">实时查看 / 代操作</a></td>
     <td>${field('lp', p.lp, 'LP')}</td>
     <td>${p.funds} <input class="num" type="number" placeholder="±金币" aria-label="${esc(p.name)} 增减金币" data-act="funds" data-player="${esc(p.id)}" data-room="${code}" data-label="金币" data-clear></td>
     <td>${field('level', p.level, '商店等级')}</td>
@@ -291,6 +370,42 @@ function playerRow(code, p) {
   </tr>${open.has(p.id) ? detailRow(code, p, 8) : ''}`;
 }
 
+const chatPanels = new Map();
+function chatPanel(r) {
+  let panel = chatPanels.get(r.code);
+  if (!panel) {
+    panel = document.createElement('details');
+    panel.dataset.chatPanel = r.code;
+    panel.innerHTML = `<summary>聊天管理</summary><div class="chat-log" role="log" aria-label="房间聊天记录"></div>
+      <div class="row"><label>公告 <input id="notice-${r.code}" maxlength="400" aria-label="公告内容"></label>
+      <button data-notice="${r.code}">发送到本房间</button><button data-notice="*" data-source="${r.code}">发送到全部房间</button>
+      <button class="danger" data-click="chatClear" data-room="${r.code}" data-label="清空聊天" data-confirm="清空本房间所有聊天记录？在线玩家也会同步清空。">清空聊天</button></div><div class="chat-members"></div>`;
+    chatPanels.set(r.code, panel);
+  }
+  const signature = JSON.stringify([r.chat, r.seats, r.spectators]);
+  if (panel.dataset.signature !== signature) {
+    panel.dataset.signature = signature;
+    $('.chat-log', panel).innerHTML = r.chat.messages.length ? r.chat.messages.map((m) => `<p><strong>${m.role === 'system' ? '主机公告' : esc(m.name)}</strong> · ${clock(m.at)}<br>${esc(m.text)}</p>`).join('') : '<p class="meta">暂无消息</p>';
+    $('.chat-members', panel).innerHTML = [...r.seats.filter((p) => !p.bot && !p.left), ...(r.spectators || []).map((p) => ({ ...p, viewer: true }))].map((p) => `<div class="row"><span>${esc(p.name)}${p.viewer ? '（观战）' : ''}</span>
+      ${p.viewer ? '' : `<button data-click="chatMute" data-room="${r.code}" data-player="${esc(p.id)}" data-value="${!p.muted}" data-label="禁言管理">${p.muted ? '解除禁言' : '禁言'}</button>`}
+      <button class="danger" data-click="chatKick" data-room="${r.code}" data-player="${esc(p.id)}" data-label="踢出" data-confirm="将 ${esc(p.name)} 移出房间？对局中按离开规则处理。">踢出</button></div>`).join('');
+  }
+  return panel;
+}
+function roomPrep(r) {
+  const m = r.match, p = m.prep;
+  const summary = p.mode === 'scale' ? `默认时长 × ${p.scale}` : p.mode === 'fixed' ? `每回合 ${p.seconds} 秒` : p.mode === 'perRound' ? '按回合指定' : p.mode === 'untimed' ? '不限时' : '游戏默认时长';
+  const mode = m.prepInherited ? 'inherit' : p.mode;
+  return `<div class="row" data-room-prep="${r.code}" style="margin-top:8px">
+    <label>休整期时长 <select aria-label="本房间休整期配置" data-room-prep-mode>
+      ${[['inherit','跟随控制台'],['scale','本房间倍率'],['fixed','本房间固定秒数'],['perRound','本房间按回合指定'],['default','本房间用游戏默认'],['untimed','本房间不限时']].map(([k,v])=>`<option value="${k}" ${mode===k?'selected':''}>${v}</option>`).join('')}
+    </select></label>
+    <label data-room-prep-scale ${mode !== 'scale' ? 'hidden' : ''}>倍率 <input class="small" type="number" step="0.1" min="0.1" max="10" value="${p.scale ?? 1}" aria-label="本房间休整期倍率"></label>
+    <label data-room-prep-seconds ${mode !== 'fixed' ? 'hidden' : ''}>秒数 <input class="num" type="number" step="1" min="5" max="3600" value="${p.seconds ?? 120}" aria-label="本房间休整期秒数"></label>
+    <div data-room-prep-rounds ${mode !== 'perRound' ? 'hidden' : ''}>${m.enemyPlan.rounds.map(x=>`<label>第 ${x.round} 回合 <input class="num" type="number" min="5" max="3600" data-room-prep-round="${x.round}" value="${p.rounds?.[x.round] ?? ''}" placeholder="游戏默认" aria-label="本房间第 ${x.round} 回合秒数"></label>`).join(' ')}</div>
+    <button data-room-prep-save>应用</button><span class="meta" data-room-prep-current>${m.prepInherited ? '继承控制台：' : '本房间：'}${summary}；下个休整期生效${m.solo ? '（独立模拟不限时）' : ''}</span>
+  </div>`;
+}
 function roomCard(r) {
   const m = r.match;
   const seats = r.seats.map((s) => `${esc(s.name)}${s.bot ? '(AI)' : ''}${s.connected ? '' : '(离线)'}`).join('、');
@@ -314,25 +429,23 @@ function roomCard(r) {
         ${m.solo ? `<button data-click="pause" data-value="${m.paused ? 0 : 1}" data-room="${r.code}" data-label="${m.paused ? '继续' : '暂停'}">${m.paused ? '继续战斗' : '暂停战斗'}</button>` : ''}
         <button class="danger" data-click="endMatch" data-room="${r.code}" data-label="结束对局" data-confirm="直接结束这局（判负）？">结束对局</button>
       </div>
-      <div class="row" style="margin-top:8px">
-        <label>计时倍率 <input class="small" type="number" step="0.1" min="0.1" max="10" value="${m.timerScale}" aria-label="计时倍率" data-act="timerScale" data-room="${r.code}" data-label="计时倍率"></label>
-        <span class="meta">只影响之后设定的倒计时</span>
-      </div>
+      ${roomPrep(r)}
       ${m.fields.length ? `<div class="row" style="margin-top:8px">${m.fields.map((f) => `<span class="tag">${esc({ normal: '作战', unite: '联防', boss: '领袖', hidden: '隐秘核心' }[f.kind] || f.kind)} · ${f.players.map(esc).join('、')}</span>
         <button data-click="battleWin" data-field="${esc(f.id)}" data-room="${r.code}" data-label="判胜" data-confirm="直接判这场胜？">判胜</button>
         ${f.kind === 'normal'
           ? `<input class="small" type="number" min="1" placeholder="漏怪数" aria-label="判负：漏怪数（回车）" data-act="battleLose" data-field="${esc(f.id)}" data-room="${r.code}" data-label="判负" data-clear>`
           : `<button class="danger" data-click="battleLose" data-field="${esc(f.id)}" data-room="${r.code}" data-label="判负" data-confirm="直接判这场负？${f.kind === 'unite' ? '漏怪的玩家按自己的漏怪数扣血。' : '同盟生命归零，对局结束。'}">判负</button>`}`).join('')}
         <span class="meta">普通战场判负：输入漏怪数后回车，按漏怪数扣血（每回合最多 10）</span></div>` : ''}
-      <table>
+      <div class="xscroll"><table>
         <thead><tr><th scope="col">玩家</th><th scope="col">LP</th><th scope="col">金币</th><th scope="col">商店等级</th><th scope="col">免费刷新</th><th scope="col">作战区/手牌</th><th scope="col">状态</th><th scope="col">发放</th></tr></thead>
         <tbody>${m.players.map((p) => playerRow(r.code, p)).join('')}</tbody>
-      </table>`;
+      </table></div>`;
   }
-  body += `<div data-stats="${r.code}"></div>`;
+  body += `<div data-chat="${r.code}"></div><div data-stats="${r.code}"></div>`;
   return `<section class="room" aria-labelledby="room-${r.code}">
     <div class="row">
       <h2 id="room-${r.code}">房间 ${r.code}</h2>
+      <a class="live-link" href="/wall?room=${encodeURIComponent(r.code)}" target="_blank" rel="noopener">监控墙</a>
       <span class="meta">${r.mode === 'solo' ? '独立模拟' : '同盟'} · ${esc(r.difficulty)}</span>
       <button class="danger" style="margin-left:auto" data-click="closeRoom" data-room="${r.code}" data-label="关闭房间" data-confirm="关闭房间 ${r.code}？里面的玩家会被送回大厅。">关闭房间</button>
     </div>
@@ -344,12 +457,12 @@ function roomCard(r) {
 // series colors follow the seat order, never the rank (validated against the panel surfaces, docs/HANDOFF.md 4.8)
 const SERIES = ['#3987e5', '#d95926', '#199e70', '#c98500'];
 const INK = { grid: '#2c2c2a', axis: '#383835', label: '#898781', text: '#dfe6e2', surface: '#101311' };
-const METRICS = [['lp', 'LP'], ['funds', '剩余金币'], ['spent', '累计花费'], ['dmg', '累计伤害'], ['roundDmg', '本回合伤害'], ['level', '商店等级']];
+const METRICS = [['lp', 'LP'], ['funds', '剩余金币'], ['spent', '累计花费'], ['dmg', '累计伤害'], ['roundDmg', '本回合伤害'], ['level', '商店等级'], ['income', '本回合收入'], ['expense', '本回合支出']];
 const TOTALS = [['dmgDealt', '伤害'], ['kills', '击杀'], ['leaks', '漏怪'], ['perfectRounds', '无伤回合'], ['lpLost', '损失 LP'], ['fundsGained', '获得金币'],
   ['gold', '花费'], ['buys', '购买'], ['sells', '出售'], ['refreshes', '刷新'], ['merges', '晋升'], ['itemsEquipped', '配装'], ['healing', '治疗'],
   ['bossDamage', '领袖伤害'], ['activatedLayers', '盟约层数']];
-const ACTION_NAMES = { rewind: '回档', endPrep: '结束休整期', pause: '暂停/继续', enemyPick: '指定敌人', battleWin: '判胜', battleLose: '判负',
-  timerScale: '计时倍率', endMatch: '结束对局', funds: '金币', lp: 'LP', level: '商店等级', refresh: '免费刷新', chess: '发放干员', diy: '发放自选', diySkill: '改自选技能', item: '发放道具',
+const ACTION_NAMES = { announce: '主机公告', chatClear: '清空聊天', chatMute: '禁言管理', chatKick: '踢出', rewind: '回档', endPrep: '结束休整期', pause: '暂停/继续', enemyPick: '指定敌人', battleWin: '判胜', battleLose: '判负',
+  timerScale: '休整期倍率', prepTimer: '本房间休整期', endMatch: '结束对局', funds: '金币', lp: 'LP', level: '商店等级', refresh: '免费刷新', chess: '发放干员', diy: '发放自选', diySkill: '改自选技能', item: '发放道具',
   bondAdd: '加层', bondSet: '设层', bondBonus: '人数加成', autoplay: '托管', effectRemove: '删除效果', bountyRemove: '删除悬赏', card: '补发机变卡',
   pieceRemove: '移除棋子', piecePromote: '升精锐', pieceEquip: '装备' };
 const compact = new Intl.NumberFormat('zh-CN', { notation: 'compact', maximumFractionDigits: 1 });
@@ -372,7 +485,8 @@ function pointsOf(history, id, key) {
   for (const h of history) {
     const p = h.players.find((x) => x.playerId === id);
     if (!p) continue;
-    if (p.alive || wasAlive) out.push({ round: h.round, v: Number(p[key]) || 0 });
+    const value = key.startsWith('bond:') ? (p.bonds ? (p.bonds.find((b) => b.id === key.slice(5))?.layers ?? 0) : null) : p[key];
+    if ((p.alive || wasAlive) && value != null && Number.isFinite(Number(value))) out.push({ round: h.round, v: Number(value) });
     wasAlive = p.alive;
   }
   return out;
@@ -394,10 +508,13 @@ function drawChart(host, history, nameOf, state) {
   host.textContent = '';
   if (!history.length) { host.innerHTML = '<p class="meta">第一回合结算后开始记录。</p>'; return; }
   const series = seriesOf(history, nameOf);
-  const [key, label] = METRICS.find((x) => x[0] === state.metric) || METRICS[0];
+  const bonds = new Map();
+  for (const h of history) for (const p of h.players) for (const b of p.bonds || []) if (b.active) bonds.set(b.id, b.name);
+  const metrics = [...METRICS, ...[...bonds].map(([id, name]) => ['bond:' + id, '盟约层数 · ' + name])];
+  const [key, label] = metrics.find((x) => x[0] === state.metric) || metrics[0];
   const bar = document.createElement('div');
   bar.className = 'row';
-  bar.innerHTML = `<label>指标 <select aria-label="曲线指标">${METRICS.map(([k, l]) => `<option value="${k}" ${k === key ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+  bar.innerHTML = `<label>指标 <select aria-label="曲线指标">${metrics.map(([k, l]) => `<option value="${esc(k)}" ${k === key ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
     <button aria-pressed="${!!state.table}">${state.table ? '看曲线' : '看表格'}</button>`;
   bar.querySelector('select').addEventListener('change', (e) => { state.metric = e.target.value; drawChart(host, history, nameOf, state); });
   bar.querySelector('button').addEventListener('click', () => { state.table = !state.table; drawChart(host, history, nameOf, state); });
@@ -529,6 +646,27 @@ function drawRounds(host, history, nameOf, state) {
       <td>${p.perfect ? '<span class="good">是</span>' : ''}</td><td class="n">${p.funds}</td><td class="n">${p.level}</td>
       <td style="white-space:normal;min-width:240px">${(p.units || []).map((u) => `${esc(u.name)} <span class="meta">${fmt(u.dmg)}</span>`).join('、') || '<span class="meta">—</span>'}</td></tr>`).join('')}</tbody></table>`;
   host.append(bar, t);
+  const detail = document.createElement('div');
+  const reasons = { income: '基础收入', pending: '待发收入', interest: '利息', sell: '出售', admin: '主机调整', buy: '购买', refresh: '刷新', levelUp: '升级', discard: '休整期弃币', eliminated: '淘汰清零', effect: '其他效果', bounty: '悬赏' };
+  const entries = (o) => Object.entries(o).map(([k,v]) => `${esc(reasons[k] || k)} ${fmt(v)}`).join('、') || '无';
+  detail.innerHTML = `<h4>经济与盟约明细</h4>${h.players.map((p) => `<p><strong>${esc(nameOf(p.playerId))}</strong>：${p.economy ? `期初 ${p.economy.opening} → 结余 ${p.economy.closing}；收入 ${entries(p.economy.income)}；支出 ${entries(p.economy.expense)}；刷新 ${p.economy.refreshes} / 购买 ${p.economy.buys} / 出售 ${p.economy.sells}` : '旧记录无经济明细'}<br>盟约：${p.bonds ? p.bonds.filter((b) => b.active).map((b) => `${esc(b.name)} ${b.layers} 层 / 档位 ${b.tier}`).join('、') || '无激活盟约' : '旧记录无盟约明细'}</p>`).join('')}`;
+  host.append(detail);
+}
+
+function leaksView(history, nameOf) {
+  const rows = [], total = new Map(); let old = false;
+  for (const h of history) for (const p of h.players) {
+    if (!Array.isArray(p.leakDetails)) { old = true; continue; }
+    for (const phase of p.leakDetails) {
+      rows.push(`<tr><td>${h.round}</td><td>${esc(nameOf(p.playerId))}</td><td>${({normal:'普通战斗',unite:'联防',boss:'最终攻势',hidden:'隐秘核心'})[phase.kind]}</td><td>${phase.enemies.map((e) => `${esc(e.name)} ×${e.count}（计入 ${e.counted}）`).join('、') || '无'}</td><td>${phase.loss == null ? '全队损失 ' + (phase.teamLoss ?? '—') + '；本玩家漏怪 LP ' + phase.enemies.reduce((n,e) => n+e.leakLp,0) : phase.loss}</td></tr>`);
+      for (const e of phase.enemies) {
+        const key = phase.kind + ':' + e.name;
+        const row = total.get(key) || { name: e.name, kind: phase.kind, count: 0, rounds: new Set() };
+        row.count += e.count; row.rounds.add(h.round); total.set(key,row);
+      }
+    }
+  }
+  return `${old ? '<p class="meta">旧记录无漏怪明细</p>' : ''}<p class="meta">普通战斗每只计数漏怪扣 1 LP，受回合上限限制；联防按来源玩家的剩余敌人（含未入场）结算。实际扣血按阶段显示，上限不摊分到敌人。领袖战共享生命池，按敌人 lpr 计漏怪 LP；领袖技能等额外扣血不算漏怪。</p><div class="xscroll"><table><thead><tr><th>回合</th><th>玩家</th><th>阶段</th><th>敌人 / 数量</th><th>实际扣血</th></tr></thead><tbody>${rows.join('')}</tbody></table></div><h4>按敌人累计（各阶段分别统计）</h4><ol>${[...total.values()].sort((a,b)=>b.count-a.count).map((r)=>`<li>${esc(r.name)} · ${({normal:'普通',unite:'联防',boss:'最终攻势',hidden:'隐秘核心'})[r.kind]} · ${r.count} 只 · 回合 ${[...r.rounds].join('、')}</li>`).join('')}</ol>`;
 }
 
 /**
@@ -637,6 +775,7 @@ function statsPanel(r) {
         <div class="row" data-part="ended"></div>
         <div><h3>每回合曲线</h3><div data-part="chart"></div></div>
         <div><h3>每回合详情</h3><div data-part="rounds"></div></div>
+      <details><summary>漏怪分析</summary><div data-part="leaks"></div></details>
         <div><h3>每回合干员伤害排行</h3><div data-part="unitRounds"></div><p class="meta">伤害是实际扣掉的敌人血量（不算溢出），只算各自战场；召唤物不单列。</p></div>
         <div><h3>累计数据</h3><div data-part="totals"></div><p class="meta">花费 = 实际花掉的金币；获得金币含利息、悬赏和控制台加的。</p></div>
         <div><h3>本局干员伤害排行（累计前 5）</h3><div data-part="units"></div><p class="meta">只算各自战场里的伤害；联防里的伤害计入累计数据，但不分干员。</p></div>
@@ -669,6 +808,7 @@ function statsPanel(r) {
     // the round picker starts over at the latest round when the match shown changes (live ↔ ended)
     const key = ended ? r.lastMatch.savedAt : 'live';
     if (p.matchKey !== key) { p.matchKey = key; p.rounds.round = null; p.unitRounds = { round: null, player: '', all: false }; }
+    part('leaks', [m.history, [...names]], (host) => { host.innerHTML = leaksView(m.history, nameOf); });
     part('chart', [m.history, [...names]], (host) => drawChart(host, m.history, nameOf, p.chart));
     part('rounds', [m.history, [...names]], (host) => drawRounds(host, m.history, nameOf, p.rounds));
     part('unitRounds', [m.history, [...names]], (host) => drawUnitRounds(host, m.history, nameOf, p.unitRounds));
@@ -682,11 +822,20 @@ function statsPanel(r) {
 }
 
 // ---- 对局记录
+async function showSummary() {
+  const params = new URLSearchParams();
+  for (const k of ['mode','difficulty']) { const v = $(`#summary-${k}`).value; if(v) params.set(k,v); }
+  for (const k of ['from','to']) { const v = $(`#summary-${k}`).value; if(v) params.set(k,String(new Date(v + (k === 'to' ? 'T23:59:59.999' : 'T00:00:00')).getTime())); }
+  const d = await api('/api/results-summary?' + params);
+  const rank = (list, text) => `<ol>${list.slice(0,10).map((r)=>`<li>${esc(r.name)} · ${text(r)}</li>`).join('')}</ol>`;
+  $('#summary-data').innerHTML = `<p>${d.games} 局 · ${d.wins} 胜 · 胜率 ${(100*d.winRate).toFixed(1)}% · 跳过 ${d.skipped} 份损坏或字段缺失记录</p><div class="xscroll"><table><thead><tr><th>模式 / 难度</th><th>局数</th><th>胜率</th><th>平均到达回合</th></tr></thead><tbody>${d.groups.map((g)=>`<tr><td>${esc(g.mode)} / ${esc(g.difficulty)}</td><td>${g.games}</td><td>${(100*g.winRate).toFixed(1)}%</td><td>${g.averageRound.toFixed(1)}</td></tr>`).join('')}</tbody></table></div><div class="units"><div><h3>常用干员（按局去重）</h3>${rank(d.operators,r=>r.games+' 局')}</div><div><h3>常用盟约</h3>${rank(d.bonds,r=>r.games+' 局')}</div><div><h3>伤害累计</h3>${rank([...d.operators].sort((a,b)=>b.damage-a.damage),r=>fmt(r.damage))}</div><div><h3>单局最高伤害</h3>${rank([...d.operators].sort((a,b)=>b.maxDamage-a.maxDamage),r=>fmt(r.maxDamage))}</div></div><p class="meta">旧记录仅统计已保存的阵容、激活盟约与伤害；早期未保存的回合使用情况不会补算。</p>`;
+}
+
 async function showRecords() {
   const host = $('#records');
   const data = await api('/api/results').catch(() => ({ records: [] }));
   const list = data.records || [];
-  host.innerHTML = `<section class="room"><div class="row"><h2>对局记录</h2><span class="meta">对局结束时自动保存在 logs/results/，只在这台电脑上可见</span>
+  host.innerHTML = `<section class="room"><h2>跨局汇总</h2><div class="row"><label>开始日期 <input id="summary-from" type="date"></label><label>结束日期 <input id="summary-to" type="date"></label><label>模式 <select id="summary-mode"><option value="">全部</option><option value="solo">独立</option><option value="coop">同盟</option></select></label><label>难度 <input id="summary-difficulty" placeholder="全部"></label><button data-summary-filter>应用筛选</button></div><div id="summary-data" role="status">正在汇总…</div></section><section class="room"><div class="row"><h2>对局记录</h2><span class="meta">对局结束时自动保存在 logs/results/，只在这台电脑上可见</span>
       <button style="margin-left:auto" data-records-reload>刷新</button></div>
     ${list.length ? `<div class="xscroll"><table><thead><tr><th scope="col">结束时间</th><th scope="col">房间</th><th scope="col">模式</th><th scope="col">结果</th><th scope="col" class="n">通过回合</th><th scope="col" class="n">时长</th><th scope="col">玩家</th><th scope="col"><span class="meta">操作</span></th></tr></thead>
       <tbody>${list.map((x) => `<tr><td>${new Date(x.savedAt).toLocaleString('zh-CN', { hour12: false })}</td><td>${esc(x.room)}</td>
@@ -696,6 +845,7 @@ async function showRecords() {
         <td>${x.players.map((p) => `${esc(p.name)}${p.bot ? '<span class="meta">(AI)</span>' : ''}`).join('、')}</td>
         <td><button data-record="${esc(x.id)}">查看</button><a class="replay-link" href="/replay?id=${encodeURIComponent(x.id)}" target="_blank" rel="noopener">回放</a><button class="danger" data-record-delete="${esc(x.id)}">删除</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">还没有记录。对局结束后会出现在这里。</p>'}
   </section><div id="record"></div>`;
+  await showSummary();
 }
 
 async function showRecord(id) {
@@ -720,10 +870,12 @@ async function showRecord(id) {
           <td style="white-space:normal;min-width:160px">${(p.bonds || []).map((b) => `<span class="${b.active ? 'on' : 'meta'}">${esc(b.name)}${b.layers ? ` ${b.layers} 层` : ''}</span>`).join('、')}</td></tr>`).join('')}</tbody></table></div></div>
       <div><h3>每回合曲线</h3><div data-part="chart"></div></div>
       <div><h3>每回合详情</h3><div data-part="rounds"></div></div>
+      <details><summary>漏怪分析</summary><div data-part="leaks"></div></details>
       <div><h3>每回合干员伤害排行</h3><div data-part="unitRounds"></div></div>
       <div><h3>累计数据</h3>${totalsTable(players)}</div>
       <div><h3>本局干员伤害排行（累计前 5）</h3>${unitsRanking(history, nameOf)}</div>
     </div></section>`;
+  host.querySelector('[data-part="leaks"]').innerHTML = leaksView(history, nameOf);
   drawChart(host.querySelector('[data-part="chart"]'), history, nameOf, { metric: 'lp', table: false });
   drawRounds(host.querySelector('[data-part="rounds"]'), history, nameOf, { round: null });
   drawUnitRounds(host.querySelector('[data-part="unitRounds"]'), history, nameOf, { round: null, player: '', all: false });
@@ -763,6 +915,8 @@ function drawReleaseUpdate() {
     reconnecting: '正在安装并等待服务器恢复…',
   };
   host.innerHTML = `<h2>版本更新</h2>
+    <p><label><input type="checkbox" id="auto-update" ${d.automatic?.enabled ? 'checked' : ''} ${updateRequest ? 'disabled' : ''}> 空闲时自动安装新版本</label> <button data-auto-update-save ${updateRequest ? 'disabled' : ''}>保存自动更新设置</button></p>
+    <p class="meta" role="status">自动更新：${esc(({ disabled: '已关闭', idle: '等待检查', waiting: '等待全部对局结束', announcing: '已公告，等待一分钟', installing: '正在安装', error: '失败', 'up-to-date': '暂无新版' })[d.automatic?.state] || '已关闭')} ${esc(d.automatic?.error || '')} ${d.automatic?.lastCheck ? ' · 上次检查 ' + esc(new Date(d.automatic.lastCheck).toLocaleString()) : ''} ${esc(d.automatic?.target || '')}</p>
     <p class="meta">从 ${esc(d.repository || 'zhewang448/Stronghold-Protocol')} 下载正式 Release。保留本机素材、主机设置和对局记录；替换前备份程序文件，安装完成后自动重启。</p>
     <div class="row"><span>当前版本：<strong>${esc(d.currentVersion || '读取中…')}</strong></span>
       ${d.latestVersion ? `<span>最新版本：<strong>${esc(d.latestVersion)}</strong></span>` : ''}</div>
@@ -811,17 +965,32 @@ async function saveUpdateNetwork() {
   } catch { networkFeedback = '连接失败，请重试'; }
   finally { updateRequest = false; drawReleaseUpdate(); }
 }
+async function saveAutomaticUpdate() {
+  if (updateRequest) return;
+  const enabled = $('#auto-update').checked;
+  updateRequest = true; drawReleaseUpdate();
+  try {
+    const result = await api('/api/update', { action: 'automatic', enabled });
+    releaseUpdate = result;
+    say(result.ok ? '自动更新设置已保存' : result.error || '保存失败，请重试', !result.ok);
+  } catch { say('自动更新设置保存失败，请重试', true); }
+  finally { updateRequest = false; drawReleaseUpdate(); }
+}
 async function openUpdateConsole() {
   try {
     releaseUpdate = await api('/api/update', { action: 'open' });
+    if (servicePending) return;
     drawReleaseUpdate();
     if (['checking', 'downloading', 'verifying', 'scheduled'].includes(releaseUpdate.state)) startUpdatePolling();
-    if (releaseUpdate.notify && confirm(`发现新版本 ${releaseUpdate.tag}（当前 ${releaseUpdate.currentVersion}）。是否打开更新设置？`)) await setTab('settings');
+    if (releaseUpdate.notify && await showReleaseUpdatePrompt({
+      title: '版本更新', message: `发现新版本 ${releaseUpdate.tag}（当前 ${releaseUpdate.currentVersion}）。是否打开更新设置？`,
+      confirmLabel: '打开更新设置', cancelLabel: '稍后',
+    })) await setTab('settings');
   } catch { releaseUpdate = { ...releaseUpdate, state: 'error', error: '自动检查失败，请在设置中配置网络后重试' }; drawReleaseUpdate(); }
 }
 
 function startUpdatePolling() {
-  if (updatePoll) return;
+  if (updatePoll || servicePending) return;
   updatePoll = setInterval(async () => {
     try {
       const d = await api('/api/update');
@@ -857,7 +1026,7 @@ async function updateRelease(action, force = false, allowDowngrade = false) {
     allowDowngrade = true;
   }
   if (action === 'install' && releaseUpdate.state === 'active-matches') {
-    if (!confirm('当前有正在进行的对局。安装会结束全部对局并重启服务器，确定继续？')) return;
+    if (!confirm('当前有正在进行的对局。安装会断开全部玩家并重启服务器。恢复文件仅在版本指纹一致时可用，更新后可能无法恢复对局，确定继续？')) return;
     force = true;
   }
   updateRequest = true;
@@ -943,6 +1112,7 @@ async function showSettings() {
         <div class="row"><button class="danger" data-storage-clear>清理所选数据</button><button data-storage-refresh>刷新数量</button><span id="storage-saved" role="status"></span></div>
       </form>
     </section>
+    <section class="room" id="recovery-settings"><h2>重启恢复</h2><div id="recovery-content" role="status">正在读取…</div></section>
     <section class="room"><h2>联防叠层</h2>
     <p class="meta" id="unite-layers-help">自定义规则，默认关闭。开启后，援助干员可在联防中继续叠层，每场战斗的叠层额度重新获得；新增层数在结算时保留，盟约层数上限仍为 999。最终攻势和隐秘核心不受此开关影响。</p>
     <p class="meta">适用于所有房间，从下一次联防开始生效。设置保存在 ${esc(d.file)}，重启服务器后保留。</p>
@@ -952,7 +1122,7 @@ async function showSettings() {
     </form></section>
     <section class="room"><h2>休整期时长</h2>
     <p class="meta">所有房间、所有对局都用这一份，保存在 ${esc(d.file)}，重启服务器也保留。只对有计时的同盟对局生效：独立模拟和只有一个真人的同盟房间本来就不限时。
-      进行中的对局从下一个休整期开始生效；房间的「计时倍率」会在这之上再乘一次。不限时的休整期等所有人就绪后结束，也可以在房间里点「结束休整期」。</p>
+      进行中的对局从下一个休整期开始生效；房间默认跟随这里的配置，也可在房间卡片单独覆盖。房间倍率直接作用于游戏默认时长，不和这里的倍率重复相乘。不限时的休整期等所有人就绪后结束，也可以在房间里点「结束休整期」。</p>
     <form id="prep-form" class="stats-body" onsubmit="return false">
       <fieldset style="border:1px solid var(--line);border-radius:6px"><legend>方式</legend>
         ${PREP_MODES.map(([k, l]) => `<label style="display:block;margin:4px 0"><input type="radio" name="prep-mode" value="${k}" ${p.mode === k ? 'checked' : ''}> ${l}
@@ -966,11 +1136,28 @@ async function showSettings() {
       <div class="xscroll" id="prep-preview"></div>
     </form></section>`;
   drawPrepPreview();
+  await loadRecovery();
   refreshStorage();
   drawReleaseUpdate();
   releaseUpdate = await api('/api/update').catch(() => ({ state: 'error', error: '读取更新状态失败' }));
   drawReleaseUpdate();
   if (['checking', 'downloading', 'verifying', 'scheduled'].includes(releaseUpdate.state)) startUpdatePolling();
+}
+
+async function loadRecovery() {
+  const d = await api('/api/recovery');
+  $('#recovery-content').innerHTML = `<p>恢复至最近休整期开始，保留当时的机变；作战中重启需重打本回合。版本指纹不一致时保留文件供检查。</p><label><input id="recovery-enabled" type="checkbox" ${d.enabled ? 'checked' : ''} ${d.unavailable ? 'disabled' : ''}> 启用恢复</label> <button data-recovery-save ${d.unavailable ? 'disabled' : ''}>保存恢复设置</button>${d.unavailable ? '<p>当前启动方式未启用恢复管理。</p>' : ''}${d.issues.map(x=>`<p>${esc(x.id)}：${esc(x.error)} <button class="danger" data-recovery-delete="${esc(x.id)}">删除恢复文件</button></p>`).join('')}`;
+}
+async function changeRecovery(button) {
+  const id = button.dataset.recoveryDelete, enabled = $('#recovery-enabled').checked;
+  if (!confirm(id ? `确定删除恢复文件 ${id}？删除后无法恢复。` : enabled ? '启用重启恢复？' : '关闭恢复并删除现有恢复快照？正在进行的对局继续，但重启后无法恢复。')) return;
+  button.disabled = true;
+  try {
+    const d = await api('/api/recovery', { confirm: true, ...(id ? { action: 'delete', id } : { enabled }) });
+    if (!d.ok) throw new Error(d.error);
+    await loadRecovery(); await loadService(); say('恢复设置已保存');
+  } catch (e) { say(`恢复设置失败：${e.message}`, true); }
+  finally { button.disabled = false; }
 }
 
 async function refreshStorage() {
@@ -1123,6 +1310,13 @@ document.addEventListener('scroll', closeVisibleCandidates, true);
 window.addEventListener('resize', closeVisibleCandidates);
 document.addEventListener('change', (e) => {
   const el = e.target;
+  if (el.matches('[data-room-prep-mode]')) {
+    const row = el.closest('[data-room-prep]');
+    row.querySelector('[data-room-prep-scale]').hidden = el.value !== 'scale';
+    row.querySelector('[data-room-prep-seconds]').hidden = el.value !== 'fixed';
+    row.querySelector('[data-room-prep-rounds]').hidden = el.value !== 'perRound';
+    return;
+  }
   if (!el.matches('select[data-diy-skill], select[data-diy-mod]')) return;
   const d = diyDraft.get(el.dataset.player) || { label: '', skill: '', mod: '' };
   if ('diySkill' in el.dataset) d.skill = el.value; else d.mod = el.value;
@@ -1130,6 +1324,15 @@ document.addEventListener('change', (e) => {
   el.blur();
 });
 document.addEventListener('click', (e) => {
+  const prepButton = e.target.closest('[data-room-prep-save]');
+  if (prepButton) {
+    const row = prepButton.closest('[data-room-prep]'), mode = row.querySelector('select').value;
+    const rounds = Object.fromEntries([...row.querySelectorAll('[data-room-prep-round]')].filter(el=>el.value!=='').map(el=>[el.dataset.roomPrepRound,Number(el.value)]));
+    const value = mode === 'inherit' ? null : { mode, ...(mode === 'scale' ? { scale: Number(row.querySelector('[data-room-prep-scale] input').value) } : mode === 'fixed' ? { seconds: Number(row.querySelector('[data-room-prep-seconds] input').value) } : mode === 'perRound' ? { rounds } : {}) };
+    document.activeElement?.blur();
+    act(row.dataset.roomPrep, 'prepTimer', null, value, '本房间休整期');
+    return;
+  }
   const b = e.target.closest('button[data-diy-set]');
   if (!b) return;
   const d = diyDraft.get(b.dataset.player);
@@ -1145,14 +1348,17 @@ document.addEventListener('input', (e) => {
   drawPrepPreview();
 });
 let lastJson = '';
-async function refresh() {
+async function refresh(force = false) {
+  if (servicePending) return;
   // never re-render under the user's cursor: typing into a field would lose its value
-  if (document.activeElement && document.activeElement.matches('input, select')) return;
-  if ($('#rooms').hidden) return;
+  const typing = document.activeElement?.matches('input, select');
+  if (typing && !document.activeElement.closest('[data-chat-panel]')) return;
+  if ($('#rooms').hidden && !force) return;
   let data;
-  try { data = await api('/api/rooms'); } catch { $('#status').textContent = '无法连接服务器'; return; }
+  try { data = await api('/api/rooms'); } catch { if (!servicePending) $('#status').textContent = '无法连接服务器'; return; }
+  if (servicePending) return;
   if (data.error) { $('#status').textContent = data.error; return; }
-  if (document.activeElement?.matches('input, select')) return;
+  if (document.activeElement?.matches('input, select')) { for (const r of data.rooms) chatPanel(r); return; }
   $('#status').textContent = `更新于 ${new Date().toLocaleTimeString()}`;
   const json = JSON.stringify(data.rooms);
   if (json === lastJson) return;
@@ -1160,20 +1366,30 @@ async function refresh() {
   $('#rooms').innerHTML = data.rooms.length ? data.rooms.map(roomCard).join('') : '<p class="empty">还没有房间。玩家建房后会出现在这里。</p>';
   // the statistics panels survive the re-render (statsPanel)
   for (const r of data.rooms) $(`[data-stats="${r.code}"]`)?.replaceWith(statsPanel(r));
+  for (const r of data.rooms) $(`[data-chat="${r.code}"]`)?.replaceWith(chatPanel(r));
+  for (const code of chatPanels.keys()) if (!data.rooms.some((r) => r.code === code)) chatPanels.delete(code);
   for (const code of panels.keys()) if (!data.rooms.some((r) => r.code === code)) panels.delete(code);
   const live = data.rooms.find((r) => r.match);
   if (live) loadCatalog(live.code).catch(() => { $('#status').textContent = '干员目录加载失败'; });
 }
 
 document.addEventListener('click', (e) => {
+  const notice = e.target.closest('button[data-notice]');
+  if (notice) { const text = $(`#notice-${notice.dataset.source || notice.dataset.notice}`).value; act(notice.dataset.notice, 'announce', null, text, '主机公告'); return; }
+  const serviceButton = e.target.closest('button[data-service]');
+  if (serviceButton && !serviceButton.disabled) { controlService(serviceButton.dataset.service); return; }
   const tab = e.target.closest('button[data-tab]');
   if (tab) { setTab(tab.dataset.tab); return; }
+  const recoveryButton = e.target.closest('[data-recovery-save], [data-recovery-delete]');
+  if (recoveryButton) { changeRecovery(recoveryButton); return; }
+  if (e.target.closest('button[data-auto-update-save]')) { saveAutomaticUpdate(); return; }
   if (e.target.closest('button[data-update-check]')) { updateRelease('check'); return; }
   if (e.target.closest('button[data-update-more]')) { updateRelease('more'); return; }
   if (e.target.closest('button[data-update-network-save]')) { saveUpdateNetwork(); return; }
   if (e.target.closest('button[data-update-install]')) { updateRelease('install'); return; }
   const openRec = e.target.closest('button[data-open-record]');
   if (openRec) { setTab('records').then(() => showRecord(openRec.dataset.openRecord)); return; }
+  if (e.target.closest('button[data-summary-filter]')) { showSummary().catch(() => say('汇总读取失败', true)); return; }
   if (e.target.closest('button[data-records-reload]')) { showRecords(); return; }
   const remove = e.target.closest('button[data-record-delete]');
   if (remove) { clearStorage(remove, remove.dataset.recordDelete); return; }
@@ -1236,12 +1452,18 @@ document.addEventListener('click', (e) => {
   if (b.dataset.confirm && !confirm(b.dataset.confirm.replace('{v}', v))) return;
   act(b.dataset.room, b.dataset.click, b.dataset.player, valueOf(b, v), b.dataset.label);
 });
+let tabRequest = 0;
 async function setTab(name) {
+  const request = ++tabRequest;
   for (const b of document.querySelectorAll('button[data-tab]')) b.setAttribute('aria-pressed', String(b.dataset.tab === name));
-  for (const id of ['rooms', 'records', 'settings']) $(`#${id}`).hidden = name !== id;
+
+  // Keep the current panel visible while the target panel fetches its data. Hiding all
+  // panels before these awaits leaves a blank frame on every navigation.
   if (name === 'records') await showRecords();
   else if (name === 'settings') await showSettings();
-  else { lastJson = ''; refresh(); }
+  else { lastJson = ''; await refresh(true); }
+  if (request !== tabRequest) return;
+  for (const id of ['rooms', 'records', 'settings']) $(`#${id}`).hidden = name !== id;
 }
 document.addEventListener('change', (e) => {
   const el = e.target;
@@ -1254,6 +1476,7 @@ document.addEventListener('change', (e) => {
 });
 /** The action's value: { bond, n } / { field, n } when the control names a bond / a field, else the plain value. */
 function valueOf(el, v) {
+  if (el.dataset.click === 'chatMute') return v === 'true';
   if (el.dataset.pickClear) return { round: Number(el.dataset.pickClear), id: '' };
   if (el.dataset.bond) return { bond: el.dataset.bond, n: v };
   if (el.dataset.field) return { field: el.dataset.field, n: v };
@@ -1291,8 +1514,10 @@ document.addEventListener('keydown', (e) => {
   }
 });
 refresh();
-setInterval(refresh, 1500);
+roomPoll = setInterval(refresh, 1500);
+loadService();
 openUpdateConsole();
+api('/api/release-notes').then((n) => showReleaseNotes(n, { storageKey: 'sp.admin.release-notes' })).catch(() => {});
 </script>
 </body>
 </html>

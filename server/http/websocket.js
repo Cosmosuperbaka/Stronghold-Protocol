@@ -74,10 +74,10 @@ function meterSocket(ws, req, traffic) {
   traffic.wsOpen(socket);
   const send = ws.send;
   ws.send = function meteredSend(data, ...rest) {
-    traffic.wsSent(data);
+    traffic.wsSent(data, ws);
     return send.call(this, data, ...rest);
   };
-  ws.on('message', (data) => traffic.wsReceived(data));
+  ws.on('message', (data) => traffic.wsReceived(data, ws));
   ws.once('close', () => traffic.wsClose(socket));
 }
 

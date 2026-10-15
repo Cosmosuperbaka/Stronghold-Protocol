@@ -81,7 +81,11 @@ export function readReplay(dir, id, identity) {
     replay.compatible = !!identity && replay.made?.identity === identity;
     replay.currentIdentity = identity;
     for (const round of replay.rounds) for (const f of round.fields) {
-      f.canAttempt = !!f.playable;
+      // Old recordings already contain boss inputs and credited results, but no shared-pool timeline.
+      // Permit a bounded local attempt without promoting it to an exact, verifiable replay.
+      const boss = f.kind === 'boss' || f.kind === 'hidden';
+      f.canAttempt = !!f.playable || (boss && f.source === 'boss-credited' && !f.result?.synthetic
+        && Number.isFinite(f.result?.time) && f.result.time >= 0);
       if (!replay.compatible && f.playable) { f.playable = false; f.reason = 'version'; }
     }
     return replay;

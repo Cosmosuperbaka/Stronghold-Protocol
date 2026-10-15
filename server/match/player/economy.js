@@ -9,20 +9,28 @@ import { freeSlot } from '../board.js';
 import { OK, fail } from './common.js';
 
 export class PlayerEconomy {
+  noteEconomy(delta, reason) {
+    if (!this.economy || !Number.isFinite(delta) || !delta) return;
+    const entries = delta > 0 ? this.economy.income : this.economy.expense;
+    const key = reason || 'effect'; entries[key] = (entries[key] || 0) + Math.abs(delta);
+  }
+
   addFunds(n, { reason = '' } = {}) {
     if (!Number.isFinite(n) || n === 0) return 0;
     const v = Math.trunc(n);
     const before = this.funds;
     this.funds = Math.max(0, this.funds + v);
+    this.noteEconomy(this.funds - before, reason);
     if (v > 0) this.stats.fundsGained += v;
     this.dirty();
     return this.funds - before;
   }
 
-  spend(n) {
+  spend(n, reason = 'effect') {
     const v = Number.isFinite(n) ? Math.max(0, Math.trunc(n)) : 0;
     if (v > this.funds) return false;
     this.funds -= v;
+    this.noteEconomy(-v, reason);
     this.stats.gold += v;
     this.round.spent += v;
     this.dirty();
@@ -158,14 +166,14 @@ export class PlayerEconomy {
       // BV1eLXXBqEgF 2:50–2:57: nine owned + four shop offers => thirteen owned).
       // acquireChess records every copy, including the deficit; future rolls still exclude empty stock.
       if (handFull) return fail(ERR.HAND_FULL);
-      this.spend(price);
+      this.spend(price, 'buy');
       slot.sold = true;
       piece = this.acquireChess(slot.id, { source: 'buy' });
     } else {
       if (!this.gd.item(slot.id)) return fail(ERR.BAD_TARGET);
       if (!this.m.itemPool.canGain(slot.id)) return fail(ERR.SOLD_OUT);
       if (handFull) return fail(ERR.HAND_FULL);
-      this.spend(price);
+      this.spend(price, 'buy');
       slot.sold = true;
       piece = this.acquireItem(slot.id, { source: 'buy' });
     }
@@ -183,7 +191,7 @@ export class PlayerEconomy {
     const price = free ? 0 : this.gd.refreshPrice;
     if (!free && this.funds < price) return fail(ERR.NO_FUNDS);
     if (free) this.shop.freeRefreshes--;
-    else this.spend(price);
+    else this.spend(price, 'refresh');
     this.rollShop({ keepFrozen: false });
     this.stats.refreshes++;
     this.round.refreshes++;
@@ -206,7 +214,7 @@ export class PlayerEconomy {
     if (this.shop.level >= this.gd.maxShopLevel) return fail(ERR.MAX_LEVEL);
     const price = Math.max(0, this.shop.upgradePrice);
     if (this.funds < price) return fail(ERR.NO_FUNDS);
-    this.spend(price);
+    this.spend(price, 'levelUp');
     this.shop.level++;
     this.shop.upgradePrice = this.gd.upgradeBase(this.shop.level) ?? 0;
     this._openLevelSlots();

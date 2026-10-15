@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validateC2S, C2S } from '../../shared/protocol.js';
-import { ERR, EMOTES } from '../../shared/constants.js';
+import { ERR, EMOTES, GEO, PING_KINDS } from '../../shared/constants.js';
 import { createRng } from '../../server/sim/rng.js';
 import { DATA, makeMatch, checkInvariants } from './harness.js';
 
@@ -35,6 +35,10 @@ function randomIntent(rng, m, ps) {
     case 'g.reward': case 'g.choice': return { t, idx: rng.int(6) };
     case 'g.ready': return { t, ready: rng() < 0.4 };
     case 'g.emote': return { t, id: rng.pick(EMOTES) };
+    case 'g.ping': return {
+      t, fieldId: rng.pick(['n:p_0', 'n:p_1', 'n:ai_0', 'u', 'b1', 'b2', 'zz']), area: 'board',
+      row: rng.int(GEO.ROWS), col: rng.int(GEO.COLS), kind: rng.pick(PING_KINDS),
+    };
     case 'g.watch': return { t, fieldId: rng.pick(['n:p_0', 'n:p_1', 'n:ai_0', 'u', 'b1', 'b2', 'zz', '']) };
     case 'g.autoplay': return { t, on: rng() < 0.05 };
     case 'g.pause': return { t, on: rng() < 0.5 };

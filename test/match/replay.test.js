@@ -60,7 +60,7 @@ test('replay: rewind R6 to R3 drops abandoned battle IDs and records only the re
   assert.equal(h.m.errorCount, 0);
 });
 
-test('replay: console forcing normal, unite and boss fields is synthetic; boss always remains view-only', (t) => {
+test('replay: console forcing normal, unite and boss fields is synthetic and remains view-only', (t) => {
   record(t);
   const h = makeMatch({ humans: 2, bots: 0, seed: 88, clientCombat: true, clients: false, fake: true }).start().toPrep();
   t.after(() => h.m.dispose());

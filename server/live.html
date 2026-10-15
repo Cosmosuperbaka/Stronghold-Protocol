@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="admin-token" content="__TOKEN__">
+<title>实时查看 / 代操作 · 主机控制台</title>
+<link rel="stylesheet" href="/fonts/fonts.css">
+<link rel="stylesheet" href="/css/theme.css">
+<link rel="stylesheet" href="/css/components.css">
+<link rel="stylesheet" href="/css/screens/game.css">
+<link rel="stylesheet" href="/css/screens/game-shop.css">
+<link rel="stylesheet" href="/css/screens/game-panels.css">
+<link rel="stylesheet" href="/css/screens/briefing.css">
+<link rel="stylesheet" href="/css/screens/draft.css">
+<link rel="stylesheet" href="/css/screens/result.css">
+<link rel="stylesheet" href="/css/screens/guide.css">
+<link rel="stylesheet" href="/css/screens/loadout.css">
+<link rel="stylesheet" href="/css/emotes.css">
+<link rel="stylesheet" href="/css/devices.css">
+<style>
+  .live-bar { position: relative; z-index: 90; min-height: 64px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 10px 18px; background: var(--bg-1); border-bottom: 1px solid var(--line); font: 14px/1.5 system-ui, "Microsoft YaHei", sans-serif; color: var(--text-hi); }
+  .live-bar a { color: var(--mint-500); text-decoration: underline; text-underline-offset: 3px; }
+  .live-bar label { display: flex; align-items: center; gap: 8px; }
+  .live-bar select { max-width: 190px; min-height: 36px; padding: 4px 8px; background: var(--bg-2); color: var(--text-hi); border: 1px solid var(--line-2); font: inherit; }
+  .live-bar input { width: 18px; height: 18px; accent-color: var(--mint-500); }
+  .live-bar :focus-visible { outline: 2px solid var(--mint-500); outline-offset: 3px; }
+  #live-status { flex: 1 1 260px; margin: 0; color: var(--text-lo); }
+  #live-status.is-error { color: var(--red-premium); }
+  #live-game { position: relative; height: calc(100dvh - var(--live-bar-height, 64px)); }
+  #live-game .screen { position: absolute; inset: 0; min-height: 0; }
+  #live-game[hidden] { display: none; }
+  #live-message { padding: 28px; color: var(--text-hi); font: 16px/1.6 system-ui, "Microsoft YaHei", sans-serif; }
+  .live-bar ::selection { background: var(--mint-700); color: var(--text-hi); }
+  .live-wall .live-bar { display: none; }
+  .live-wall #live-game { height: 100dvh; }
+  @media (max-width: 600px) { .live-bar { padding: 8px 12px; gap: 8px 12px; } #live-status { flex-basis: 100%; } }
+</style>
+<script type="importmap">{ "imports": { "preact": "/vendor/preact.module.js", "preact/hooks": "/vendor/hooks.module.js", "htm": "/vendor/htm.module.js" } }</script>
+</head>
+<body>
+<header class="live-bar">
+  <a href="/">返回控制台</a>
+  <label>玩家 <select id="live-player" aria-label="查看的玩家" disabled></select></label>
+  <label><input id="live-control" type="checkbox" disabled>开启代操作</label>
+  <p id="live-status" role="status" aria-live="polite">正在连接活动对局…</p>
+</header>
+<div id="live-message" role="alert" hidden></div>
+<div id="live-game" hidden></div>
+<div id="live-toasts"></div>
+<script type="module" src="/live-viewer.js"></script>
+</body>
+</html>

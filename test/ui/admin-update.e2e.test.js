@@ -8,18 +8,19 @@ import { startAdmin } from '../../server/admin.js';
 import { updatePaths } from '../../server/release-update.js';
 import { CHROME, hasChrome } from '../e2e/client.mjs';
 import { tag, releaseFor, put } from '../helpers/release-fixture.js';
+import { APP_VERSION } from '../../shared/constants.js';
 
 test('console Release updates: check/retry, confirmation/cancel, progress, restart token refresh, desktop/mobile', {
   skip: process.env.SP_E2E !== '1' || !hasChrome(), timeout: 45000,
 }, async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-update-ui-'));
-  put(root, 'package.json', '{"version":"0.2.5"}');
+  put(root, 'package.json', JSON.stringify({ version: APP_VERSION }));
   const lobby = { rooms: new Map(), safeData: () => ({}), onMatchEnd() {} };
   let admin, browser, failed = true, downloads = 0, complete, restart = false;
   let options;
   const onReady = async () => {
     if (!restart) return;
-    put(root, 'logs/release-version.json', JSON.stringify({ app: '0.2.5', tag }));
+    put(root, 'logs/release-version.json', JSON.stringify({ app: APP_VERSION, tag }));
     const port = admin.port;
     await admin.close();
     admin = await startAdmin({ ...options, port });
@@ -90,7 +91,7 @@ test('console first-open update prompt, refresh deduplication, version choice, d
   skip: process.env.SP_E2E !== '1' || !hasChrome(), timeout: 30000,
 }, async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-update-open-ui-'));
-  put(root, 'package.json', '{"version":"0.2.5"}');
+  put(root, 'package.json', JSON.stringify({ version: APP_VERSION }));
   let browser, admin, queries = 0, downloads = 0;
   try {
     admin = await startAdmin({ lobby: { rooms: new Map(), safeData: () => ({}), onMatchEnd() {} }, port: 0, root,

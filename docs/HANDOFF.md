@@ -1,6 +1,6 @@
 # 扩展分支维护交接
 
-最近更新 2026-10-13。接手这个项目先读这份，再按需要读下面列的文档。这里只放现状、怎么跑、常见任务和待办，实现细节在 [LOCAL-DEV.md](LOCAL-DEV.md)，不重复。
+最近更新 2026-10-15。接手这个项目先读这份，再按需要读下面列的文档。这里只放现状、怎么跑、常见任务和待办，实现细节在 [LOCAL-DEV.md](LOCAL-DEV.md)，不重复。
 
 ## 1. 项目是什么
 
@@ -10,9 +10,15 @@
 
 | 功能 | 主要文件 | 细节 |
 |---|---|---|
-| 主机控制台：改金币 / LP / 等级、发放干员和道具、盟约、托管、效果和机变卡、棋盘编辑、判胜负、计时倍率等 | `server/admin.js`、`admin.html` | LOCAL-DEV §5 |
+| 主机控制台：改金币 / LP / 等级、发放干员和道具、盟约、托管、效果和机变卡、棋盘编辑、判胜负、休整期时长、实时查看与代操作等 | `server/admin.js`、`server/admin-live.js`、`server/live.html`、`server/live-viewer.js` | LOCAL-DEV §5 |
+| 房间文字聊天、位置拖动记忆与战场标点 | `server/chat.js`、`public/js/ui/chat.js`、`chatPosition.js`、`chatStore.js`、`fieldPings.js`、`server/match/match/intents.js` | LOCAL-DEV §2「房间交流」 |
+| 聊天管理：公告、清空、禁言和踢出 | `server/chat.js`、`server/admin.js` | LOCAL-DEV §9 |
+| 监控墙与资源面板 | `server/admin-wall.js`、`server/monitor.html`、`server/resources.js` | LOCAL-DEV §9 |
+| 漏怪、跨局汇总、经济及盟约层数曲线 | `server/match/leak-history.js`、`server/result-summary.js`、`server/match/history.js` | LOCAL-DEV §9 |
+| 自动重启恢复、空闲签名更新与更新记录 | `server/recovery.js`、`server/idle-update.js`、`server/release-notes.js` | LOCAL-DEV §9 |
+| 控制台重启 / 关闭服务 | `server/service-control.js`、`server/http/boot.js`、`server/admin.js` | DEPLOY §1.5 |
 | 回档：回到任一回合的休整期开始 | `server/match/rewind.js` | LOCAL-DEV §4 |
-| 整局回放与数据清理：50 局回放、普通战斗 / 联防播放、领袖战结果查看、单局删除和三类批量清理 | `server/match/replay.js`、`server/replay-store.js`、`server/replay-viewer.js`、`server/admin.js` | LOCAL-DEV §5「整局回放与数据清理」 |
+| 整局回放与数据清理：50 局回放、普通战斗 / 联防播放、最终攻势 / 隐秘核心尝试播放、单局删除和三类批量清理 | `server/match/replay.js`、`server/replay-store.js`、`server/replay-viewer.js`、`server/admin.js` | LOCAL-DEV §5「整局回放与数据清理」 |
 | 统计和记录：本局曲线、每回合详情、干员伤害排行、对局记录、敌人日程（含指定）、休整期时长设置 | `server/match/history.js`、`enemyPicks.js`、`hostSettings.js` | LOCAL-DEV §5 |
 | 可选联防叠层：默认关闭，下次联防生效，援助干员重新获得额度，结算后保留增量 | `server/match/hostSettings.js`、`match/unitePhase.js`、`match/settle.js` | LOCAL-DEV §5「可选联防叠层」 |
 | 控制台发放自选干员（选技能和模组、改技能） | `server/match/adminDiy.js` | LOCAL-DEV §5「发放自选」 |
@@ -32,8 +38,9 @@
 ## 2. 分支与维护状态
 
 - `origin` 为本仓库，`upstream` 为原项目。默认分支 `main` 已整合主机工具、联动扩展、可选皮肤、随机装备和素材预加载；`local-tools` 与 `codex/operator-skins` 保留原功能分支历史。`master` 只跟踪上游。
-- 当前发布为 `v0.2.5-extended.3`，游戏基础版本为 `0.2.5`：新增整局回放、三类数据清理与 Release 发布签名。上游战斗与库存修复、回档保留随机首领搭档 / 半场、11 个官方战场场景来自 `v0.2.5-extended.1`。每版的内容见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md)。
-- 当前源码基于上游 v0.2.5（`cf7a9400`）；自选池为 79 名（上游 72 名 + 7 名联动），保留 174 套可选皮肤、中文 / 日文语音与原有控制台扩展。后续同步和测试结果以 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md) 为准，皮肤验证与限制见 [SKINS.md](SKINS.md)。
+- 当前发布为 `v0.2.6-extended.4`，游戏基础版本为 `0.2.6`：发布 NEXT-FEATURES 九项扩展、四席完整只读监控墙、房间休整期配置和聊天拖动记忆；保留既有带名战场标点、服务控制、实时代操作、回放、完整素材和发布签名。每版的内容及验证见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md)。
+- 九项实现与恢复边界见 LOCAL-DEV §9。聊天位置仅当前浏览器与站点按昵称保存；重启恢复要求同版本及规则指纹，跨版本升级不能续局。完整监控墙尚未重跑 30 分钟持续运行测试。
+- 当前源码已合入上游 v0.2.6（`488db49f`）；自选池为 79 名（上游 72 名 + 7 名联动），保留 174 套可选皮肤、中文 / 日文语音与原有控制台扩展。后续同步和测试结果以 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md) 为准，皮肤验证与限制见 [SKINS.md](SKINS.md)。
 - 定期跟进上游更新，先完成扩展兼容与验证，再合并。查看 `git status` 和远端分支确认实际工作状态，不把某台机器的进程、私人地址或临时 ref 写进公共交接文档。
 - 对局记录、主机设置和缓存不进入 Git。公开或分享前检查所有分支、历史和提交邮箱，见 [PRIVACY.md](PRIVACY.md)。
 
@@ -81,15 +88,11 @@
 - 艾拉的雷鸣地雷没有 Spine 模型，只显示头像。
 - EN / JA / KO 客户端没有焰狐龙梓兰和结城理，zh-TW 没有麒麟R夜刀，对应界面显示中文。
 
-**控制台的扩充方向**（第三期结束时提给用户的，按价值排序，用户还没挑）
-1. 每回合阵容已通过整局回放实现：战场详情展示实际 BattleSpec 中的阵容、装备、技能与模组，见 LOCAL-DEV §5。
-2. 漏怪分析：`lastResults.get(pid).leaked` 每条带 `enemyKey`，按敌人汇总每回合漏了哪些、各几只，配合 `history[].enemy`。
-3. 跨局汇总：「对局记录」页加总览，读 `logs/results/*.json`：胜率、按难度的平均通过回合、最常用的干员和盟约、伤害最高的干员。只读文件，不碰对局逻辑。
-4. 每回合经济明细：`ps.round`（`refreshes / buys / sells / spent`）在回合开始时清零，要在 `settle()` 时（清零之前）记下来。
-5. 盟约层数曲线：`ps.layers` 和 `ps.bonds[id].active`，曲线多一个指标或单独一张图。
-6. 导出 CSV：每回合数据和累计数据，`/api/result?id=&format=csv` 或页面上生成下载。
+**已完成的扩展**：每回合阵容回放及 NEXT-FEATURES 九项（聊天管理、监控墙、资源、漏怪、跨局汇总、经济与层数、恢复、空闲更新、更新记录）。实现与验收入口见 LOCAL-DEV §9。
 
-用户明确说不做的：商店指定格子、存档导出与恢复。
+**仍待用户选择**：导出 CSV（每回合与累计数据）。
+
+用户此前不做的范围为商店指定格子和手工存档导出 / 导入；2026-10-15 已明确授权本机自动重启恢复，按最近休整期开始恢复并重打本回合。
 
 ## 7. 维护约定
 

@@ -15,6 +15,9 @@ export class MatchPrep {
     const snap = capturePrep(this);
     if (snap) this.prepSnapshots.set(this.round, snap);
     else this.prepSnapshots.delete(this.round);
+    if (snap && this.opts.onPrepSnapshot) {
+      try { this.opts.onPrepSnapshot(this, snap); } catch (e) { this.log.error?.('[recovery] snapshot failed', e); }
+    }
     this.phase = PHASE.PREP;
     this.sp = null;
     const alive = this.alivePlayers();

@@ -1,3 +1,4 @@
+import { groupLeaks } from '../leak-history.js';
 // server/match/match/bossRounds.js — Match methods: the Final Assault / Hidden Core (the rules:
 // server/match/finalAssault.js) — the boss fields and the shared pool; client-side boss fields (plausibility budgets on
 // the field clock, cumulative credits, handovers, the boss clock, the end: pool 0 → victory, team LP 0 → defeat);
@@ -47,6 +48,7 @@ export class MatchBoss {
       this.teamLp = alive.reduce((s, p) => s + Math.max(0, p.lp), 0);
       for (const ps of alive) ps.lpAtFinal = Math.max(0, ps.lp);
     }
+    this.bossRoundOpeningLp = this.teamLp;
     const bossId = hidden ? this.hiddenBossId : this.bossId;
     // BOSS_HIT tickers ("对敌方领袖造成的伤害超过20% / 50% / 80%"): the player's damage to THIS leader over its pool —
     // the pool's own per-player tally, one pool per boss round. stats.bossDamage (the result's 领袖伤害) adds up both
@@ -524,6 +526,7 @@ export class MatchBoss {
         const ps = this.players.get(pid);
         if (pp) this.lastResults.set(pid, pp);
         if (pp && ps) {
+          ps.leakHistory = [{ kind: hidden ? 'hidden' : 'boss', enemies: groupLeaks(this.gd, pp.leaked), loss: null, teamLoss: Math.max(0, this.bossRoundOpeningLp - this.teamLp), teamLp: this.teamLp }];
           ps.stats.dmgDealt += Number(pp.damageDealt) || 0;
           ps.stats.kills += Number(pp.killed) || 0;
           ps.dirty(); // m.private.stats
