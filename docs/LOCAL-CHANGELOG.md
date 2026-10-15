@@ -12,10 +12,8 @@
 - 普通后台启动使用独立助手等待旧进程退出后启动，保留地址、端口及环境变量。Windows 自启脚本支持主动停止拉起；外部 supervisor 接管重启，未配置退出码 75 停止策略时禁用关闭。
 - 服务操作保留本机 token / Host 校验、明确确认，并拦截重复操作和与更新的冲突。不改游戏规则与 golden。
 - 发布定向验证：聊天、带名标点、控制台与服务管理、更新签名、版本文档及打包共 96 项全部通过。真实浏览器 5 项全部通过，覆盖中文输入与发送、未读 / 草稿、桌面与手机横屏准备按钮避让、带名标点、动画 / 音效 / 静音、真实后台重启与关闭提示。服务测试覆盖两个监听端口释放、supervisor 退出码与 Windows 自启循环停止。
-
-- 本地 Node 24.19 全量（并发 4）：6,615 项，6,598 通过、16 跳过，唯一失败为服务控制中文扫描标记遗漏；修复后国际化与服务测试 15 项全部通过。真实浏览器、协议和服务校验通过，不改变模拟器、生成数据或 golden 文件。
-
-- 298 个 golden 场景一致（roster 49、bonds 46、fields 22、matches 20、standins 10、diy 151），无场景移动。setup、smoke、lint、imports、typecheck 各步骤通过；四个语言包各 1,231 条全部翻译，严格检查 0 missing、0 errors。导入工具仍报告既有 `server/sim/nodeData.js` 的 3 项 Node 导入提示，本次未改动。
+- 发布全量验证：Node 24.19 `node --test --test-concurrency=4` 共 6,615 项（6,598 通过、16 跳过），唯一失败为服务控制中文扫描标记遗漏；修复后国际化与服务测试 15 项全部通过。真实浏览器、协议和服务校验通过，不改变模拟器、生成数据或 golden 文件。
+- golden 与工具链：298 个 golden 场景一致（roster 49、bonds 46、fields 22、matches 20、standins 10、diy 151），无场景移动。setup、smoke、lint、imports、typecheck 各步骤通过；四个语言包各 1,231 条全部翻译，严格检查 0 missing、0 errors。导入工具仍报告既有 `server/sim/nodeData.js` 的 3 项 Node 导入提示，本次未改动。
 
 ## 2026-10-14 — v0.2.6-extended.2：实时代操作与最终两回合回放
 

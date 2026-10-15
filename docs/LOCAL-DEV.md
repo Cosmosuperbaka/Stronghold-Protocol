@@ -65,7 +65,7 @@
 | 生成的数据 | `data/backups.json`、`data/assets.json`、`data/i18n/*.json`、`test/golden/diy.json`：合并上游时按第 8 节重新生成，不要手工合 |
 | 测试里写死的数量 | `test/backups.test.js`、`diy.test.js`、`assets-diy.test.js`、`full-potential.test.js`、`potential.test.js`、`i18n-data.test.js`、`feedback7-voices.test.js`、`content/feedback5-we2-summon-hand.test.js`、`render/issue25-downback.test.js`：自选池 71 → 78、单位形态 256 → 277、有语音的干员 191 → 198 等，改动处都标了 `local-tools` |
 
-当前 v0.2.5 的自选池为 79 名（上游 72 + 本地 7），单位形态 280 个，有语音的干员 199 名。上表的 71 → 78、256 → 277 等是 v0.2.2 的历史数量。上游自己的文档仍描述排除联动的官方分支，以本节为准。
+当前 v0.2.6 的自选池为 79 名（上游 72 + 本地 7），单位形态 280 个，有语音的干员 199 名。上表的 71 → 78、256 → 277 等是 v0.2.2 的历史数量。上游自己的文档仍描述排除联动的官方分支，以本节为准。
 
 0.2.0 起上游把 `Match` 的方法拆到了 `server/match/match/*.js`，启动代码从 `server/index.js` 拆到了 `server/http/`。
 
