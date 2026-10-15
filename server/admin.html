@@ -119,7 +119,7 @@
 <datalist id="card-list"></datalist>
 <div id="msg" role="status" aria-live="polite"></div>
 <script type="module">
-import { showReleaseNotes } from "/js/ui/releaseNotes.js";
+import { showReleaseNotes, showReleaseUpdatePrompt } from "/js/ui/releaseNotes.js";
 const TOKEN = '__TOKEN__';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -982,7 +982,10 @@ async function openUpdateConsole() {
     if (servicePending) return;
     drawReleaseUpdate();
     if (['checking', 'downloading', 'verifying', 'scheduled'].includes(releaseUpdate.state)) startUpdatePolling();
-    if (releaseUpdate.notify && confirm(`发现新版本 ${releaseUpdate.tag}（当前 ${releaseUpdate.currentVersion}）。是否打开更新设置？`)) await setTab('settings');
+    if (releaseUpdate.notify && await showReleaseUpdatePrompt({
+      title: '版本更新', message: `发现新版本 ${releaseUpdate.tag}（当前 ${releaseUpdate.currentVersion}）。是否打开更新设置？`,
+      confirmLabel: '打开更新设置', cancelLabel: '稍后',
+    })) await setTab('settings');
   } catch { releaseUpdate = { ...releaseUpdate, state: 'error', error: '自动检查失败，请在设置中配置网络后重试' }; drawReleaseUpdate(); }
 }
 
@@ -1345,12 +1348,12 @@ document.addEventListener('input', (e) => {
   drawPrepPreview();
 });
 let lastJson = '';
-async function refresh() {
+async function refresh(force = false) {
   if (servicePending) return;
   // never re-render under the user's cursor: typing into a field would lose its value
   const typing = document.activeElement?.matches('input, select');
   if (typing && !document.activeElement.closest('[data-chat-panel]')) return;
-  if ($('#rooms').hidden) return;
+  if ($('#rooms').hidden && !force) return;
   let data;
   try { data = await api('/api/rooms'); } catch { if (!servicePending) $('#status').textContent = '无法连接服务器'; return; }
   if (servicePending) return;
@@ -1449,12 +1452,18 @@ document.addEventListener('click', (e) => {
   if (b.dataset.confirm && !confirm(b.dataset.confirm.replace('{v}', v))) return;
   act(b.dataset.room, b.dataset.click, b.dataset.player, valueOf(b, v), b.dataset.label);
 });
+let tabRequest = 0;
 async function setTab(name) {
+  const request = ++tabRequest;
   for (const b of document.querySelectorAll('button[data-tab]')) b.setAttribute('aria-pressed', String(b.dataset.tab === name));
-  for (const id of ['rooms', 'records', 'settings']) $(`#${id}`).hidden = name !== id;
+
+  // Keep the current panel visible while the target panel fetches its data. Hiding all
+  // panels before these awaits leaves a blank frame on every navigation.
   if (name === 'records') await showRecords();
   else if (name === 'settings') await showSettings();
-  else { lastJson = ''; refresh(); }
+  else { lastJson = ''; await refresh(true); }
+  if (request !== tabRequest) return;
+  for (const id of ['rooms', 'records', 'settings']) $(`#${id}`).hidden = name !== id;
 }
 document.addEventListener('change', (e) => {
   const el = e.target;

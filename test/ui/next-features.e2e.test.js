@@ -36,15 +36,25 @@ test('next features: console, release dialog, responsive wall, phase changes and
     await show(); assert.equal(await page.$('dialog'), null);
     await page.evaluate(() => localStorage.setItem('test.notes', 'test-old'));
     await show(); await page.waitForSelector('dialog[open]');
+    assert.equal(await page.$eval('dialog', d => getComputedStyle(d).backgroundColor), 'rgb(20, 24, 22)');
     const shots = path.resolve('.impeccable/review'); fs.mkdirSync(shots, { recursive: true });
     for (const [name, width, height] of [['desktop', 1440, 900], ['landscape', 844, 390]]) {
       await page.setViewport({ width, height });
       assert.ok(await page.$eval('dialog', d => d.getBoundingClientRect().width <= innerWidth && d.getBoundingClientRect().height <= innerHeight), name);
-      if (height < 500) assert.ok(await page.$eval('dialog', d => d.scrollHeight > d.clientHeight), 'landscape dialog scrolls');
+      if (height < 500) assert.ok(await page.$eval('.release-notes__body', d => d.scrollHeight > d.clientHeight), 'landscape dialog body scrolls');
       await page.screenshot({ path: path.join(shots, 'notes-' + name + '.png') });
     }
     await page.keyboard.press('Escape'); await page.waitForFunction(() => !document.querySelector('dialog'));
     await show(); assert.equal(await page.$('dialog'), null);
+    await page.evaluate(async () => {
+      const { showReleaseUpdatePrompt } = await import('/js/ui/releaseNotes.js');
+      window.updatePromptResult = null;
+      showReleaseUpdatePrompt({ title: '版本更新', message: '发现新版本 v0.2.7（当前 v0.2.6）。是否打开更新设置？',
+        confirmLabel: '打开更新设置', cancelLabel: '稍后' }).then(result => { window.updatePromptResult = result; });
+    });
+    await page.waitForSelector('dialog[open]');
+    assert.equal(await page.$eval('dialog', d => getComputedStyle(d).backgroundColor), 'rgb(20, 24, 22)');
+    await page.keyboard.press('Escape'); await page.waitForFunction(() => window.updatePromptResult === false);
     await page.goto(admin.url + '/wall?room=TEST', { waitUntil: 'domcontentloaded' }); await page.waitForSelector('.viewport iframe');
     assert.equal(await page.$$eval('.seat', s => s.length), 4);
     assert.equal(await page.$$('iframe').then(f => f.length), 4);
