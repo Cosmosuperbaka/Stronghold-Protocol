@@ -1473,8 +1473,8 @@ function MatchScreen() {
 
   // ---- keyboard ---------------------------------------------------------------------------------------------
   useEffect(() => {
-    // Remember only pointer coordinates. Hit-test again on keydown so moved/removed pieces, overlays,
-    // camera changes and an old click selection cannot redirect a destructive action.
+    // Remember only pointer coordinates. Without a selection, hit-test again on keydown so moved/removed
+    // pieces, overlays and camera changes cannot leave a stale hover target.
     let pointer = null;
     const trackPointer = (e) => {
       pointer = e.pointerType === 'touch' ? null : { x: e.clientX, y: e.clientY, buttons: e.buttons };
@@ -1551,9 +1551,10 @@ function MatchScreen() {
       }
       if (act === 'retreat' || act === 'sell') {
         if (!L.showPrep || L.drag || L.facing || L.selBusy || L.pen || !pointer || pointer.buttons) return;
-        const uid = L.view?.pieceAtClientPoint(pointer.x, pointer.y);
-        const hovered = Number.isInteger(uid) ? L.placeCtx.pieces.get(uid) : null;
-        if (hovered?.piece.kind !== 'chess') return;
+        // A click explicitly chooses the target; hovering another piece must never replace that choice.
+        const uid = L.sel?.uid ?? L.view?.pieceAtClientPoint(pointer.x, pointer.y);
+        const target = Number.isInteger(uid) ? L.placeCtx.pieces.get(uid) : null;
+        if (target?.piece.kind !== 'chess') return;
         const available = underframeActions(L.placeCtx, uid);
         if (act === 'retreat' && available?.retreat) await retreatPiece(uid);
         else if (act === 'sell' && available?.sell != null) await sellOwnPiece(uid);

@@ -10,11 +10,11 @@ A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance
 
 [下载正式版](https://github.com/zhewang448/Stronghold-Protocol/releases/latest) · [开始运行](#开始运行) · [和朋友一起玩](#和朋友一起玩) · [更新记录](docs/LOCAL-CHANGELOG.md) · [玩法指南](docs/PLAYING.md) · [反馈问题](https://github.com/zhewang448/Stronghold-Protocol/issues)
 
-> 当前版本为 **`v0.3.0-extended.1`**（发布候选，基础版本 `0.3.0`），本地准备中，尚未上传 Release。上面的正式版下载仍指向 `v0.2.6-extended.5`；请以下载页标签和附件文件名为准。新版内容见[扩展更新记录](docs/LOCAL-CHANGELOG.md)，上游变化见 [CHANGELOG.md](CHANGELOG.md)。
+> 当前版本为 **`v0.3.0-extended.1`**（基础版本 `0.3.0`）。正式版提供完整素材包与轻量包，包含局内统计、交流管理、主机设置及干员快捷键修复。新版内容见[扩展更新记录](docs/LOCAL-CHANGELOG.md)，上游变化见 [CHANGELOG.md](CHANGELOG.md)。
 >
 > 非官方、非商业同人项目，与《明日方舟》官方无隶属或授权关系。游戏名称、美术、音频、文本与数据的权利归原权利人，仅供学习和个人非商业使用。
 
-新版附件、升级步骤与已知限制见[发布准备](docs/RELEASE-CANDIDATE.md)。
+新版附件、升级步骤与已知限制见[发布说明](docs/RELEASE-CANDIDATE.md)。
 
 ## 仓库索引
 
