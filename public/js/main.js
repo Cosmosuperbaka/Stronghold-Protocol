@@ -53,6 +53,7 @@ import { LobbyScreen, rememberRoom, parseRoomParam } from './screens/lobby.js';
 import { RoomScreen, TrustedNotice } from './screens/room.js';
 import { GameScreen } from './screens/game.js';
 import { audio, installAudio } from './audio.js';
+import './assets.js'; // 素材仓库随首页静态加载（v0.3.0-extended.5 决策，与官方一致；Hub 预览直接可用）
 import { settingsStore, updateSettings } from './ui/settings.js';
 import { battleRunner } from './battle/runner.js';
 import { ResourceHost } from './ui/resourcePanel.js';
