@@ -883,6 +883,7 @@ export class Lobby {
     if (room.match) return fail(ERR.ROOM_STARTED);
     this.dropReplay(room, session.playerId);
     const ext = normalizeExtensions(extensions);
+    ext.upgradeFill = true; // 升本补卡强制开启（用户决策 2026-10-17；官方无此功能，本库 mod 常驻）
     if (JSON.stringify(ext) !== JSON.stringify(room.extensions)) {
       room.extensions = ext;
       for (const s of room.seats) if (s && !s.isBot && s.playerId !== room.hostId) s.ready = false;

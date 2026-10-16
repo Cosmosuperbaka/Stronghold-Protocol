@@ -54,10 +54,9 @@ import { RoomScreen, TrustedNotice } from './screens/room.js';
 import { GameScreen } from './screens/game.js';
 import { audio, installAudio } from './audio.js';
 import './assets.js'; // 素材仓库随首页静态加载（v0.3.0-extended.5 决策，与官方一致；Hub 预览直接可用）
-import { settingsStore, updateSettings } from './ui/settings.js';
+import { settingsStore } from './ui/settings.js';
 import { battleRunner } from './battle/runner.js';
-import { ResourceHost } from './ui/resourcePanel.js';
-import { syncResources, unsupportedReason } from './resources/index.js';import { GuideHost } from './ui/guide.js';
+import { GuideHost } from './ui/guide.js';
 import { installDeviceSupport } from './ui/device.js';
 import { registerImportedAssetWorker } from './assetCache.js';
 import { LoadoutHost } from './screens/loadout.js';
@@ -361,9 +360,7 @@ function App() {
     <${LoadoutHost} />
     <${StatsHost} />
     <${PreloadHost} />
-    <${ResourceHost} enabled=${resources.preload} optional=${resources.preloadOptional} voiceLang=${resources.preloadVoiceLang}
-      onChange=${(preload) => updateSettings({ preload })} onOptional=${(preloadOptional) => updateSettings({ preloadOptional })}
-      onVoiceLang=${(preloadVoiceLang) => updateSettings({ preloadVoiceLang })} />  </div>`;
+  </div>`;
 }
 
 // ---- boot -----------------------------------------------------------------------------------------
@@ -497,8 +494,6 @@ async function boot() {
   }));
 
   wireNet();
-  const syncPreload = (s) => { if (!unsupportedReason()) void syncResources(s.preload, s.preloadOptional, s.preloadVoiceLang); };
-  settingsStore.subscribe(syncPreload); syncPreload(settingsStore.get());
   installStatsRecorder(store); // follows the match on screen, so a 放弃模拟 can be recorded (ui/stats.js)
   installLoadoutSync({ net });
   // 战斗倍速 (battleSpeed mod): a settings change applies to the running battle at once (runner.setSpeed keeps the

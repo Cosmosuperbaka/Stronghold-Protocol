@@ -2492,5 +2492,8 @@
   "累计至第 {r} 回合": "Cumulative through round {r}",
   "当前回合实时更新，结算前仅供参考。": "This round updates live. Values are provisional until settlement.",
   "（进行中）": " (in progress)",
-  "主机已暂时关闭房间文字聊天": "The host has temporarily disabled room text chat."
+  "主机已暂时关闭房间文字聊天": "The host has temporarily disabled room text chat.",
+  "必备 / 可选资源 · 镜像加速": "Required / optional assets · mirror-accelerated",
+  "打开预载管理（镜像加速下载）": "Open the preload manager (mirror-accelerated download)",
+  "必备与可选资源，经镜像加速下载到浏览器（IndexedDB）。": "Required and optional assets, downloaded to the browser (IndexedDB) through the mirrors."
 }

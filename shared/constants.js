@@ -50,7 +50,7 @@ export const NAME_MAX_LEN = 12;
  */
 export const ROOM_EXTENSIONS = Object.freeze(['dupBand', 'bossPanel', 'deployCapOff', 'upgradeFill', 'revive', 'sharedLp']);
 /** Default of each room extension (a new room starts with these). */
-export const ROOM_EXTENSIONS_DEFAULT = Object.freeze({ bossPanel: true, dupBand: false, deployCapOff: false, upgradeFill: true, revive: false, sharedLp: false });
+export const ROOM_EXTENSIONS_DEFAULT = Object.freeze({ bossPanel: true, dupBand: false, deployCapOff: false, upgradeFill: true, revive: false, sharedLp: false }); // upgradeFill 强制开启（lobby.setExtensions 强制 true，面板无开关）
 /** Validated copy of a room.setExtensions payload (unknown keys dropped, non-booleans → default). */
 export function normalizeExtensions(v) {
   const e = v && typeof v === 'object' && !Array.isArray(v) ? v : {};

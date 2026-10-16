@@ -37,12 +37,10 @@ import { LangToggle, useLang } from '../ui/lang.js';
 import { t, N_ } from '../../../shared/i18n.js';
 import { scriptOf } from '../../../shared/i18nPacks.js';
 import { GIcon } from '../ui/gameComponents.js';
-import { PreloadWidget } from '../ui/preload.js';
 import { SettingsModal } from '../ui/settings.js';
 import { AnnouncementButton } from '../ui/announcement.js';
 import { ResourceLauncher } from '../ui/resourcePanel.js';
 import { useSettings } from '../ui/settings.js';
-import { unsupportedReason } from '../resources/index.js';
 import { installedCount } from '../content.js';
 import { sanitizeName, isValidName } from '../ui/playerName.js';
 
@@ -276,11 +274,10 @@ export function TitleScreen() {
       </div>
     </main>
 
-    ${unsupportedReason() ? null : html`<div class="title-preload"><${ResourceLauncher} enabled=${settings.preload} /></div>`}
+    ${html`<div class="title-preload"><${ResourceLauncher} /></div>`}
     <${SettingsModal} open=${settingsOpen} onClose=${() => setSettingsOpen(false)} />
     ${Installed ? html`<${Installed} open=${true} onClose=${() => setInstalled(null)} />` : null}
 
-    <${PreloadWidget} />
 
     <footer class="title-foot">
       <${ResumeMatchButton} />

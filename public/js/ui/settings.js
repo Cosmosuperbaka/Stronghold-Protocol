@@ -36,7 +36,6 @@ import { copyText } from './clipboard.js';
 import { FRAME_RATES } from '../frameRate.js';
 import { PreloadSection } from './preloadSection.js';
 import { ResourceRow } from './resourcePanel.js';
-import { unsupportedReason } from '../resources/index.js';
 // 异形屏适配 (ui/screenFit.js): imported here, ahead of main.js's first render, so the stored offsets are on at boot
 import { ScreenFitSection } from './screenFit.js';import { catalog, loadCatalog, cosmeticPlugins, installedCount, personal, personalApplied, personalSet, pluginName, setPersonalPlugin } from '../content.js';
 import { setUiPlugin, uiPluginEntries, uiPlugins } from './uiPlugins.js';
@@ -429,7 +428,7 @@ export function SettingsModal({ open, onClose }) {
       <${CosmeticSection} />
       <${UiPluginSection} />
       <${DiagSection} />
-      ${unsupportedReason() ? html`<${PreloadSection} />` : html`<${ResourceRow} enabled=${s.preload} />`}
+      <${ResourceRow} />
       <p class="set-hint">${touchUi ? t('触屏操作：点击单位选中（撤退 / 出售）· 长按单位或卡牌查看详情 · 拖动部署后滑动选择朝向') : t('右键查看详情')}</p>
     </div>
   <//>`;
