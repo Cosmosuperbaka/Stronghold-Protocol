@@ -1,3 +1,4 @@
+import { symlinkSync } from '../helpers/fsLinks.js';
 // test/plugins/install.test.js — install a plugin zip (DESIGN §32.13, docs/PLUGINS.md §17).
 // Downloads use an injected fetch. Nothing here contacts the public network. The production cap
 // INSTALL_MAX_BYTES is asserted equal to PLUGIN_LIMITS.pluginBytes; oversized cases pass a small maxBytes
@@ -196,10 +197,10 @@ test('a symlink id is not followed: status has no version, and --force renames t
   fs.mkdirSync(plugins);
   fs.mkdirSync(path.join(real, 'elsewhere'), { recursive: true });
   fs.writeFileSync(path.join(real, 'elsewhere', 'plugin.json'), JSON.stringify({ version: '9.9.9' }));
-  fs.symlinkSync(path.join(real, 'elsewhere'), path.join(plugins, 'demo-skin'));
+  symlinkSync(path.join(real, 'elsewhere'), path.join(plugins, 'demo-skin'));
   const incoming = path.join(tmp, 'incoming-target');
   fs.mkdirSync(incoming);
-  fs.symlinkSync(incoming, path.join(plugins, '_incoming'));
+  symlinkSync(incoming, path.join(plugins, '_incoming'));
   try {
     assert.equal(installedPluginVersion(plugins, 'demo-skin'), null);
     assert.throws(() => installPluginBytes(pluginZip('demo-skin'), { pluginsDir: plugins }), (e) => e.code === 'PLUGIN_INSTALL_ZIP');

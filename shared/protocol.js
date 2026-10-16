@@ -1,13 +1,14 @@
 // Normative message catalogue (DESIGN §8). Used by server (validation) and client (building requests).
 // Every client→server message is `{ t, rid?, ...fields }`. Unknown `t` or invalid fields ⇒ ERR.BAD_MSG.
 
-import { ROOM_EXTENSIONS, DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, MAX_SEATS, EMOTES, PING_KINDS, GEO } from './constants.js';
+import { ROOM_EXTENSIONS, DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, MAX_SEATS, EMOTE_IDS, PING_KINDS, GEO } from './constants.js';
 import { isDroppableChess } from './standIn.js';
 import { isSkinSelection } from './skins.js';
 import { diySlotIds, validateDiyPicks } from './diy.js';
 import { cultivatedStats, isPotential, isCultivate, POTENTIAL_DEFAULT, CULTIVATE_DEFAULT, hasPotentialData } from './potential.js';
 import { isContentHash } from './plugins/identity.js';
 import { isPluginId } from './plugins/manifest.js';
+import { LIVE_DAMAGE_UNITS } from './battleDamage.js';
 
 // ---- tiny validators -------------------------------------------------------
 const isInt = (v, lo = -Infinity, hi = Infinity) => Number.isInteger(v) && v >= lo && v <= hi;
@@ -15,6 +16,7 @@ const isStr = (v, max = 64) => typeof v === 'string' && v.length <= max;
 const isBool = (v) => typeof v === 'boolean';
 const isId = (v) => typeof v === 'string' && v.length > 0 && v.length <= 64 && /^[A-Za-z0-9_\-.:]+$/.test(v);
 const isUid = (v) => isInt(v, 1, 2 ** 31);
+const isLiveDamage = (v) => isPlain(v) && isId(v.playerId) && (v.damageDealt === undefined || isNum(v.damageDealt, 0, BIG)) && isList(v.units, LIVE_DAMAGE_UNITS, (u) => isPlain(u) && isUid(u.uid) && isNum(u.dmg, 0, BIG) && isInt(u.kills, 0, 1e9));
 const isNum = (v, lo = -Infinity, hi = Infinity) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
 const isPlain = (v) => !!v && typeof v === 'object' && !Array.isArray(v) && Object.getPrototypeOf(v) === Object.prototype;
 const optional = (check) => (v) => v === undefined || check(v);
@@ -411,7 +413,8 @@ const target = (v) => {
 export const C2S = {
   // session & lobby
   hello: { name: (v) => isStr(v, NAME_MAX_LEN) && v.trim().length > 0, token: (v) => v == null || isStr(v, 64), version: (v) => v == null || isInt(v, 0, 1e6),
-    noReplace: isBool, claimAt: (v) => isNum(v, 0, Number.MAX_SAFE_INTEGER), $optional: ['token', 'version', 'noReplace', 'claimAt'] },
+    noReplace: isBool, claimAt: (v) => isNum(v, 0, Number.MAX_SAFE_INTEGER), stateDelta: (v) => isInt(v, 0, 1e6), $optional: ['token', 'version', 'noReplace', 'claimAt', 'stateDelta'] },
+  'state.resync': {},
   ping: { c: (v) => typeof v === 'number' && Number.isFinite(v) },
   'room.create': { mode: (v) => v === 'solo' || v === 'coop', difficulty: (v) => DIFFICULTIES.includes(v),
     code: (v) => typeof v === 'string' && new RegExp(`^[A-Za-z0-9]{${ROOM_CODE_LEN}}$`).test(v), $optional: ['code'] },
@@ -439,6 +442,8 @@ export const C2S = {
   // the per-operator 潜能 / 练度 (absent = none set: every operator at 潜能 6, 精英2 Lv.60)
   'room.loadout': { entries: isLoadoutEntries, ops: isLoadoutOps, $optional: ['ops'] },
   'room.skins': { skins: isSkinSelection },
+  'room.card': { charId: v => v === '' || isId(v), skinId: v => typeof v === 'string' && v.length <= 120 && /^[A-Za-z0-9_@#+.-]*$/.test(v), $optional: ['skinId'] },
+  'room.bondPlan': { bondId: (v) => v === null || isId(v) },
   // operator ownership (干员持有, 0.2.0 补位): stored per session / seat; a match takes the list its seat had when it
   // started (an out-of-match setting — during a match it is stored for the next one: ROOM_STARTED)
   'room.ownership': { notOwned: isNotOwnedList },
@@ -490,7 +495,7 @@ export const C2S = {
   'g.reward': { idx: (v) => isInt(v, 0, 5) },
   'g.choice': { idx: (v) => isInt(v, 0, 5), choiceId: isId, $optional: ['choiceId'] },
   'g.ready': { ready: isBool },
-  'g.emote': { id: (v) => EMOTES.includes(v) },
+  'g.emote': { id: (v) => EMOTE_IDS.includes(v) },
   'g.ping': {
     fieldId: (v) => isStr(v, 32), area: (v) => v === 'board',
     row: (v) => isInt(v, 0, GEO.ROWS - 1), col: (v) => isInt(v, 0, GEO.COLS - 1),
@@ -521,8 +526,9 @@ export const C2S = {
     leaks: (v) => isNum(v, 0, 1e6), bossDmg: (v) => isNum(v, 0, BIG),
     by: (v) => isMap(v, RESULT_LIMITS.players, isId, (x) => isNum(x, 0, BIG)), done: isBool,
     left: (v) => isMap(v, RESULT_LIMITS.players, isId, (x) => isInt(x, 0, 1e5)),
+    damage: (v) => isList(v, RESULT_LIMITS.players, isLiveDamage),
     leaksBy: (v) => isMap(v, RESULT_LIMITS.players, isId, (x) => isNum(x, 0, 1e6)),
-    $optional: ['resolved', 'leaks', 'bossDmg', 'by', 'done', 'left', 'leaksBy'],
+    $optional: ['resolved', 'leaks', 'bossDmg', 'by', 'done', 'left', 'leaksBy', 'damage'],
   },
   // `cs` (DESIGN §32, optional): the content hash the reporting browser ran the battle on — its spec's `cs`. In a room
   // with gameplay plugins (P1c, DESIGN §32.6) the match refuses a result without it or with another one (and runs the
@@ -544,8 +550,8 @@ export const C2S = {
 // Server → client message types (documentation + client dispatch table keys).
 export const S2C = [
   'welcome', 'ok', 'error', 'pong',
-  'room.state', 'room.closed', 'chat.message', 'chat.history',
-  'm.public', 'm.private', 'm.field', 'm.toast', 'm.ticker', 'm.emote', 'm.ping', 'm.result',
+  'room.state', 'room.closed', 'chat.message', 'chat.history', 'site.announcement',
+  'm.public', 'm.private', 'm.state', 'm.field', 'm.toast', 'm.ticker', 'm.emote', 'm.ping', 'm.result',
   // m.layer { playerId, bondId, add } — own live prep layer gain; ephemeral, never replayed on resync.
   'm.layer',
   // m.unitStats { seq, round, units: [unitStatsEntry] } — the answer to g.unitStats (the requester only)

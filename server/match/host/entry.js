@@ -34,6 +34,7 @@ import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { getData, setData } from '../../data.js';
 import { installOfficialBounds } from '../../../shared/plugins/officialBounds.js';
+import { boundedJson, HOST_IPC_LIMITS } from './ipc.js';
 import { contentHashOf } from '../../../shared/plugins/identity.js';
 
 /** A worker thread (parentPort), else a child process (its IPC channel). */
@@ -67,6 +68,7 @@ if (viaWorker) startBeat();
 const queue = [];
 let booted = false;
 let MatchClass = null;
+let extensions = null;
 let VirtualScheduler = null;
 /** Prep EffectRefs this content set grants to every player. Empty when the set has no data.dsl. */
 let dslGrants = [];
@@ -198,6 +200,7 @@ function diag(match) {
 function create(matchId, opts) {
   const sched = options.virtualTime && VirtualScheduler ? new VirtualScheduler({ start: Date.now() }) : null;
   let match;
+  extensions.syncExtensionSettings(opts.extensionSettings);
   try {
     match = new MatchClass({
       ...(options.matchOptions || {}),
@@ -209,7 +212,16 @@ function create(matchId, opts) {
       now: Date.now,
       send: (playerId, msg) => { post({ type: 'send', matchId, playerId, msg }); return true; },
       broadcast: (msg) => post({ type: 'broadcast', matchId, msg }),
-      onEnd: (summary) => post({ type: 'end', matchId, summary: plain(summary) }),
+      onEnd: (summary) => {
+        let snapshot = null;
+        try { snapshot = extensions.extensionEnd(match, summary); } catch (e) { log.error('[host] console record failed', e); }
+        const end = { type: 'end', matchId, summary: plain(summary), ...(snapshot ? { extensions: plain(snapshot) } : {}) };
+        if (snapshot && !boundedJson(end, HOST_IPC_LIMITS.message)) {
+          delete end.extensions;
+          log.error('[host] console record exceeded the IPC size limit');
+        }
+        post(end);
+      },
       ...(sched ? { scheduler: sched } : {}),
     });
   } catch (e) {
@@ -255,6 +267,15 @@ function handle(m) {
     let result;
     if (!match) result = { error: 'WRONG_PHASE', detail: 'no running match' };
     else if (m.method === 'diag') result = diag(match);
+    else if (m.method === 'extensionAdmin') {
+      try { result = extensions.extensionAdmin(match, ...m.args); } catch (e) { log.error('[host] console operation failed', e); result = { error: ERR_INTERNAL }; }
+    }
+    else if (m.method === 'syncExtensions') {
+      extensions.syncExtensionSettings(m.args?.[0]);
+      match.markPublic?.();
+      match.flush?.(true);
+      result = { ok: true };
+    }
     else {
       try {
         const fn = match[m.method];
@@ -271,6 +292,7 @@ function handle(m) {
 function run() {
   boot().then(async () => {
     installed = getData();
+    extensions = await import('./extensions.js');
     booted = true;
     post({ type: 'ready' });
     for (const m of queue.splice(0)) handle(m);

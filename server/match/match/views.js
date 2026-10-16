@@ -12,6 +12,8 @@ import { bountySpawns, previewOf } from '../waves.js';
 import { timelineAt } from '../fields.js';
 import { bossFieldPlacement } from '../finalAssault.js';
 import { battleProgress } from '../../sim/spec.js';
+import { getRoundCharts, getLiveRoundDamage } from '../hostSettings.js';
+import { roundChartHistory } from '../history.js';
 
 /** A reported capsule numerator clamped to its denominator, else null (unknown — never a fabricated 0). */
 const finiteOrNull = (v, cap = Infinity) => {
@@ -64,6 +66,8 @@ export class MatchViews {
     const v = {
       t: 'm.public',
       phase: this.phase,
+      roundCharts: getRoundCharts(),
+      roundHistory: getRoundCharts() ? roundChartHistory(this, { live: getLiveRoundDamage() }) : [],
       round: this.round,
       lastRound: this.gd.lastRound,
       deadline: this.deadline,
@@ -97,6 +101,7 @@ export class MatchViews {
       players: this.order.map((ps) => ({
         playerId: ps.playerId,
         ...(Object.keys(ps.skins || {}).length ? { skins: ps.skins } : {}),
+        bondPlan: ps.bondPlan || null,
         seat: ps.seat,
         name: ps.name,
         isBot: ps.isBot,

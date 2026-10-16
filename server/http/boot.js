@@ -132,6 +132,7 @@ export async function runMain(start) {
       const supervised = process.env.SP_UPDATE_RESTART === 'supervisor';
       const managedShutdown = process.env.SP_SERVICE_SHUTDOWN === 'exit-code';
       admin = await startAdmin({ lobby: srv.lobby, network: srv.network, traffic: srv.traffic, root: ROOT, port: Number(process.env.SP_ADMIN_PORT) || srv.port + 100,
+        studioUrl: srv.studio?.pageUrl?.(`http://127.0.0.1:${srv.port}`) || null,
         service: {
           shutdownReason: supervised && !managedShutdown ? N_('由外部守护程序管理，请使用服务管理器关闭服务') : '',
           prepare: async (action) => {

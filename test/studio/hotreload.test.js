@@ -1,3 +1,4 @@
+import { symlinkSync } from '../helpers/fsLinks.js';
 // test/studio/hotreload.test.js — hot reload of plugins while the studio is in use (DESIGN §32.9; server/studio/watch.js,
 // server/lobby.js refreshPlugins): a file of a plugin changes on disk (the studio's write or an author's own tool) → the
 // watch (fs.watch, gathered over 300 ms) → registry.rescan() → the visual sets see the set a room holds changed → a room
@@ -49,7 +50,7 @@ test('the watch: a plugins folder over the entry limit is not watched as a tree 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-watch-big-'));
   const plugins = path.join(dir, 'plugins');
   writePlugin(path.join(plugins, 'skin'), cosmetic({ assets: { chars: { char_102_texas: { avatar: 'a.png' } } } }), { 'a.png': png(2, 2) });
-  fs.symlinkSync(dir, path.join(plugins, 'loop')); // a link back up: never followed by the count
+  symlinkSync(dir, path.join(plugins, 'loop')); // a link back up: never followed by the count
   const registry = createPluginRegistry({ publicDir: path.join(dir, 'public'), dataDir: path.join(dir, 'data'), packsDir: path.join(dir, 'packs'), pluginsDir: plugins }, { recheckMs: 60000 });
   const warns = [];
   const w = createPluginWatcher({ pluginsDir: plugins, registry, log: { warn: (m) => warns.push(m) }, maxEntries: 2 });

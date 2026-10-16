@@ -40,10 +40,12 @@ import { useErrorBoundary } from '../vendor/hooks.module.js';
 import { html, UiHosts, Button, MicroLabel, closeAllDialogs } from './ui/components.js';
 import { ChatPanel } from './ui/chat.js';
 import { installChatSync } from './ui/chatStore.js';
+import { AnnouncementBanner, AnnouncementHost } from './ui/announcement.js';
+import { announcementFromMessage } from '../../shared/announcements.js';
 import { ConnectionBanner } from './ui/connBanner.js';
 import { ToastHost, toast, toastError, describeError } from './ui/toasts.js';
 import { net, identity, NetError } from './net.js';
-import { store, useStore, emptyMatch, selectRoute, sessionResetNotice, isSpectating } from './store.js';
+import { store, useStore, shallowEqual, emptyMatch, selectRoute, sessionResetNotice, isSpectating } from './store.js';
 import { data } from './data.js';
 import { GAME_FILES } from './ui/gameComponents.js';
 import { TitleScreen, sanitizeName } from './screens/title.js';
@@ -51,9 +53,10 @@ import { LobbyScreen, rememberRoom, parseRoomParam } from './screens/lobby.js';
 import { RoomScreen, TrustedNotice } from './screens/room.js';
 import { GameScreen } from './screens/game.js';
 import { audio, installAudio } from './audio.js';
-import { settingsStore } from './ui/settings.js';
+import { settingsStore, updateSettings } from './ui/settings.js';
 import { battleRunner } from './battle/runner.js';
-import { GuideHost } from './ui/guide.js';
+import { ResourceHost } from './ui/resourcePanel.js';
+import { syncResources, unsupportedReason } from './resources/index.js';import { GuideHost } from './ui/guide.js';
 import { installDeviceSupport } from './ui/device.js';
 import { registerImportedAssetWorker } from './assetCache.js';
 import { LoadoutHost } from './screens/loadout.js';
@@ -62,6 +65,7 @@ import { installRehearsal } from './battle/rehearsal.js';
 import { recordResult, installStatsRecorder } from './ui/stats.js';
 import { installLoadoutSync, installOwnershipSync, installDiySync } from './ui/loadoutSync.js';
 import { installSkinsSync } from './ui/skins.js';
+import { installBondPlanSync } from './ui/bondPlan.js';
 import { startBuildGuard } from './ui/buildGuard.js';
 import { PreloadHost, installPreload } from './ui/preload.js';
 import { assetMirrors, isAssetPath } from './assetMirrors.js';
@@ -249,6 +253,7 @@ function wireNet() {
   net.on('replaced', () => toast(t('该身份已在其他页面登录，本页已断开'), 'warn', { ttl: 6000 }));
   net.on('unhandledError', (err) => toastError(err));
   net.on('room.state', onRoomState);
+  net.on('site.announcement', (message) => store.set({ announcement: announcementFromMessage(message) }));
   net.on('room.closed', (msg) => {
     backToLobby();
     const known = Object.hasOwn(CLOSE_REASON, String(msg.reason)) ? CLOSE_REASON[msg.reason] : null;
@@ -342,11 +347,12 @@ function App() {
   useLang(); // a language switch re-renders the whole tree in place
   const [error, resetError] = useErrorBoundary((err) => console.error('[ui] screen crashed', err));
   const Screen = SCREENS[route] || LobbyScreen;
+  const resources = useStore((s) => s, shallowEqual, settingsStore);
   return html`<div class="app-root">
     <div class="app-bg" aria-hidden="true"></div>
     ${error ? html`<${ScreenCrashed} error=${error} reset=${resetError} />` : html`<${Screen} key=${route} />`}
     <${ChatPanel} />
-    <${TrustedNotice} />
+    <${AnnouncementBanner} /><${AnnouncementHost} />    <${TrustedNotice} />
     <${ConnectionBanner} />
     <${ToastHost} />
     <${UiHosts} />
@@ -354,7 +360,9 @@ function App() {
     <${LoadoutHost} />
     <${StatsHost} />
     <${PreloadHost} />
-  </div>`;
+    <${ResourceHost} enabled=${resources.preload} optional=${resources.preloadOptional} voiceLang=${resources.preloadVoiceLang}
+      onChange=${(preload) => updateSettings({ preload })} onOptional=${(preloadOptional) => updateSettings({ preloadOptional })}
+      onVoiceLang=${(preloadVoiceLang) => updateSettings({ preloadVoiceLang })} />  </div>`;
 }
 
 // ---- boot -----------------------------------------------------------------------------------------
@@ -488,12 +496,15 @@ async function boot() {
   }));
 
   wireNet();
+  const syncPreload = (s) => { if (!unsupportedReason()) void syncResources(s.preload, s.preloadOptional, s.preloadVoiceLang); };
+  settingsStore.subscribe(syncPreload); syncPreload(settingsStore.get());
   installStatsRecorder(store); // follows the match on screen, so a 放弃模拟 can be recorded (ui/stats.js)
   installLoadoutSync({ net });
   // 战斗倍速 (battleSpeed mod): a settings change applies to the running battle at once (runner.setSpeed keeps the
   // battle clock); new battles pick the pref up in runner onStart.
   settingsStore.subscribe((s) => { try { battleRunner?.setSpeed(s.battleSpeed); } catch { /* ignore */ } });
   installSkinsSync({ net });
+  installBondPlanSync({ net });
   installOwnershipSync({ net });
   installDiySync({ net });
   // the room's cosmetic plugins and the player's own over the art manifest (content.js; nothing is fetched without them)

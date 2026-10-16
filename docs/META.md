@@ -5,6 +5,16 @@ the **UI owner** consuming `m.public` / `m.private` / `m.result`, and anyone dri
 Normative contracts stay in DESIGN.md §6 and §8 ([design/match.md](design/match.md),
 [design/network.md](design/network.md)); this file documents the implementation and every assumption it makes.
 
+Hub 的公告和状态增量是平台 / 传输功能，不进入确定性模拟。盟约预选仅供沟通；表情扩展沿用原权限和冷却；伤害统计只在浏览器读取事件。契约见 [design/network.md](design/network.md)，资源与离线缓存见 [ASSETS.md](ASSETS.md)，移植验收见 [UI-HUB-ACCEPTANCE.md](UI-HUB-ACCEPTANCE.md)。
+
+Optional cosmetics: lobby `room.skins` stores a catalogue-filtered operator map on the session / seat.
+PlayerState takes a frozen copy; `Match.setSkins` can update it during any active phase and flush the public
+player's non-empty `skins` map. No gameplay state or battle input changes. See [SKINS.md](SKINS.md).
+
+Room creation accepts optional `code` (DESIGN §29.15): exactly `ROOM_CODE_LEN` ASCII letters or digits,
+normalized to uppercase. Omit it for the existing random generator. An occupied code returns `ROOM_CODE_TAKEN`
+before leaving the current room; normal room disposal releases it. The co-op lobby exposes this as an optional field.
+
 ```
 server/match/
   Match.js         state machine, timers, round loop, co-op orchestration, views (the lobby⇄match interface is at the top)
@@ -40,6 +50,22 @@ server/match/
 ---
 
 ## 1. Match flow
+
+主机房间消息（`action:chatSend`）复用既有房间聊天，不影响对局。`blockedWords` 主机配置只过滤
+新聊天文本，在历史保存和广播前替换命中词；不修改模拟、收益或既有聊天记录。接口见
+[design/network.md](design/network.md)，本机配置与测试见 [LOCAL-DEV.md](LOCAL-DEV.md)。
+
+本库局内每回合曲线复用 `history.js` 的已结算记录，通过 `m.public.roundHistory` 向所有玩家及观战者
+提供含曲线与每回合干员伤害排行字段的投影；主机 `roundCharts` 默认开启，关闭仅隐藏面板及公开历史，记录继续。
+战斗期间追加只读 `live` 回合，复用 `b.progress.damage` 和服务器战场计数，联防合并本回合两阶段伤害；
+累计排行计算到所选回合。终局通过 `m.result.roundHistory` 保存全部已结算回合，供结算页及本机对局记录复用。
+主机可单独关闭 `liveRoundDamage`（默认开启），不影响已结算记录、本机 DPS/HPS 或战斗结果。
+回档和重启恢复使用既有 `history` 快照，不保留废弃时间线。详见 [LOCAL-DEV.md](LOCAL-DEV.md)
+「局内每回合曲线」。
+
+本分支主机可在终局记录打开整局回放，查看每回合实际阵容、敌人及已采纳结果；回到第 R 回合时回放显式截断 ≥ R 的废弃时间线，不进入回档快照。回放与三类清理的主机接口和限制见 [LOCAL-DEV.md](LOCAL-DEV.md) §5「整局回放与数据清理」，不改变对局流程。
+
+控制台房间计时只调整休整期：`prepOverride = null` 跟随当前主机设置，单独配置替换全局配置而不叠乘，下一次 `enterPrep` 生效，其他阶段时间不变。覆盖随休整期快照回档 / 恢复；内部测试选项 `timerScale` 保留，不由控制台设置。
 
 ```
 LOBBY → INFO_CHECK (co-op 25 s; solo and single-human matches untimed; all humans confirmed ⇒ next) → BAND_DRAFT → BATTLE_CHECK (3 s)
@@ -1013,3 +1039,53 @@ at zero after a removal, without a `debt` entry. Ordinary grants, 整备 and 机
 `requirePool:false` is not a universal equipment bypass. Rockrock/Flametail's measured weighted subsets remain subject
 to shared availability (§30.2). 凯瑟琳's `pool_equip_kathe` is every shop-eligible item plus 突变细胞 (`also`), uniform
 [ASSUMED], at any 调度中心 level (#631); the shop item slot does not read `also`.
+
+### Host equipment override and round history (DESIGN §29.18–19)
+
+The authenticated local console's `item` action retains string IDs. Exhausted stock returns
+`code: ITEM_STOCK_CONFIRM` without granting; the console opens a Yes/No dialog (Escape cancels). Yes retries with
+`value: { id, force: true }`. Direct `pieceEquip` uses the same confirmation and retries with
+`{ target, item, force: true }`, preserving its target. Only the item admin route supplies `acquireItem(..., { forceStock: true })`; game clients
+cannot request it. Confirmed excess copies carry `adminStockCopies`, propagated by item merges and rewind snapshots.
+All copies still occupy shop stock; the audit excludes only explicitly authorized copies from the excess check.
+Hand/temporary limits and normal purchase/reward/strategy checks still apply. This is a maintainer-requested custom rule.
+
+`history.js recordRound` runs after normal settlement and `_finishFinal`, before the Final Assault / Hidden Core
+transition changes `round`, the wave and `lastResults`. Its round key prevents a duplicate in `finish()`.
+Both solo and co-op terminal leader rounds retain their units; the hidden round's damage delta starts after the
+Final Assault. `finish` excludes battle detail for an unsettled interrupted round, since bot planning deliberately
+retains the previous battle results during prep. Console views and saved records share this history. Old missing
+unit data cannot be recovered from aggregate totals; no migration invents them.
+
+Rewind snapshots restore `bossPairs` together with `bossWaves` (§30.31), so the restored prep preview and boss
+combat retain the same partners and left/right sides. Rewinding to a prep before pairing resets both to null.
+
+### Room text chat (owner-requested remake extension)
+
+[ASSUMED] The official mode has only the emote wheel (upstream issue #125); the owner requested text chat on
+2026-10-14. `room.chat {text, clientId}` works for seated human players before, during and after a match. Spectators
+read only (`SPECTATOR`); non-members receive `NOT_IN_ROOM`. The server strips C0/C1 controls, trims and rejects empty
+text or more than 200 Unicode code points / 1024 UTF-8 bytes (`BAD_MSG`). Each session may send once per second
+(`RATE`); each room admits at most ten messages per rolling second. Identity and time come from the server.
+
+`chat.message {code, id, playerId, name, seat, role, text, at}` broadcasts only to current room members;
+`chat.history {code, messages, lastId}` unicasts the latest 50 entries on join, spectate and reconnect/resync. History
+is held only in room memory and disappears with the room. Repeating an accepted `clientId` is acknowledged without
+broadcasting again (last 50 IDs per session per room). `room.state.textChat: true` advertises support.
+
+The global collapsible text panel preserves history and drafts across match phases, counts unread live messages,
+escapes user text via Preact and clears its state on leave/kick/room or identity change. Enter sends (Chinese IME
+composition does not), Shift+Enter edits and Esc collapses. Failure preserves the draft; offline requests are never
+queued. The original picture-only emote wheel is retained. No battle rules or golden results change.
+
+### 预选盟约（2026-10-16）
+
+组队海报（本库 2026-10-16）：room.card 的 charId 与可选 skinId 只保存海报展示选择，
+通过 room.state.seats 的 card/cardSkin 同步队友。组合必须存在于生成目录，清空 charId 恢复自动分配；
+独立于战斗皮肤及 BattleSpec。生成、图片安装和验证见 [LOCAL-DEV.md](LOCAL-DEV.md) §2。
+
+`room.bondPlan {bondId: string | null}` 保存浏览器宣布的核心盟约。服务端仅接受 `data/bonds.json` 中 `isCore` 的八个 ID 或 `null`，会话、房间席位和 `m.public.players[].bondPlan` 同步；重连恢复，回档保留当前偏好。等待室、策略选择和队伍栏可见。它只供沟通，不改卡池、盟约层数、战斗输入或结算；对局内更新经过 `m.guard` / `markPublic`。非核心或未知 ID 拒绝。
+
+## 本机扩展：逐回合记录与重启恢复
+
+2026-10-15 主机扩展为 `history` 增加漏怪来源明细、实际收入 / 支出与次数、激活盟约层数及档位；仅记录现有结算，不改战斗规则。旧记录缺失字段留空。用户确认重启恢复采用 rewind 的最近 PREP 自动效果前快照，保留当时机变，重打本回合，截断废弃回放；版本及规则指纹必须一致。原 token 重连，DIY、日程和主机规则保持原值，停机时间不计入对局。安全边界、存储和测试见 [LOCAL-DEV.md](LOCAL-DEV.md) §9。

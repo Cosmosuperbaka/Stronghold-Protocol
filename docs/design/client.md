@@ -2,6 +2,48 @@
 
 Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 
+本库 2026-10-16：生成的素材预载索引 `resource-manifest` 与组队海报目录 `seat-art` 仅用于展示，
+与本机素材清单一样排除在玩法内容指纹 `cs` 之外；增删这些资源不应改变玩法身份。
+
+本库控制台（维护者要求，2026-10-16）：聊天管理恢复本房间主机消息输入和发送，标记「主机消息」，
+不与全站公告混用。轮询保留草稿，失败保留文本并可重试，Enter 发送避开输入法合成，Shift+Enter 换行。
+设置页依次为对局设置（休整时长、联防叠层、局内统计）、交流管理（屏蔽词）、记录与恢复
+（回放、重启恢复）、维护与扩展（版本更新、插件）、数据清理。桌面左侧分类导航，窄屏顶部导航；
+各项独立保存，时长预览默认折叠，危险清理置底。屏蔽词每行一条，可保存和撤销修改。
+交流管理增加房间文字聊天开关（默认开）、单人发言间隔（默认 1 秒，0.5–10 秒）和历史保留条数
+（默认 50，10–50）；主机消息不受玩家发言开关限制。局内统计增加实时伤害开关（默认开），关闭仅隐藏
+进行中回合；结算及历史记录继续保存。排行实时更新保留原回合/玩家选择节点和正在打开的原生选单。
+
+本库 2026-10-16：组队海报提供常显更换按钮，搜索干员后选择服装；独立保存并同步队友，不改战斗外观。
+手机同盟选择右栏安全居中，溢出从顶部排起；高度 ≤500px 隐藏创建插画，密钥框不被顶栏遮挡。
+
+本库标点（2026-10-16）：棋盘上右键点击干员与空地一致，发送当前选中的标点，不打开干员详情；
+左键查看详情与手机长按保留。整备区右键、敌人预览栏和观战席沿用原查看规则。
+
+本库 2026-10-16（维护者要求）：局内左下角「每回合统计」（位于交流按钮后）为所有玩家（含淘汰者）与观战者提供
+非模态统计面板，复用主机控制台图表，支持 LP、剩余金币、累计花费、累计/本回合伤害、商店等级、
+本回合收入/支出及可叠层盟约的层数；可切换表格，第一回合结算前显示等待记录。
+同一面板内切换「每回合曲线 / 干员伤害排行」。排行复用控制台实现，按回合与玩家筛选、
+默认前 10 并可展开全部，显示干员/玩家、伤害、伤害条、击杀和占本人伤害比例；切换分页保留选择。
+主机设置 `roundCharts` 默认开启，保存后全房间立即生效并持久化；关闭时隐藏入口、关闭已打开面板，
+不停止历史记录。两处图表的盟约选项均排除数据标记 `noStack` 的盟约（含旧记录）；控制台的这类
+盟约保留人数/档位信息，省略层数及加层/设层输入。
+
+Custom alliance keys (§29.15): the co-op lobby's create section has an optional labelled input. Empty means random;
+otherwise require four ASCII letters or digits, uppercase the input, and preserve invalid characters / excess length
+so an unintended key is never silently created. Show the format hint, disable creation for invalid input, and report
+occupied keys through the existing localized error toast. The solo create flow omits this field and the custom code.
+
+Local optional cosmetic extension (owner request, 2026-10-10): roster and DIY operator details select outfits
+by charId, persisted separately from gameplay loadouts. A roster toolbar action randomizes all supported operators'
+installed non-default outfits (including DIY); operators without an available outfit use the default.
+Views resolve the owner's `m.public.players[].skins`
+without changing simulation input; bots, stand-ins and summons keep their original appearance. Missing or
+failed models use the default fallback. Settings offers manual static-media preloading, progress, cancellation
+and failure counts. Contracts and sources: [SKINS.md](../SKINS.md).
+Shop / reward cards and detail portraits remain the base half-body art; installed outfits currently include avatars
+and battle Spine models only. This affects presentation only, never purchases or simulation inputs.
+
 ## 9. Client rendering contract (public/js/render)
 
 Bond-layer audio (#482): live own preparation gains arrive as `m.layer`; the displayed battle's `layer` tuples
@@ -226,7 +268,7 @@ A bond the mode never activates (标准: official `inactiveBondIdList`) reads �
 The strategy draft enables skip only on the viewer's turn, with quota left and another unpicked player to pass to.
 The order list retains finished players for display; they do not keep the last player's skip button enabled.
 
-Interactions (research 09 §1.2 / §5, which supersede the first draft): shop card, upgrade and 机变 card are two-tap (select → confirm, §18.2) — a tap anywhere on the card, its confirm strip included, is the card's tap (shop cards have no ⓘ corner; the armed bar sits above the detail card; a shop card that cannot be bought right now opens its detail on tap, §20.7); a press / drop goes by the tile under the pointer (§18.1); drag bench↔board — over a legal tile the dragged unit stands on it, as in the official deploy drag, held under the pointer elsewhere (§27.62); a legal board drop (also onto the piece's own tile) opens the 4-direction deploy wheel (swipe UP/RIGHT/DOWN/LEFT with the rotated range striped orange; release in the centre, ✕ 点击取消 or Esc cancels); tap a unit's tile ⇒ underframe with **出售 +N** (and **撤退** on the board; items/Arts in the hand / temp: **销毁** — equipped items are locked, §6.2) plus its rotated range — the range follows the open detail card (`screens/game/range.js inspectRange`, GitHub PR #281): an own board piece in prep, and in battle or on a scouted board any ally operator / summon on the field with its current range (the live stats' `range` and `dir`, the snapshot's tile), never an enemy or a bench unit (UnitInfo `area` hand / temp); drag, the wheel and the pen hide it; no drag-to-sell; drag an item onto a unit's tile ⇒ equip that unit (both slots used ⇒ the replace dialog `ui/equipReplace.js` shows the incoming and the two equipped items; the player picks the one to replace — it is destroyed — `g.equip replaceUid`; cancel changes nothing); Arts are dropped on a tile and get the direction step; right-click or long-press ⇒ detail (or a tap on a shop card while the bar is locked); keyboard shortcuts — the defaults, which each player rebinds in 设置 → 快捷键 (`ui/gameLogic/shortcuts.js`, saved with the settings; §25.15) — `W` buy the hovered shop card directly (operators and items, no click; empty/sold slots and reward choices do nothing; existing funds/bench checks apply; §32.14.22), `R` refresh, `F` freeze, `D` level-up, `Q` retreat / `X` sell the own operator under the pointer, without clicking first or falling back to an old selection (board operators can retreat; board, bench and temporary-bench operators can be sold; blank tiles, HUD, items and summons do nothing; §32.14.22), `Space` ready (in a solo battle: pause / resume, §14 Solo pause); `Esc` closes (fixed); none acts while a text field has the focus or a dialog is open, nor while spectating, eliminated, watching another board, or on AI autopilot (暂离 or the server's autoplay). While a promotion reward or a special refresh replaces the shop row, W buys only a visible shop card and never a hidden slot or a reward card (§32.14.22). All actions optimistic-free: UI waits for server state (latency is small).
+Interactions (research 09 §1.2 / §5, which supersede the first draft): shop card, upgrade and 机变 card are two-tap (select → confirm, §18.2) — a tap anywhere on the card, its confirm strip included, is the card's tap (shop cards have no ⓘ corner; the armed bar sits above the detail card; a shop card that cannot be bought right now opens its detail on tap, §20.7); a press / drop goes by the tile under the pointer (§18.1); drag bench↔board — over a legal tile the dragged unit stands on it, as in the official deploy drag, held under the pointer elsewhere (§27.62); a legal board drop (also onto the piece's own tile) opens the 4-direction deploy wheel (swipe UP/RIGHT/DOWN/LEFT with the rotated range striped orange; release in the centre, ✕ 点击取消 or Esc cancels); tap a unit's tile ⇒ underframe with **出售 +N** (and **撤退** on the board; items/Arts in the hand / temp: **销毁** — equipped items are locked, §6.2) plus its rotated range — the range follows the open detail card (`screens/game/range.js inspectRange`, GitHub PR #281): an own board piece in prep, and in battle or on a scouted board any ally operator / summon on the field with its current range (the live stats' `range` and `dir`, the snapshot's tile), never an enemy or a bench unit (UnitInfo `area` hand / temp); drag, the wheel and the pen hide it; no drag-to-sell; drag an item onto a unit's tile ⇒ equip that unit (both slots used ⇒ the replace dialog `ui/equipReplace.js` shows the incoming and the two equipped items; the player picks the one to replace — it is destroyed — `g.equip replaceUid`; cancel changes nothing); Arts are dropped on a tile and get the direction step; right-click or long-press ⇒ detail (or a tap on a shop card while the bar is locked); keyboard shortcuts — the defaults, which each player rebinds in 设置 → 快捷键 (`ui/gameLogic/shortcuts.js`, saved with the settings; §25.15) — `W` buy the hovered shop card directly (operators and items, no click; empty/sold slots and reward choices do nothing; existing funds/bench checks apply; §32.14.22), `R` refresh, `F` freeze, `D` level-up, `Q` retreat / `X` sell the selected own operator first; only without a selection do they target the operator under the pointer without clicking (board operators can retreat; board, bench and temporary-bench operators can be sold; a selected item or summon blocks these shortcuts; without a selection, blank tiles, HUD, items and summons do nothing; §32.14.22), `Space` ready (in a solo battle: pause / resume, §14 Solo pause); `Esc` closes (fixed); none acts while a text field has the focus or a dialog is open, nor while spectating, eliminated, watching another board, or on AI autopilot (暂离 or the server's autoplay). While a promotion reward or a special refresh replaces the shop row, W buys only a visible shop card and never a hidden slot or a reward card (§32.14.22). All actions optimistic-free: UI waits for server state (latency is small).
 
 The owner's `prepMapChars` (外勤医疗's 预备干员-医疗, or another displayed map-character variant) are read-only
 preparation views: tapping one opens its existing operator-style detail card and highlights its attack range from
@@ -390,7 +432,7 @@ The overview displays `Dr. <nickname>` from the active session's `me.name` only.
 restores the newest usable self nickname from that file only when the current name is empty; an existing name wins.
 Validate restored names with the title entry's sanitizer, update `me.name` and saved `sp.name`, and fill an empty
 entry field without entering the lobby. Entering a nickname and server welcome already update both name locations.
-Display 未知 while no current or usable imported name is available. 
+Display 未知 while no current or usable imported name is available.
 The trophies icon uses the existing asset manifest. Compaction and export/import retain trophy awards; older already-compacted rows whose awards were discarded cannot be restored by this display. This is local recorded data, not an official account trophy balance.
 
 A strategy earns its corner badge after 3 successful defenses (`bands.victorCount`; [research 01](../research/01-core-rules.md)).
@@ -465,6 +507,24 @@ the exact b.snap `ammo` counts, extra rounds and refills included), centred in t
 move down by its height. It hides with the magazine, in the prep view and after death. The simplified board has no ammo
 bar and so no count.
 
+Room text chat is an owner-requested remake extension: the global `public/js/ui/chat.js` panel is available in the
+room and every match phase, independent of the official emote wheel. Its transport store (`public/js/ui/chatStore.js`)
+follows room membership across route changes. The in-match entry sits below the ready controls and timer.
+Limits and frames: network §8, Room text chat.
+
+Field pings are another owner-requested remake extension [ASSUMED] (2026-10-14). A five-button HUD group selects
+attention, attack, danger, retreat or question; choosing one arms the next tap/click on a board tile (occupied tiles
+included), then exits placement. Each marker displays its server-authored sender name as escaped text, with long names ellipsized. Click the same button again or press Esc to cancel. Right-clicking empty ground
+sends the selected kind directly. Both the engine and DOM fallback use BOARD coordinates and `view.tileScreen`
+viewport geometry. Matching-field markers last 2.5 s and follow the camera: a 56–80 px SVG badge drops above the target,
+with two expanding ground rings and a pointer stem. Short screens use a shorter drop; reduced motion keeps the badge
+and a static ground ring. Five distinct synthesized cues use the existing AudioManager SFX/mute buses, require an
+unlocked visible page, and suppress bursts within 180 ms. Only newly received pings on the currently shown field sound;
+switching fields never replays old cues. No audio assets or downloads are required.
+The 44 px controls sit above the bottom-left communication/settings corner, away from the shop's refresh/freeze buttons.
+Hidden while the emote wheel is open, in the enemy pen, during dragging/facing, and for spectator seats (they still
+see/hear markers). Text uses all language packs. Changes of phase/round/room clear recent markers.
+
 ### Optional stored-energy count (§32.14.28)
 
 设置 →「秘术师能量」 (`mysticEnergy`, PR #636 by @zasx77771, GitHub #633) defaults off — the official HUD has no such
@@ -486,10 +546,10 @@ normalized values from the room, read-only for non-hosts and during a match. Van
 
 Authoring checks (DESIGN §32.9.1): numeric fields display the shared official bounds and positive step floor; invalid saves are refused. DSL validation network failures are explicit, and saving revalidates the current spec before writing. Unkeyed studio state reads omit script source. Trial replay remains a data-only renderer feed; sandbox simulation runs in the same SES executor as a formal match. Forge and catalogue entry points remain available beside the authoring templates.
 
-### Combat metrics (作战统计) — ported from the xinhai-ai fork, opt-in
+### Combat metrics (作战统计) — ported from the xinhai-ai fork
 
-设置 →「作战统计」 (`combatMetrics`, PR #618 by @robll-v1) defaults off, the same kind of decision as 弹药数量: the
-official HUD has no such panel. Off, the corner button is not rendered and `trackCombat` is not called (no `damaged`
+设置 →「作战统计」 (`combatMetrics`, PR #618 by @robll-v1) defaults on in this extension (owner request, 2026-10-16);
+an explicitly saved false preference is preserved. Off, the corner button is not rendered and `trackCombat` is not called (no `damaged`
 hook, `battle.heal` is not wrapped). On, the corner's 作战统计 button (`gm__metrics`, `ui/combatMetrics.js`) opens a
 modeless panel over the running battle: the fight keeps playing behind it, ✕ / Esc closes it, and the next frame's
 prep keeps it usable.
@@ -514,3 +574,11 @@ restarts (a new match / a rewound round); a new round's prep clears only 当前�
 enters b.progress / b.result, and a tracked battle's result and rendered events are byte-identical to an untracked one
 (test/match/combat-metrics.test.js, test/match/runner.test.js). Ported from [xinhai-ai/Stronghold-Protocol](https://github.com/xinhai-ai/Stronghold-Protocol)
 (其公开部署分支，作者 @临夏俨然) with thanks.
+
+本库兼容补充（v0.3.0）：上游素材导入与扩展预载共用 classic `/sw.js`、各自保留缓存。停止预载不注销共享 worker；资源哈希、同源隔离与音频 Range 校验继续生效。作战统计默认开启（保留已保存的关闭偏好），快捷键随上游扩为含购买的七项。
+
+帧率上限（本库回归核对，2026-10-16）：不限 / 30 / 60 / 120 通过玩家设置即时应用于 Pixi ticker，
+影响同一 ticker 驱动的单位、特效与棋盘绘制；持久化并在重载后重新应用，不改变战斗 runner 的独立时钟。
+浏览器回归同时检查选中状态、实际 ticker 上限与回调频率，实际 FPS 可因设备性能低于上限。
+
+每回合统计补充（2026-10-16）：干员排行可在单回合与累计至指定回合之间切换；作战进行时，现有 `b.progress` 以有界字段广播各战场的当前干员伤害，面板以「进行中」回合显示实时数据（只读，不参与结算）。结算页的按钮复用同一面板，使用 `m.result.roundHistory`；首页「统计 → 对局记录」保存并恢复该字段，因此包含第 15 回合的完整结算数据。

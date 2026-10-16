@@ -38,3 +38,14 @@ test('a symlinked node_modules, vendor, art or cache folder (a worktree sharing 
     if (v !== null) assert.equal(v, true, `${rel} as a symlink is ignored`);
   }
 });
+
+test('release and local handoff output stays outside the source tree', () => {
+  for (const entry of ['coverage/', '.nyc_output/', '*.tsbuildinfo', '.eslintcache', '/release/', '/dist/', '/artifacts/', '/out/', '*.zip', '/docs/MOBILE-HUD-FIX.md']) {
+    assert.ok(lines.includes(entry), `.gitignore lists ${entry}`);
+  }
+  for (const rel of ['release/Stronghold-Protocol.zip', 'dist/manifest.json', 'out/SHA256SUMS.txt', 'docs/MOBILE-HUD-FIX.md']) {
+    const v = ignored(rel);
+    if (v !== null) assert.equal(v, true, `${rel} is ignored`);
+  }
+  for (const rel of ['README.md', 'docs/RELEASE-CANDIDATE.md', 'tools/package.mjs']) assert.notEqual(ignored(rel), true, `${rel} remains source`);
+});

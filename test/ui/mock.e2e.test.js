@@ -502,7 +502,7 @@ describe('in-match UI (mock harness, headless Chrome)', { skip: !ENABLED && 'set
 
   test('教鞭: PREP cards confirm twice, use its timer, reset on a new ID; old replies cannot clear a new busy pick', async () => {
     const { page, problems } = await open('phase=PREP', { render: 'fallback' });
-    await page.click('.gm__gear');
+    await page.click('[data-testid="settings-btn"]');
     await page.waitForSelector('.modal .set-keys');
     await page.click('.set-key[data-action="ready"]');
     await page.waitForSelector('.set-key.is-waiting[data-action="ready"]');

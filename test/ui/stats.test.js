@@ -97,7 +97,7 @@ function watched(states, t0 = 1_000_000) {
 
 describe('local stats: record building', () => {
   test('builds one full record from a raw m.result (frame + players + self marking)', () => {
-    const rec = buildRecord(baseResult(), { myId: 'p1', roomMode: 'solo', now: 1700000000000 });
+    const rec = buildRecord(baseResult({ roundHistory: [{ round: 15, players: [{ playerId: 'p1', dmg: 12, roundDmg: 12, units: [{ defId: 'op', name: '测试干员', dmg: 12, kills: 1 }] }] }] }), { myId: 'p1', roomMode: 'solo', now: 1700000000000 });
     assert.ok(rec);
     assert.equal(rec.v, STATS_VERSION);
     assert.equal(rec.end, 'settled');
@@ -107,6 +107,7 @@ describe('local stats: record building', () => {
     assert.equal(rec.difficulty, 'HARD');
     assert.equal(rec.seed, 123456789);
     assert.equal(rec.durationMs, 952123);
+    assert.equal(rec.roundHistory[0].round, 15);
     assert.equal(rec.roomMode, 'solo');
     assert.equal(rec.id, recordId(baseResult(), 'p1'));
     assert.equal(rec.players.length, 2);
@@ -116,6 +117,7 @@ describe('local stats: record building', () => {
     assert.equal(self.stats.bossDamage, 5000.5);
     assert.deepEqual(self.lineup, [{ id: 'char_290_vigna', golden: false, tier: 2, items: ['item_eq_1'] }]);
     assert.deepEqual(self.bonds, [{ bondId: 'steadShip', layers: 12, active: true }]);
+    assert.deepEqual(recordToResult(rec).roundHistory[0].players[0].units[0], { defId: 'op', name: '测试干员', dmg: 12, kills: 1 });
   });
 
   test('a 自选 pick and a 补位 stand-in survive in the lineup, or the replayed card would draw the plain operator', () => {

@@ -29,6 +29,8 @@ const revision = (m, ps) => createHash('sha256').update(JSON.stringify([
 ])).digest('hex');
 
 export function liveState(lobby, query) {
+  const hosted = lobby.rooms.get(String(query.room))?.match;
+  if (hosted?.hosted) return hosted.admin('live', query).then(result => ({ ...result, content: lobby.rooms.get(String(query.room))?.content || null, vanilla: lobby.vanilla?.cs || null }));
   const ctx = active(lobby, query.room, query.playerId);
   if (ctx.error) return ctx;
   const { m, ps, room } = ctx;
@@ -55,7 +57,7 @@ export function liveState(lobby, query) {
     if (scout?.alive && scout !== ps) fieldMeta = m.prepFieldMeta(scout);
   }
   return {
-    ok: true, matchId: id, revision: revision(m, ps), room: room.code, playerId: ps.playerId, name: ps.name,
+    ok: true, content: room.content || null, vanilla: lobby.vanilla?.cs || (!m.requireCs ? m.cs : null), matchId: id, revision: revision(m, ps), room: room.code, playerId: ps.playerId, name: ps.name,
     controllable: !ps.isBot && !ps.left && ps.alive,
     players: m.order.map((p) => ({ playerId: p.playerId, name: p.name, isBot: p.isBot, left: p.left, alive: p.alive })),
     public: m.publicView(), private: ps.privateView(), field: fieldMeta, snapshot, battle,
@@ -67,6 +69,8 @@ export function liveState(lobby, query) {
 }
 
 export function liveIntent(lobby, body) {
+  const hostedRoom = lobby.rooms.get(String(body?.room)), hosted = hostedRoom?.match;
+  if (hosted?.hosted) return hosted.admin('intent', body).then(result => { hostedRoom.adminLog = hosted.adminLog; return result; });
   const ctx = active(lobby, body?.room, body?.playerId);
   if (ctx.error) return ctx;
   const { m, ps, room } = ctx;

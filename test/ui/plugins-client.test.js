@@ -416,7 +416,7 @@ describe('the 插件 panel (ui/pluginPanel.js) and the room screen', () => {
     assert.equal(pluginMicro({ id: 'a', version: '1.0.0', artBytes: 4096 }), 'a · v1.0.0 · 4 KB');
   });
 
-  test('a vanilla page loads none of the panel, the asset store or what composes a set at start (the import graph of main.js)', () => {
+  test('a vanilla page loads none of the panel or what composes a set at start (the import graph of main.js)', () => {
     const seen = new Set();
     const walk = (rel) => {
       if (seen.has(rel)) return;
@@ -429,7 +429,8 @@ describe('the 插件 panel (ui/pluginPanel.js) and the room screen', () => {
     };
     walk('public/js/main.js');
     assert.ok(seen.has('public/js/content.js') && seen.has('public/js/cosmetics.js') && seen.has('public/js/ui/pluginTag.js'), 'the small parts are there');
-    for (const lazy of ['public/js/assets.js', 'public/js/ui/pluginPanel.js', 'shared/plugins/visual.js', 'shared/plugins/order.js']) {
+    assert.ok(seen.has('public/js/assets.js'), 'the Hub previews use the asset store');
+    for (const lazy of [ 'public/js/ui/pluginPanel.js', 'shared/plugins/visual.js', 'shared/plugins/order.js']) {
       assert.equal(seen.has(lazy), false, `${lazy} loads only when it is needed`);
     }
   });

@@ -49,7 +49,7 @@ import { PHASE } from '../../../shared/constants.js';
 import { sanitizeName } from './playerName.js';
 
 /** Current record-envelope version (bump + add a MIGRATIONS step when the record shape changes). */
-export const STATS_VERSION = 2;
+export const STATS_VERSION = 3;
 /** localStorage key under the app's `sp.pref.` prefix (store.js loadPref). */
 export const STATS_PREF_KEY = 'stats';
 /** Oldest records are dropped beyond this many matches. */
@@ -97,6 +97,26 @@ const MAX_ITEMS = 4;
 const MAX_BONDS = 24;
 const MAX_STAT_KEYS = 24;
 const MAX_NAME = 24;
+const MAX_ROUND_HISTORY = 20;
+const MAX_ROUND_PLAYERS = 6;
+const MAX_ROUND_UNITS = 160;
+
+function normalizeRoundHistory(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.slice(0, MAX_ROUND_HISTORY).filter(isObj).map((h) => ({
+    round: int(h.round, 0),
+    players: (Array.isArray(h.players) ? h.players : []).slice(0, MAX_ROUND_PLAYERS).filter(isObj).map((p) => ({
+      playerId: str(p.playerId) || '', alive: bool(p.alive, true), lp: num(p.lp), funds: num(p.funds), spent: num(p.spent),
+      dmg: num(p.dmg) || 0, roundDmg: num(p.roundDmg) || 0, level: num(p.level), income: num(p.income), expense: num(p.expense),
+      units: (Array.isArray(p.units) ? p.units : []).slice(0, MAX_ROUND_UNITS).filter(isObj).map((u) => ({
+        defId: str(u.defId) || '', name: str(u.name, MAX_NAME) || str(u.defId) || '', dmg: num(u.dmg) || 0, kills: int(u.kills, 0),
+      })).filter((u) => u.defId || u.name),
+      bonds: (Array.isArray(p.bonds) ? p.bonds : []).slice(0, MAX_BONDS).filter(isObj).map((b) => ({
+        id: str(b.id) || '', name: str(b.name, MAX_NAME) || '', active: bool(b.active), layers: int(b.layers, 0), noStack: bool(b.noStack),
+      })).filter((b) => b.id),
+    })).filter((p) => p.playerId),
+  })).filter((h) => h.round > 0 && h.players.length);
+}
 
 /**
  * Copy only the finite numeric keys of a stats block (the settlement's numbers; a numeric field this build does not
@@ -234,6 +254,7 @@ export function normalizeRecord(raw) {
     vs: vsOf(r.vs),
     // the room's gameplay plugins (see the header): its content set, null for the original game
     content: contentOf(r.content),
+    roundHistory: normalizeRoundHistory(r.roundHistory),
     players,
   };
   if (r.compact === true) rec.compact = true;
@@ -254,6 +275,7 @@ export function normalizeRecord(raw) {
  */
 export const MIGRATIONS = {
   1: (stats) => ({ v: 2, records: (Array.isArray(stats.records) ? stats.records : []).map((r) => (isObj(r) ? { ...r, content: null } : r)) }),
+  2: (stats) => ({ v: 3, records: Array.isArray(stats.records) ? stats.records : [] }),
 };
 
 /** Newest first (the stored order): by time, then id. */
@@ -304,18 +326,18 @@ function readRaw() {
  * not an envelope) is moved to `sp.pref.stats.damaged` — kept for a manual recovery — and the history starts again.
  * @returns {{ v: number, records: any[], newer: boolean, dropped: number, damaged: boolean }}
  */
-export function loadStats() {
+export function loadStats({ repair = true } = {}) {
   const raw = readRaw();
   if (raw == null) return { ...emptyStats(), newer: false, dropped: 0, damaged: false };
   let parsed;
   try { parsed = JSON.parse(raw); } catch { parsed = undefined; }
   if (!isObj(parsed) || !Array.isArray(parsed.records)) {
     // keep the bad value where a person can find it; if even that write fails the next save simply replaces it
-    try { globalThis.localStorage?.setItem(DAMAGED_KEY, raw); globalThis.localStorage?.removeItem(FULL_KEY); } catch { /* keep it in place */ }
+    if (repair) try { globalThis.localStorage?.setItem(DAMAGED_KEY, raw); globalThis.localStorage?.removeItem(FULL_KEY); } catch { /* keep it in place */ }
     return { ...emptyStats(), newer: false, dropped: 0, damaged: true };
   }
   const { stats, changed, newer, dropped } = migrateStats(parsed);
-  if (!newer && changed) saveStats(stats);
+  if (repair && !newer && changed) saveStats(stats);
   return { ...stats, newer, dropped, damaged: false };
 }
 
@@ -455,6 +477,7 @@ export function buildRecord(res, ctx = {}) {
     selfId: myId,
     vs: vsOf(ctx.vs),
     content: contentOf(ctx.content),
+    roundHistory: r.roundHistory,
     players: r.players,
   });
 }
@@ -586,6 +609,7 @@ export function recordToResult(rec) {
     seed: r.seed,
     durationMs: r.durationMs,
     teamLp: r.teamLp,
+    roundHistory: r.roundHistory,
     players: r.players,
   };
   if (Number.isFinite(r.lastRound)) res.lastRound = r.lastRound;

@@ -21,6 +21,8 @@
 // (`reason`: 'plugin-crash' | 'plugin-hang' | 'plugin-start'). A request the worker leaves unanswered for
 // REQUEST_TIMEOUT_MS is answered INTERNAL too (a living worker never takes that long: the watchdog acts first).
 
+import { getPrep, getUniteLayerGains, getRoundCharts, getLiveRoundDamage } from '../hostSettings.js';
+import { getReplayConfig } from '../replay.js';
 import { ERR } from '../../../shared/constants.js';
 import { msg, wireMessage } from '../../../shared/i18n.js';
 import { validHostMessage } from './ipc.js';
@@ -43,9 +45,10 @@ const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
 /** The lobby options a worker can take (JSON-safe: no callbacks, no data, no class). */
 export function wireOptions(opts) {
   const out = {};
-  for (const k of ['roomCode', 'mode', 'difficulty', 'modeId', 'aiPicksLast', 'seats', 'spectators', 'seed', 'matchNo', 'cs', 'vs', 'requireCs']) {
+  for (const k of ['roomCode', 'mode', 'difficulty', 'modeId', 'aiPicksLast', 'seats', 'spectators', 'seed', 'matchNo', 'hostId', 'prepOverride', 'cs', 'vs', 'requireCs']) {
     if (opts[k] !== undefined) out[k] = opts[k];
   }
+  out.extensionSettings = { prep: getPrep(), uniteLayerGains: getUniteLayerGains(), roundCharts: getRoundCharts(), liveRoundDamage: getLiveRoundDamage(), replay: getReplayConfig() };
   return out;
 }
 
@@ -114,6 +117,17 @@ export class MatchProxy {
   setLoadout(playerId, loadout, ops) { return this._request('setLoadout', [playerId, loadout, ops]); }
   requestSetupReroll(playerId, revision) { return this._request('requestSetupReroll', [playerId, revision]); }
   cancelSetupReroll(playerId, voteId) { return this._request('cancelSetupReroll', [playerId, voteId]); }
+  setBondPlan(playerId, bondId) { return this._request('setBondPlan', [playerId, bondId]); }
+  setSkins(playerId, skins) { return this._request('setSkins', [playerId, skins]); }
+  setHost(playerId) { this._notify('setHost', [playerId]); }
+  syncExtensions() { this._notify('syncExtensions', [wireOptions({}).extensionSettings]); }
+  admin(kind, value) {
+    return this._request('extensionAdmin', [kind, value, wireOptions({}).extensionSettings]).then(answer => {
+      if (answer.result === undefined) return answer;
+      this.adminLog = answer.log || [];
+      return answer.result;
+    });
+  }
   onDisconnect(playerId) { this._notify('onDisconnect', [playerId]); }
   onReconnect(playerId) { this._notify('onReconnect', [playerId]); }
   onLeave(playerId) { this._notify('onLeave', [playerId]); }
@@ -163,7 +177,7 @@ export class MatchProxy {
     if (this.disposed) return;
     if (m.type === 'send') { try { this.opts.send(m.playerId, m.msg); } catch (e) { this.log.error?.(`[match ${this.roomCode}] send failed`, e); } return; }
     if (m.type === 'broadcast') { try { this.opts.broadcast(m.msg); } catch (e) { this.log.error?.(`[match ${this.roomCode}] broadcast failed`, e); } return; }
-    if (m.type === 'end') { this._end(m.summary ?? null); return; }
+    if (m.type === 'end') { this.extensionEnd = m.extensions; this._end(m.summary ?? null); return; }
     if (m.type === 'failed') { this.crash('plugin-start', m.error); }
   }
 

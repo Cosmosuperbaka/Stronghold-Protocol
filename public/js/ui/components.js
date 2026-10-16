@@ -19,6 +19,7 @@ import { t } from '../../../shared/i18n.js';
 import { serverNow } from '../store.js';
 import { data, useData, localAsset } from '../data.js';
 import { uiUrl } from './assetUrls.js';
+import { PixBot } from './pixbots.js';
 
 /**
  * h() for htm with its static-subtree cache switched off. htm keeps the vnode it built for a fully static subtree in
@@ -42,6 +43,9 @@ const cx = (...parts) => parts.flat().filter(Boolean).join(' ');
 
 /** 24×24 glyph paths (original, simple geometric shapes). `eo` = even-odd fill rule. */
 export const ICONS = {
+  grid: { d: 'M3 3h8v8H3zm2 2v4h4V5zm8-2h8v8h-8zm2 2v4h4V5zM3 13h8v8H3zm2 2v4h4v-4zm8-2h8v8h-8zm2 2v4h4v-4z', eo: true },
+  download: { d: 'M11 3h2v10l3-3 1.4 1.4-5.4 5.4-5.4-5.4L8 10l3 3zM3 17h2v3h14v-3h2v5H3z' },
+  upload: { d: 'm12 2 5.4 5.4L16 8.8l-3-3V16h-2V5.8l-3 3-1.4-1.4zM3 17h2v3h14v-3h2v5H3z' },
   check: { d: 'M9.5 16.2 5.3 12l-1.4 1.4 5.6 5.6L20.1 8.4 18.7 7z' },
   close: { d: 'M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6z' },
   exit: { d: 'M20 3H10v2h8v14h-8v2h10zM8.4 7.4 7 6l-6 6 6 6 1.4-1.4L4.8 13H15v-2H4.8z' },
@@ -789,9 +793,11 @@ export function PhaseBanner({ title, sub, micro, tone = 'mint', mode = 'inline',
 
 /**
  * The round's result box (the official round result dialog, shown at settlement; GitHub #235, PR #112 by @Convey123):
- * a centred framed plate — tone-coloured frame and corner ticks, chevrons either side of the title — that opens, holds
- * `duration` ms and closes by itself. Purely presentational: ui/gameLogic/phases.js (roundResultBox / uniteResultBox /
- * battleResultBox) picks the words, screens/game.js the moment (SETTLE). `pointer-events: none`: it never takes a click.
+ * a centred plate in the look of the event's in-match popups (2026-10-13, video 8:44): a glowing tone-coloured frame,
+ * the robot in brackets with corner crosses on the left (ui/pixbots.js; worried when LP was lost), the title large with
+ * the line under it, chevrons as trim — it opens, holds `duration` ms and closes by itself. Purely presentational:
+ * ui/gameLogic/phases.js (roundResultBox / uniteResultBox / battleResultBox) picks the words, screens/game.js the moment
+ * (SETTLE). `pointer-events: none`: it never takes a click.
  * @param {{ title: any, sub?: any, micro?: string, tone?: 'mint'|'orange'|'red', duration?: number, onDone?: Function }} props
  *   duration (ms) > 0 auto-hides then calls onDone. Re-key to replay.
  */
@@ -807,15 +813,21 @@ export function ResultDialog({ title, sub, micro, tone = 'mint', duration = 2800
   if (gone) return null;
   return html`<div class=${cx('rdialog', `rdialog--${tone}`, leaving && 'is-leaving')} role="status" aria-live="polite">
     <div class="rdialog__box">
-      <span class="rdialog__tick rdialog__tick--tl"></span><span class="rdialog__tick rdialog__tick--tr"></span>
-      <span class="rdialog__tick rdialog__tick--bl"></span><span class="rdialog__tick rdialog__tick--br"></span>
-      ${micro ? html`<span class="rdialog__micro">${micro}</span>` : null}
-      <div class="rdialog__row">
-        <${Chevrons} count=${3} tone=${tone} class="rdialog__chev" />
-        <span class="rdialog__title">${title}</span>
-        <${Chevrons} count=${3} tone=${tone} dir="left" class="rdialog__chev" />
+      <div class="rdialog__art" aria-hidden="true">
+        <span class="rdialog__tick rdialog__tick--tl"></span><span class="rdialog__tick rdialog__tick--tr"></span>
+        <span class="rdialog__tick rdialog__tick--bl"></span><span class="rdialog__tick rdialog__tick--br"></span>
+        <i class="rdialog__brk rdialog__brk--l"></i><i class="rdialog__brk rdialog__brk--r"></i>
+        <${PixBot} kind=${tone === 'mint' ? 'cheer' : 'blade'} class="rdialog__bot" />
       </div>
-      ${sub ? html`<span class="rdialog__sub">${sub}</span>` : null}
+      <div class="rdialog__text">
+        ${micro ? html`<span class="rdialog__micro">${micro}</span>` : null}
+        <div class="rdialog__row">
+          <span class="rdialog__title">${title}</span>
+          <${Chevrons} count=${3} tone=${tone} class="rdialog__chev" />
+        </div>
+        ${sub ? html`<span class="rdialog__sub">${sub}</span>` : null}
+      </div>
+      <${Chevrons} count=${3} tone=${tone} dir="left" class="rdialog__chev rdialog__chev--trim" />
     </div>
   </div>`;
 }

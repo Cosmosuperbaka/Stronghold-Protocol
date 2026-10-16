@@ -77,7 +77,16 @@ The offer is recipient-private, including after reconnect, and never enters `m.p
 - `count` = number of **distinct base chess** on the board carrying the bond (`BOARD`); `BOARD_AND_DECK` bonds also count the hand; 绝技 counts elites on board; 调和 adds +1 to each core bond count that has a real member on the board (the views mark such an entry `harmony: 1`, §21.26), etc. (research 02).
 - 变形同构体: an operator wearing it together with an item that has a `giveBondId` is a member of that bond — counted like any member (BOARD: on the board only; once per operator), in the battle, and in the client's member list (tagged 同构) and bond chips (§21.11).
 - `tier` from thresholds; `active = tier ≥ 1`.
-- `layers[bondId]` persist all match; gains come from garrisons/bands/items/choices/bond effects; IN_BATTLE gains are collected from `BattleResult.layerGains` at SETTLE (disabled in unite/boss/hidden).
+- `layers[bondId]` persist all match; gains come from garrisons/bands/items/choices/bond effects; IN_BATTLE gains are collected from `BattleResult.layerGains` at SETTLE (disabled in unite by default, always disabled in boss/hidden). The host-only custom rule of §28.28 can enable unite gains.
+
+**Host-only 联防叠层 (§28.28):** the local console's settings expose `uniteLayerGains` (boolean, default false),
+persisted alongside `prep` in `logs/admin-settings.json`. It applies to every room starting with its next 联防;
+the field captures the setting in `flags.layerGainsEnabled`, shared by server and browser simulation, and settlement
+uses that captured value even if the host toggles it while fighting. 联防 is a fresh battle: every per-battle trait
+allowance and trigger counter resets. Helpers start from their normal battle's reached layers; settlement applies
+normal increments then each helper's 联防 increments once, with the 999 cap and existing `onLayers` hooks. Leakers
+receive no helper layers, synthetic results grant none, and boss/hidden gains remain disabled. This is an explicitly
+requested custom mode, not an official rule; old settings files without the field keep it off.
 - Layer milestones (维多利亚's 维式重锤 every 25, 远见's funds every 10 and its 80 / 150 discounts, 奇迹's funds every 100) pay only while the bond is active; those owed for layers gained while it was off pay as soon as it lights up — `PlayerState.recompute` dispatches `onActiveBonds` whenever the set of active bonds changes, so placing the third 维多利亚 member in prep grants the hammer at once (the maintainer's report of the official game, 2026-10-15; §32.14.31). Each milestone pays once, however often the bond goes off and on.
 - A bond holds at most `BOND_LAYER_CAP` = 999 layers (the client's `MAX_GARRISON_STACK`, §20.12): every writer — `PlayerState.addLayers`, the SETTLE merge, `Battle.addLayers`, the dev tools — adds `layerGainRoom(before, n)` = min(n, 999 − before); a gain at the cap adds 0 and dispatches nothing (no onLayers, no `layerGain` hook, no 'layer' event), so the per-N milestones stop with the count.
 - Σ activated layers (hidden-core check) = Σ layers over bonds that are active at the moment of the check (end of R14 prep, per research).
@@ -191,3 +200,18 @@ destroyed, consumed, wiped from temp, or removed on elimination — repays that 
 returns its equipment to the hand, so the equipment debt stays. 整备, random grants, 机变 item cards and strategy
 grants that are not an already-shown card stay stock-limited. Rockrock and Flametail use the measured weighted
 subsets described in DATA and §30.2.
+
+### 扩展主机操作与回合历史（§29.18–19）
+
+主机控制台发放超库存装备或直接装备都先请求确认；点是后，发放重发 `{ id, force: true }`，直接装备重发
+`{ target, item, force: true }`，否 / Esc 不执行。
+强制加入仍占库存、遵守手牌与整备区上限，合成和回档保留 `adminStockCopies` 授权份数；已展示商店 / 奖励按上游 v0.3.0 欠账规则处理，其他普通获取仍校验库存。
+此项仅供已鉴权的本机主机工具，是维护者要求的自定义规则。
+
+普通结算和领袖战结算都在切换回合前保存 `history`，每回合只记录一次。最终攻势进入隐秘核心前保留第 14 回合的干员伤害，
+终局和隐藏回合共用同样流程；未作战 / 未结算时手动终止，不把上一回合明细记为本回合伤害。旧的缺失明细不做推算补写。
+
+上游随机首领配对与本地主机回档共用 `bossPairs` / `bossWaves` 快照（§30.31）：回档恢复队友和左右半场，
+首领战开打沿用该预览；回到首次生成配对之前的休整期时清空废弃时间线的配对。
+
+本库兼容补充（v0.3.0）：主机回档同时恢复装备库存欠账 Map，并取消废弃时间线的 AI 浏览器预演。玩法插件局的主机操作通过原 match host IPC 执行，沿用隔离进程和现有操作校验；跨进程重启恢复尚未接入。

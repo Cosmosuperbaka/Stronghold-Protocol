@@ -93,9 +93,9 @@ describe('strategy skip eligibility (real server, normal browser operations)', {
       const c = await player(`轮选测试${i + 1}`, `?room=${code}`);
       clients.push(c);
       await c.page.waitForFunction((code) => globalThis.__SP__.store.get().room?.code === code, {}, code);
-      await click(c.page, '.room-bar__right button', '准备就绪');
+      await click(c.page, '.rs-foot__right button', '准备就绪');
     }
-    if ((await state(host)).phase !== 'INFO_CHECK') await click(host, '.room-bar__right button', '开始模拟');
+    if ((await state(host)).phase !== 'INFO_CHECK') await click(host, '.rs-foot__right button', '开始模拟');
     for (const c of clients) {
       await c.page.waitForSelector('.brief__foot .btn--primary');
       await click(c.page, '.brief__foot .btn--primary', '准备就绪');

@@ -83,6 +83,7 @@ export const initialState = Object.freeze({
   installedPlugins: 0,
   session: { entered: false },
   room: null,
+  announcement: null,
   match: emptyMatch(),
   ticker: [],
   emotes: [],

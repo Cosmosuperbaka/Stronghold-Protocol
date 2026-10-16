@@ -789,8 +789,7 @@ export class UnitView {
    *  owner's face — assets.js tokenAvatarUrl). */
   _pictureUrl() {
     const a = this.ctx.assets;
-    // (an ICE_TOKENS unit takes no picture: the token fallback would be its owner's face — assets.js tokenAvatarUrl)
-    const o = { skin: this._skinId };
+    // (an ICE_TOKENS unit takes no picture: the token fallback would be its owner's face — assets.js tokenAvatarUrl)    const o = { skin: this._skinId };
     return ICE_TOKENS.has(this.info.defId) ? null : a && (a.picture ? a.picture(this.info.avatar, o) || a.picture(this.info.defId, o) || a.picture(this.info.spine, o) : null) || null;
   }
 
@@ -1563,8 +1562,9 @@ export class UnitView {
     this.placed = true;
     const s = p.s;
     // fades
+    // below 0: still waiting for its arrival (the 联防 beam-in, render/app.js queueBeam) — hidden until then
     if (this.fadeIn < 1) this.fadeIn = Math.min(1, this.fadeIn + dt * 4);
-    let alpha = this.fadeIn;
+    let alpha = Math.max(0, this.fadeIn);
     if (this.down) {
       // knocked down: the Die clip ends and holds its last frame (the actor keeps its clock), no fade
       this.dieT += dt;

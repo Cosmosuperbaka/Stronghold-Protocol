@@ -1,3 +1,4 @@
+import { symlinkSync } from '../helpers/fsLinks.js';
 // test/plugins/forgeImport.test.js — Forge workshop import (DESIGN §32.12, docs/PLUGINS.md §16).
 // The three packs under test/fixtures/forge/ are written for this test (no official art, nothing copied from Forge).
 // The chess, official-kit and kit packs of round 43 are written inline into temporary folders: a kit is a .js file,
@@ -328,7 +329,7 @@ test('malicious zip and directory input is refused and a script in the pack is n
     const linked = path.join(parent, 'linked');
     fs.mkdirSync(linked);
     fs.writeFileSync(path.join(linked, 'pack.json'), '{"id":"rose-linked","name":"x","version":"1.0.0"}');
-    fs.symlinkSync('/tmp', path.join(linked, 'escape'));
+    symlinkSync(os.tmpdir(), path.join(linked, 'escape'));
     const sym = await importForge(linked, opts);
     assert.equal(sym.issues[0].code, 'PLUGIN_FORGE_ZIP');
     assert.match(sym.issues[0].detail, /symbolic link/);

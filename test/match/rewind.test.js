@@ -19,6 +19,20 @@ function fingerprint(m) {
   });
 }
 
+test('upstream merge: rewind restores equipment debt and cancels abandoned delegated rehearsals', t => {
+  const h = makeMatch({ mode: 'coop', humans: 1, bots: 0, fake: true }).start().toPrep();
+  const m = h.m;
+  t.after(() => m.dispose());
+  m.itemPool.debt.set('item-fixture', 2);
+  m.prepSnapshots.set(m.round, capturePrep(m));
+  m.itemPool.debt.set('item-fixture', 5);
+  m.itemPool.debt.set('abandoned', 1);
+  m._rehearsalTasks.set('abandoned', { id: 'abandoned', executor: 'p0', timer: null });
+  assert.deepEqual(rewindToPrep(m, m.round), { ok: true, round: m.round });
+  assert.deepEqual([...m.itemPool.debt], [['item-fixture', 2]]);
+  assert.equal(m._rehearsalTasks.size, 0);
+});
+
 const play = (seed) => makeMatch({ mode: 'coop', humans: 1, bots: 3, seed }).start().autoHumans();
 
 test('0.2.5: rewind restores boss partners and sides, or clears pairing before the boss round', t => {

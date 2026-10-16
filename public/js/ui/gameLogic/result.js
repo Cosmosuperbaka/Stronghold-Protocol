@@ -54,6 +54,7 @@ export function normalizeResult(res, pub) {
     bossId: r.bossId ?? pub?.bossId ?? null,
     hiddenBossId: r.hiddenBossId ?? pub?.hiddenBossId ?? null,
     durationMs: Number.isFinite(r.durationMs) ? r.durationMs : null,
+    roundHistory: Array.isArray(r.roundHistory) ? r.roundHistory : Array.isArray(pub?.roundHistory) ? pub.roundHistory : [],
     players,
   };
 }

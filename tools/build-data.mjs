@@ -7,7 +7,8 @@
 //   stages, bosses, tokens, backups (every field is documented in docs/DATA.md).
 //
 // Usage:  node tools/build-data.mjs [--refresh | --offline] [--out <dir>] [--cache <dir>]
-//                                   [--report <file>] [--quiet] [--no-research] [--force]
+//                                   [--report <file>] [--quiet] [--no-research] [--force] [--seat-art-only]
+//   --seat-art-only build the independent cosmetic poster catalogue and download its images (offline: catalogue only)
 //   --refresh      re-download every official file; fail on download errors even if cached
 //   --offline      never download; fail when a file is missing from the cache
 //   --out          output directory (default: <repo>/data)
@@ -43,6 +44,7 @@ import { statusKey, composeUnitRecord } from '../shared/standIn.js';
 import { extendedGrid } from '../shared/loadoutRecord.js';
 import { FULL_RANK, atRank, stripPotential } from '../shared/potential.js';
 import { skinCatalogue } from './assets/skins.mjs';
+import { buildSeatArt } from './build-seat-art.mjs';
 
 // ===== CLI & IO ==================================================================================
 
@@ -50,20 +52,20 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const RESEARCH_DIR = join(ROOT, 'docs', 'research');
 const GAMEDATA_URL = 'https://raw.githubusercontent.com/Kengxxiao/ArknightsGameData/master/zh_CN/gamedata/';
 const SEASON = 'act2autochess';
-const USAGE = 'usage: node tools/build-data.mjs [--refresh | --offline] [--out <dir>] [--cache <dir>] [--report <file>] [--quiet] [--no-research] [--force]';
+const USAGE = 'usage: node tools/build-data.mjs [--refresh | --offline] [--out <dir>] [--cache <dir>] [--report <file>] [--quiet] [--no-research] [--force] [--seat-art-only]';
 
 /**
  * Parse the command line strictly (unknown options and missing values are errors, so a typo can
  * never silently write data somewhere unexpected).
  * @param {string[]} argv
- * @returns {{refresh:boolean, offline:boolean, quiet:boolean, noResearch:boolean, force:boolean, out:string, cache:string, report:string}}
+ * @returns {{refresh:boolean, offline:boolean, quiet:boolean, noResearch:boolean, force:boolean, seatArtOnly:boolean, out:string, cache:string, report:string}}
  */
 function parseArgs(argv) {
   const opts = {
-    refresh: false, offline: false, quiet: false, noResearch: false, force: false,
+    refresh: false, offline: false, quiet: false, noResearch: false, force: false, seatArtOnly: false,
     out: join(ROOT, 'data'), cache: join(ROOT, '.cache', 'gamedata'), report: join(ROOT, '.cache', 'build-data-report.json'),
   };
-  const flags = { '--refresh': 'refresh', '--offline': 'offline', '--quiet': 'quiet', '--no-research': 'noResearch', '--force': 'force' };
+  const flags = { '--refresh': 'refresh', '--offline': 'offline', '--quiet': 'quiet', '--no-research': 'noResearch', '--force': 'force', '--seat-art-only': 'seatArtOnly' };
   const dirs = { '--out': 'out', '--cache': 'cache', '--report': 'report' };
   for (let i = 0; i < argv.length; i++) {
     const [name, inline] = argv[i].includes('=') ? [argv[i].slice(0, argv[i].indexOf('=')), argv[i].slice(argv[i].indexOf('=') + 1)] : [argv[i], null];
@@ -3914,6 +3916,7 @@ function validateAll(f) {
 // ===== main =====================================================================================
 
 async function main() {
+  if (OPTS.seatArtOnly) { await buildSeatArt({ root: ROOT, cache: OPTS.cache, out: OPTS.out, download: !OPTS.offline }); return; }
   const t0 = Date.now();
   const ctx = await loadContext();
   log('building…');

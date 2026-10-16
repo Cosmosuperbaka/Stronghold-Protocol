@@ -77,7 +77,7 @@ export function ChatPanel() {
       <p class="chat__notice">${t('最近 {n} 条消息', { n: CHAT_HISTORY_LIMIT })}</p>
       <ol ref=${log} class="chat__log" role="log" aria-live="polite" aria-relevant="additions" aria-label=${t('聊天记录')}>
         ${chat.messages.length ? chat.messages.map((m) => html`<li key=${m.id} class=${m.role === 'system' ? 'chat__message chat__message--system' : 'chat__message'}>
-          <span class="chat__name" title=${m.name}>${m.role === 'system' ? t('主机公告') : m.name}</span><span class="chat__text">${m.text}</span>
+          <span class="chat__name" title=${m.name}>${m.role === 'system' ? t('主机消息') : m.name}</span><span class="chat__text">${m.text}</span>
         </li>`) : html`<li class="chat__empty">${t('暂无消息')}</li>`}
       </ol>
       ${facts.reason ? html`<p class="chat__notice" role="status">${facts.reason}</p>` : null}

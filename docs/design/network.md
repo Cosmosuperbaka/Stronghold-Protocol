@@ -2,11 +2,54 @@
 
 Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 
+本库 2026-10-16：仅本机认证控制台 `POST /api/action {room,action:'chatSend',value:text}` 可发送
+本房间主机消息，复用 `chat.message/history` 与单调递增 id，服务端固定 `playerId:'host'`、
+`role:'system'`、发送者和时间，所有房间成员（含观战者）接收；玩家没有此管理 C2S。
+主机 `GET/POST /api/settings` 的 `blockedWords` 保存至既有配置文件；普通文本、忽略大小写、
+长词优先，匹配部分替换为 `***`。新玩家消息及主机房间消息均在写入历史和广播前过滤；
+不修改旧记录、玩家名字或独立全站公告。空列表关闭，最多 100 条、每条 40 码点、JSON 总计 4096 字节。
+`chat:{enabled,cooldownMs,historyLimit}` 持久化主机交流策略，默认 true / 1000 / 50；服务端校验
+500–10000 ms 和 10–50 条。关闭玩家发言返回 `CHAT_DISABLED`，主机消息可继续发送。减少历史时
+广播已有 `chat.history.clearedThrough`，后续 `chat.message` 也携带该水位，在线客户端同步清理旧消息。
+
+本库 2026-10-16：`m.public.roundCharts` 为主机控制的局内每回合曲线开关；`roundHistory` 携带已结算
+回合的统计字段（玩家 id、存活、LP、金币、花费、伤害、等级、收支、可叠层盟约及干员伤害排行），玩家与观战者共享。
+逐干员排行仅含 `defId/name/dmg/kills`；不公开经济来源细目、敌人覆盖或管理日志。关闭时发送空历史数组。它由既有
+`history` 投影，随回档/恢复截断，重新开启可读到保留记录。主机保存开关后立即刷新活动对局公开状态。
+战斗阶段追加 `live: true` 的当前回合（不写入 `history`）。现有 `b.progress` 可带 `damage`：最多 4 名
+战场玩家，每人 `{playerId, damageDealt, units:[{uid,dmg,kills}]}`，干员上限 64，数值均有界；
+服务器按 BattleSpec 解析名称并剔除未知 uid。服务器模拟读取同一计数，提前跑完的战斗按战场时钟取样。
+该进度仅展示，不参与结果采纳。终局 `m.result.roundHistory` 附已结算投影，本机统计 v3 有界保存并复用结算面板。
+主机 `liveRoundDamage` 默认 true，关闭时 `m.public.roundHistory` 只投影已结算回合；同设置同步至插件对局进程。
+
+本机扩展（2026-10-16）：`room.bondPlan {bondId: id | null}` 仅接受数据中八个 `isCore` 盟约；保存于会话和席位，并公开为房间席位及 `m.public.players[].bondPlan`。更新使用 `m.guard` / `markPublic`，重连恢复，回档保留当前偏好，仅供沟通，不影响 BattleSpec 或任何玩法计算。测试见 `test/bond-plan.test.js`。
+
+### Hub 传输扩展（2026-10-16）
+
+全站公告 S2C site.announcement {serverNow, announcement: {id,text,level,startAt,endAt} | null} 独立于房间与回合。hello / 重连下发当前公告；客户端按服务器绝对时间判断展示，服务器在开始 / 过期时广播。单条 1–500 字，仅认证的 loopback 控制台 action: announce 可编辑或传 null 撤下；重启不保留，没有玩家 C2S 管理入口。清空、禁言和踢出继续走本机控制台，公告不写入聊天历史。验证见 test/announcements.test.js 和 test/admin-chat.test.js。
+
+hello 可选 stateDelta: 1 启用 m.public / m.private 的 m.state 传输。每连接每 kind 独立 baseline；全帧为 {t:'m.state',kind,seq,full}，增量为 {t:'m.state',kind,seq,base,patch}。patch 操作为 [path,value] 设置、[path] 删除对象键，数组长度变化替换子树。仅 patch 更小时发送增量；失败的 socket 写入不推进 baseline。不协商的旧客户端照常收到原始帧。
+
+解码后仍向界面派发完整的 m.public / m.private；间隙或非法补丁暂停该通道并合并请求 state.resync，直到全帧恢复。重连、显式 resync、房间关闭和结果清理 baseline。回档保持原有 guard / flush 和状态语义，canonical 原始帧仍用于结果重播、回放及主机实时查看。观战绝不获得玩家私有帧。验证见 test/state-delta.test.js（新旧混联、丢帧、失败写入、重连、回档和结果重播）。
+
+表情白名单改为 shared/constants.js 的 EMOTE_IDS：36 个官方 ID 与 36 个社区自制 ID；官方 data/emotes.json 和生成清单不变。新增项只通过既有 g.emote / m.emote 路径，频率、权限和过期规则不变，聊天和标点协议不变。
+
 ## 8. Network protocol (shared/protocol.js is normative)
 
 Transport: one WebSocket per tab at `/ws`, JSON text frames `{ t: '<type>', ...payload }`. Client requests may carry `rid` (request id); the server's direct reply echoes `rid` (`ok` or `error`). Server pushes have no `rid`. Max frame 64 KB inbound (a compressed frame counts its inflated size); rate limit 40 msgs/s per connection (excess dropped with `error RATE`). Frames from 1 KB up are compressed with permessage-deflate (RFC 7692; `server/http/websocket.js WS_DEFLATE`: no server context takeover, a 2 KB server window, zlib memLevel 7 — about 72 KB of zlib state per connection); smaller frames go out plain, and a client that offers no compression, or caps the server window below 2 KB, gets plain frames. A measured solo session (rounds 3–5, `/healthz?traffic=1`): 173 KB of server frames → 60 KB on the wire.
 
 ### 8.1 Session & lobby
+
+Local optional cosmetics (owner request, 2026-10-10): `room.skins { skins: { [charId]: skinId } }` uses the
+heavy request bucket (max 256 choices). Structural validation and the generated skin catalogue filter the
+session / seat preferences; a running match updates PlayerState and broadcasts non-empty
+`m.public.players[].skins`. Clearing a choice omits it. Reconnect / spectators receive the same public map;
+cosmetics never enter the battle spec or battle hash. There is no remote resource-install message.
+See [SKINS.md](../SKINS.md) for the complete contract.
+
+本库组队海报（2026-10-16）：room.card 的 charId、可选 skinId 保存 session / seat 的展示偏好；
+room.state.seats 的 card/cardSkin 同步队友。charId 为空清除。服务端核对 seat-art 目录中的归属，
+不接受 URL；旧棋盘干员无皮肤选择兼容。不进入 BattleSpec、战斗皮肤或 golden。
 C→S: `hello {name, token?, version}` · `room.create {mode:'solo'|'coop', difficulty}` · `room.join {code}` · `room.leave` · `room.ready {ready}` · `room.setDifficulty {difficulty}` (host) · `room.setPlugins {plugins:[{id, settings?}]}` (host, before the match — the room's cosmetic and gameplay plugins, §8.4; un-readies the other humans like a difficulty change) · `room.setMode {modeId}` (host, before the match: an official mode of the room's type sets the difficulty, a mode the room's content set adds becomes its mode, §8.4) · `room.contentReady {cs, ok?}` (a member's page loaded and checked the room's content set — or not, `ok: false`; §8.4) · `room.setAiPicksLast {on}` (host, co-op, before the match — `ROOM_STARTED` during it, `BAD_TARGET` in a solo room; un-readies the other humans like a difficulty change; the match takes it as `opts.aiPicksLast`: humans draft before AI seats, off by default, no extra random draw) · `room.addBot` / `room.removeBot {seat}` (host) · `room.kick {seat, playerId}` (host, before the match: another human leaves the room and gets `room.closed {reason:'kicked'}`; may join again; `playerId` = the player the host confirmed, a seat that changed hands meanwhile → `BAD_TARGET`) · `room.start` (host) · `room.loadout {entries, ops?}` (§16: any time in the lobby / room and during INFO_CHECK, then `WRONG_PHASE`; heavy rate-limit bucket; the match exposes it as `m.private.loadout`; `ops` — 0.2.2 — the per-operator 潜能 / 练度 `{ [charId]: { potential?: 1–6, cultivate?: 0–3 } }` of the 干员调配 roster and the 自选 owned pool, ≤ 256, checked strictly with the entries, `m.private.ops`; absent = none set: every operator 潜能 6, 精英2 Lv.60) · `room.ownership {notOwned}` (0.2.0 补位, the 干员持有 tab: the base chess ids marked as not owned — ≤ 160 ids, kept leniently: anything but a droppable NORMAL chess is dropped; stored on the session and the seat, a match takes the seat's list when it starts and never changes it — during a match `ROOM_STARTED` 'stored for the next match'; heavy bucket; the match exposes it as `m.private.standIns`) · `room.diy {picks}` (0.2.0 自选编队: `{ [slotBaseId]: { charId, skillIndex?, uniEquipId? } | null }` for the four DIY slots — ≤ 8 entries, kept leniently: shared/protocol.js `checkDiyPicks` drops an illegal pick (an operator without a kit, another tier's prototype, a prototype off its locked skill, a module of another game mode (集成战略 / 生息演算), an owned operator's second slot, the same operator twice in a tier, an unknown slot), only malformed picks are `BAD_MSG`; stored on the session and the seat like the not-owned list, a match takes the seat's picks when it starts — during a match `ROOM_STARTED` 'stored for the next match'; heavy bucket; the match exposes them as `m.private.diy`) · `ping {c}`
 S→C: `welcome {playerId, token, name, serverNow}` · `room.state {code, hostId, mode, difficulty, aiPicksLast, seats:[{seat, playerId, name, isBot, ready, connected}|null ×4]}` · `room.closed {reason}` · `pong {c, s}` · `error {rid?, code, msg}` · `ok {rid}`
 
@@ -303,6 +346,48 @@ The preparation medic and future battle's medic/Touch use the same entitlement; 
 alive. A mere draft focus grants nothing; another match starts without it. Only `band_amedic` is retained in
 `contentInfo.matchBands`; `teammates` and other team strategies still filter eliminated players. The official text
 and initial/unlimited-round data do not explicitly settle the holder-elimination case (§30.14).
+
+### Room text chat (owner-requested remake extension)
+
+[ASSUMED] The official mode has only the emote wheel (upstream issue #125); the owner requested text chat on
+2026-10-14. `room.chat {text, clientId}` works for seated human players before, during and after a match. Spectators
+read only (`SPECTATOR`); non-members receive `NOT_IN_ROOM`. The server strips C0/C1 controls, trims and rejects empty
+text or more than 200 Unicode code points / 1024 UTF-8 bytes (`BAD_MSG`). Each session may send once per second
+(`RATE`); each room admits at most ten messages per rolling second. Identity and time come from the server.
+
+`chat.message {code, id, playerId, name, seat, role, text, at}` broadcasts only to current room members;
+`chat.history {code, messages, lastId}` unicasts the latest 50 entries on join, spectate and reconnect/resync. History
+is held only in room memory and disappears with the room. Repeating an accepted `clientId` is acknowledged without
+broadcasting again (last 50 IDs per session per room). `room.state.textChat: true` advertises support.
+
+The global collapsible text panel preserves history and drafts across match phases, counts unread live messages,
+escapes user text via Preact and clears its state on leave/kick/room or identity change. Enter sends (Chinese IME
+composition does not), Shift+Enter edits and Esc collapses. Failure preserves the draft; offline requests are never
+queued. The original picture-only emote wheel is retained. No battle rules or golden results change.
+
+Owner follow-up (2026-10-15): the entry button and panel title can be dragged, or moved with arrow keys
+(Shift for 10 px). Placement is a localStorage preference per browser origin and nickname, so signing in again
+with the same name restores it even after server-session expiry; same-name users on that browser share it.
+Normalized coordinates follow viewport changes; the panel stays on screen and offers a default-position reset.
+No position, messages or drafts are added to the wire protocol or server persistence.
+
+### Local host chat management and restart recovery (owner extension, 2026-10-15)
+
+Only the authenticated loopback console can clear, mute or remove members; no C2S management intent exists.
+The old room-chat announcement is replaced by the global notice below; `CHAT_MUTED` explicitly rejects a muted player's send.
+`chat.history` also carries `clearedThrough`: clients discard entries at or below this watermark, including delayed frames;
+clearing never reuses message ids. Normal player chat is still memory-only. Host operation summaries may be recorded.
+
+The owner authorized automatic disk recovery to the latest pre-effect PREP boundary, retaining selected cards and
+discarding later history/replay. Original hello tokens restore identity; no nickname/IP matching or new C2S route is added.
+Recovery requires matching release/sim/data/meta fingerprints; LOCAL-DEV §9 defines persistence and failure behavior.
+Public `GET /release-notes.json` is read-only player release text. Wall, resources, aggregate results and recovery
+administration remain behind console token + Host validation on 127.0.0.1.
+
+Follow-up: the wall embeds four complete read-only live views, each running a non-authoritative battle replica;
+it never sends player mutations or battle results. Only authenticated wall-mode live pages permit same-origin
+framing. Room timer controls now configure PREP only: null inherits current host settings, a room override replaces
+them, and other phase timers stay unchanged. The room override follows the PREP rewind/recovery snapshot.
 
 
 P3a trusted script consent (DESIGN §32.10): `room.consent { cs, accept }` records only the sender's seat for the current

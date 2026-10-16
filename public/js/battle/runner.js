@@ -211,7 +211,7 @@ export function createBattleRunner(deps) {
     const record = e.combatMetrics();
     if (!(combatHistory.get(e.battleId)?.seconds > record.seconds)) combatHistory.set(e.battleId, record);
   };
-  // Opt-in (设置「作战统计」, default off). A boolean deps.combatMetrics pins a test and ignores setCombatMetrics.
+  // 设置「作战统计」 (extension default on). A boolean deps.combatMetrics pins a test and ignores setCombatMetrics.
   // Otherwise screens/game.js pushes the settings store. A Worker host never attaches: its page battle is wire state.
   let metricsWanted = false;
   const metricsEnabled = () => (typeof deps.combatMetrics === 'boolean' ? deps.combatMetrics : metricsWanted);
@@ -502,6 +502,7 @@ export function createBattleRunner(deps) {
     e.meter = e.host.meter;
     const p = e.host.progress();
     const msg = { battleId: e.battleId, gt: Math.min(1e5, p.gt), killed: Math.min(p.killed, p.total), total: Math.min(1e5, p.total), done: !!p.done };
+    if (Array.isArray(p.damage)) msg.damage = p.damage;
     // the HUD capsule's numerator of this field (shared/protocol.js b.progress `resolved`): the field's own scheduled
     // enemies knocked out or leaked. Sent only when the battle reports one (Battle.resolved) — an absent field leaves
     // the teammate UI on its `resolved ?? killed` fallback
@@ -837,7 +838,7 @@ export function createBattleRunner(deps) {
       e.battle = battle;
       e.meter = e.host.meter;
       // The Worker page holds wire state only (time, ids): no `damaged` hook and no `heal`, so trackCombat cannot
-      // run there. An in-page Battle gets the meter only when 作战统计 is on (default off; a test may pin it).
+      // run there. An in-page Battle gets the meter only when 作战统计 is on (a test may pin it).
       if (metricsEnabled() && !e.host.remote) e.combatMetrics = trackCombat(battle);
       e.t0 = clock() - (e.elapsed / e.speed) * 1000;
       if (lastPool) await e.host.syncPool(lastPool.hp, lastPool.acked ? lastPool.acked[e.fieldId] : undefined);

@@ -508,7 +508,7 @@ test('the download queue does not request a URL the import cache already has', a
   assert.equal(calls.includes('/media/~1234567890abcdef/bgm/a'), false);
 });
 
-test('the worker answers only hashed asset GET, and its copy matches the module', async () => {
+test('the unified worker isolates imported and preload assets, and its import constants match the module', async () => {
   const sw = fs.readFileSync(path.resolve('public/sw.js'), 'utf8');
   assert.ok(sw.includes(`const IMPORTED_ASSET_CACHE = '${IMPORTED_ASSET_CACHE}';`));
   assert.ok(sw.includes(`const IMPORTED_ASSET_CACHE_PREFIX = '${IMPORTED_ASSET_CACHE_PREFIX}';`));
@@ -519,6 +519,10 @@ test('the worker answers only hashed asset GET, and its copy matches the module'
   const deleted = [];
   const fetched = [];
   const stored = new Map([[`${origin}/assets/~0123456789abcdef/hit.png`, 'cached-bytes']]);
+  const preloaded = new Map([
+    [`${origin}/assets/audio/bgm/a.mp3`, new Response('0123456789', { headers: { 'X-SP-Resource': '1', 'X-SP-AssetHash': '0123456789abcdef' } })],
+    [`${origin}/assets/plain.png`, new Response('preloaded', { headers: { 'X-SP-Resource': '1' } })],
+  ]);
   let skipWaiting = 0;
   let claimed = 0;
   const listeners = {};
@@ -530,19 +534,20 @@ test('the worker answers only hashed asset GET, and its copy matches the module'
       clients: { claim() { claimed++; return Promise.resolve(); } },
     },
     caches: {
-      async open() {
+      async open(name) {
         return {
           async match(request, options) {
             // exact keys only (the worker never asks for ignoreSearch: Chrome scans every entry for it)
             assert.equal(options, undefined);
             const key = typeof request === 'string' ? request : request.url;
+            if (name === 'stronghold-resources-v1-all') return preloaded.get(key)?.clone();
             const hit = stored.get(key);
             return hit ? new Response(hit) : undefined;
           },
           async put() { throw new Error('network responses must not be cached'); },
         };
       },
-      async keys() { return ['sp-imported-assets-v0', IMPORTED_ASSET_CACHE, 'other-cache']; },
+      async keys() { return ['sp-imported-assets-v0', IMPORTED_ASSET_CACHE, 'stronghold-resources-v1-all', 'other-cache']; },
       async delete(name) { deleted.push(name); return true; },
     },
     fetch: async (request) => {
@@ -551,6 +556,7 @@ test('the worker answers only hashed asset GET, and its copy matches the module'
     },
     URL: globalThis.URL,
     Response: globalThis.Response,
+    Headers: globalThis.Headers,
     Promise: globalThis.Promise,
   };
   vm.runInNewContext(sw, sandbox, { filename: 'public/sw.js' });
@@ -586,16 +592,29 @@ test('the worker answers only hashed asset GET, and its copy matches the module'
     const request = new Request(url, { method });
     let responded = null;
     listeners.fetch({ request, respondWith(p) { responded = p; } });
-    assert.equal(responded != null, shouldServeImportedAsset(request, origin), url);
+    assert.equal(responded != null, request.method === 'GET' && new URL(url).origin === origin && /^\/(?:assets|fonts|media)\//.test(new URL(request.url).pathname), url);
     if (responded) pending.push(responded);
   }
   await Promise.all(pending);
   const ranged = new Request(`${origin}/assets/~0123456789abcdef/a.png`, { headers: { Range: 'bytes=0-1' } });
   let rangedResponse = null;
   listeners.fetch({ request: ranged, respondWith(p) { rangedResponse = p; } });
-  assert.equal(rangedResponse, null);
+  assert.equal(await (await rangedResponse).text(), 'from-network');
   assert.equal(shouldServeImportedAsset(ranged, origin), false);
 
+  const audio = new Request(`${origin}/media/~0123456789abcdef/bgm/a`, { headers: { Range: 'bytes=2-5' } });
+  let audioPromise;
+  listeners.fetch({ request: audio, respondWith(p) { audioPromise = p; } });
+  const audioResponse = await audioPromise;
+  assert.equal(audioResponse.status, 206);
+  assert.equal(audioResponse.headers.get('Content-Range'), 'bytes 2-5/10');
+  assert.equal(await audioResponse.text(), '2345');
+  let stalePromise;
+  listeners.fetch({ request: new Request(`${origin}/media/~fedcba9876543210/bgm/a`), respondWith(p) { stalePromise = p; } });
+  assert.equal(await (await stalePromise).text(), 'from-network', 'a stale preload cannot answer another content hash');
+  let plainPromise;
+  listeners.fetch({ request: new Request(`${origin}/assets/plain.png`), respondWith(p) { plainPromise = p; } });
+  assert.equal(await (await plainPromise).text(), 'preloaded');
   const fetchedBeforeHit = fetched.length;
   const hit = new Request(`${origin}/assets/~0123456789abcdef/hit.png`);
   let hitPromise = null;

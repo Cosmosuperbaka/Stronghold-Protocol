@@ -16,7 +16,7 @@ test('outfit selection persists, synchronizes, draws real front/back models and 
   try {
     await c.open(); await c.enter('皮肤验证');
     await c.click('.lobby-screen [data-testid="loadout-open"]');
-    await c.page.waitForSelector('.lo-card', { visible: true });
+    await c.page.waitForSelector('.lo-op', { visible: true });
     await c.click('[data-testid="skins-random"]');
     await c.page.waitForFunction(async () => (await import('/js/ui/skins.js')).skinsStore.get().sync === 'synced');
     const randomized = await c.page.evaluate(async () => {
@@ -29,9 +29,11 @@ test('outfit selection persists, synchronizes, draws real front/back models and 
       }) && Object.keys(entries).length > 0;
     });
     assert.ok(randomized, 'random button selects installed non-default outfits for every eligible operator');
+    await c.click('button[title="筛选干员 · 切换列表视图"]');
     await c.click('.lo-search input'); await c.page.keyboard.type('隐现');
-    await c.page.waitForFunction(() => document.querySelectorAll('.lo-card').length === 1);
-    await c.click('.lo-card__pick'); await c.page.waitForSelector(choice, { visible: true });
+    await c.page.waitForFunction(() => document.querySelectorAll('.lo-op').length === 1);
+    await c.click('button[title="筛选干员 · 切换列表视图"]');
+    await c.click('.lo-op__pick'); await c.page.waitForSelector(choice, { visible: true });
     await c.page.click(choice);
     await c.page.waitForFunction(async (id) => (await import('/js/ui/skins.js')).skinsStore.get().sync === 'synced'
       && JSON.parse(localStorage.getItem('sp.pref.skins') || '{}').char_498_inside === id, {}, SKIN);
@@ -47,12 +49,19 @@ test('outfit selection persists, synchronizes, draws real front/back models and 
     await c.shot('mobile-picker');
     const randomButtonFits = await c.page.$eval('[data-testid="skins-random"]', (el) => {
       const r = el.getBoundingClientRect();
-      const tabs = document.querySelector('.lo-tabs').getBoundingClientRect();
+      const tabs = document.querySelector('.lo-top__left').getBoundingClientRect();
       return r.left >= tabs.right && r.right <= innerWidth;
     });
-    assert.ok(randomButtonFits, 'mobile random button stays clear of tabs');
+    assert.ok(randomButtonFits, 'mobile random button stays clear of navigation');
     await c.page.setViewport({ width: 1280, height: 720 }); await c.page.keyboard.press('Escape');
+    await c.page.waitForFunction(() => !document.querySelector('.lo-drawer'));
+    await c.page.keyboard.press('Escape');
     await c.page.waitForFunction(() => !document.documentElement.classList.contains('sp-loadout-open'));
+    // Exercise the retained HTTP fallback here; resources.e2e covers the secure-context SW workflow.
+    await c.page.evaluate(() => {
+      globalThis.__skinSecureDescriptor = Object.getOwnPropertyDescriptor(window, 'isSecureContext');
+      Object.defineProperty(window, 'isSecureContext', { configurable: true, value: false });
+    });
     await c.click('.lobby-screen [data-testid="settings-btn"]');
     await c.page.waitForSelector('[data-testid="preload-section"]');
     await c.page.$eval('[data-testid="preload-section"]', (e) => e.scrollIntoView({ block: 'center' }));
@@ -61,11 +70,16 @@ test('outfit selection persists, synchronizes, draws real front/back models and 
     await c.page.click('[data-testid="preload-section"] button');
     await c.page.waitForFunction(() => document.querySelector('[data-testid="preload-section"] .set-hint')?.textContent.includes('已取消'));
     await c.shot('preload-cancelled'); await c.page.keyboard.press('Escape');
+    await c.page.evaluate(() => {
+      const descriptor = globalThis.__skinSecureDescriptor;
+      if (descriptor) Object.defineProperty(window, 'isSecureContext', descriptor);
+      else delete window.isSecureContext;
+      delete globalThis.__skinSecureDescriptor;
+    });
 
-    await c.click('.mode-card', '独立模拟'); await c.click('.diff-card', '标准模拟');
-    await c.click('.create-box button', '开始独立模拟');
+    await c.createSimulation('独立模拟', '标准模拟');
     await c.waitFor((s) => !!s.room, 'room');
-    if (!(await c.st()).phase) await c.click('.room-bar__right button', '开始模拟');
+    if (!(await c.st()).phase) await c.click('.rs-foot__right button', '开始模拟');
     await c.waitFor((s) => s.phase === 'INFO_CHECK', 'briefing');
     const published = await c.page.evaluate(() => {
       const s = globalThis.__SP__.store.get(); return s.match.public.players.find((p) => p.playerId === s.me.playerId).skins;

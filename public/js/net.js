@@ -31,6 +31,7 @@
 
 import { PROTOCOL_VERSION, ERR_TEXT } from '../../shared/constants.js';
 import { validateC2S } from '../../shared/protocol.js';
+import { StateReceiver, STATE_DELTA_VERSION } from '../../shared/stateDelta.js';
 import { N_ } from '../../shared/i18n.js';
 
 export const REQUEST_TIMEOUT_MS = 8000;
@@ -136,6 +137,7 @@ export class Net {
     /** @type {'idle'|'connecting'|'connected'|'handshaking'|'online'|'reconnecting'|'closed'} */
     this.status = 'idle';
     this.ws = null;
+    this._states = new StateReceiver();
     this.name = null;          // desired player name (hello is sent when set)
     this.helloName = null;     // name we sent in the hello that got the last welcome
     this.serverName = null;    // name as normalised by the server
@@ -157,6 +159,7 @@ export class Net {
     this._reconnectTimer = null;
     this._pingTimer = null;
     this._helloTimer = null;
+    this._stateResyncTimer = null;
     this._helloRid = null;
     this._helloSentName = null;
     this._helloToken = null;
@@ -342,6 +345,8 @@ export class Net {
   }
 
   _teardownSocket() {
+    this._states.reset();
+    this._clearTimer('_stateResyncTimer', 'clearTimeout');
     const ws = this.ws;
     if (ws) {
       ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null;
@@ -366,7 +371,7 @@ export class Net {
   _sendHello() {
     if (!this.name) return;
     const rid = this._nextRid();
-    const msg = { t: 'hello', rid, name: this.name, version: PROTOCOL_VERSION };
+    const msg = { t: 'hello', rid, name: this.name, version: PROTOCOL_VERSION, stateDelta: STATE_DELTA_VERSION };
     let token = null;
     try { token = this.getToken(); } catch { token = null; }
     if (typeof token === 'string' && token.length > 0 && token.length <= 64) {
@@ -538,6 +543,16 @@ export class Net {
       return;
     }
     if (!msg || typeof msg !== 'object' || Array.isArray(msg) || typeof msg.t !== 'string') return;
+    if (msg.t === 'm.state') {
+      const decoded = this._states.receive(msg);
+      if (decoded.resync) this._recoverState();
+      if (!this._states.missing.size) this._clearTimer('_stateResyncTimer', 'clearTimeout');
+      if (!decoded.message) return;
+      msg = decoded.message;
+    } else if (msg.t === 'room.closed' || msg.t === 'm.result') {
+      this._states.reset();
+      this._clearTimer('_stateResyncTimer', 'clearTimeout');
+    }
     const { t } = msg;
     const rid = msg.rid;
     const isHelloError = t === 'error' && rid != null && rid === this._helloRid;
@@ -551,7 +566,7 @@ export class Net {
       this._onPong(msg);
     } else if (isHelloError) {
       this._onHelloError(msg);
-    } else if (t === 'm.public' && Number.isFinite(msg.serverNow) && !this.clockSynced) {
+    } else if ((t === 'm.public' || t === 'site.announcement') && Number.isFinite(msg.serverNow) && !this.clockSynced) {
       this._addClockSample(msg.serverNow + (this.ping ?? 0) / 2 - this.now(), Infinity);
     }
 
@@ -576,6 +591,12 @@ export class Net {
   }
 
   // ---- heartbeat & clock -----------------------------------------------------------------------
+
+  _recoverState() {
+    if (this._stateResyncTimer != null || !this._states.missing.size) return;
+    this._stateResyncTimer = this.timers.setTimeout(() => { this._stateResyncTimer = null; this._recoverState(); }, 1000);
+    this.request('state.resync', {}, { timeout: 1000 }).catch(() => {});
+  }
 
   _startHeartbeat() {
     this._clearTimer('_pingTimer', 'clearInterval');

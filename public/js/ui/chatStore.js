@@ -11,7 +11,7 @@ export function chatMember(room, playerId) {
 
 export function mergeChat(chat, event, history = false) {
   if (!chat?.code || event?.code !== chat.code) return chat;
-  const clearedThrough = Math.max(chat.clearedThrough || 0, history && Number.isSafeInteger(event.clearedThrough) ? event.clearedThrough : 0);
+  const clearedThrough = Math.max(chat.clearedThrough || 0, Number.isSafeInteger(event.clearedThrough) ? event.clearedThrough : 0);
   const byId = new Map(chat.messages.filter((m) => m.id > clearedThrough).map((m) => [m.id, m]));
   let unread = chat.unread;
   const incoming = history ? (Array.isArray(event.messages) ? event.messages : []) : [event];

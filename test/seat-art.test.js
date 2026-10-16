@@ -1,0 +1,34 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { startServer } from '../server/index.js';
+import { TestClient } from './helpers/wsClient.js';
+import { cardOperators, seatPortrait } from '../public/js/ui/seatArt.js';
+import { validateC2S } from '../shared/protocol.js';
+const catalogue = JSON.parse(readFileSync(new URL('../data/seat-art.json', import.meta.url)));
+test('seat artwork includes non-roster operators and declared skins with local paths', () => {
+  const list = cardOperators([], catalogue);
+  assert.ok(list.length > 400);
+  assert.ok(list.some(c => c.rarity === 1));
+  const c = list.find(c => c.charId === 'char_498_inside'), skin = c.choices.find(s => s.id.includes('@'));
+  const ctx = { pool: [], byChar: new Map([[c.charId,c]]), m: {}, myId: 'me', myCard: c.charId, mySkin: skin.id };
+  assert.equal(seatPortrait({ playerId:'me' }, ctx), skin.portrait);
+  assert.equal(seatPortrait({ playerId:'peer',card:c.charId,cardSkin:skin.id }, ctx), skin.portrait);
+  for (const c of list) for (const s of c.choices) assert.match(s.portrait, /^\/assets\/seat-portrait\/[A-Za-z0-9_.-]+\.png$/);
+  assert.ok(validateC2S({ t:'room.card',charId:c.charId,skinId:'https://invalid.test/x' }));
+});
+test('seat artwork validates ownership, broadcasts to peers and survives leaving/rejoining', async t => {
+  const srv = await startServer({ port:0,host:'127.0.0.1',quiet:true,recovery:false });
+  const clients=[];t.after(async()=>{for(const c of clients)await c.terminate();await srv.close();});
+  const host=await TestClient.connect('ws://127.0.0.1:'+srv.port+'/ws');clients.push(host);
+  const me=await host.hello('Poster Host');await host.request({t:'room.create',mode:'coop',difficulty:'NORMAL'});
+  const code=srv.lobby.rooms.keys().next().value;
+  const peer=await TestClient.connect('ws://127.0.0.1:'+srv.port+'/ws');clients.push(peer);await peer.hello('Poster Peer');await peer.request({t:'room.join',code});
+  const charId='char_498_inside', skinId=catalogue.chars[charId].choices.find(s=>s.id.includes('@')).id;
+  assert.equal((await host.request({t:'room.card',charId,skinId})).t,'ok');
+  await peer.waitFor('room.state',m=>(m.room||m).seats?.some(s=>s?.playerId===me.playerId && s.cardSkin===skinId));
+  assert.equal((await host.request({t:'room.card',charId:'char_112_siege',skinId})).t,'error');
+  await host.request({t:'room.leave'});await host.request({t:'room.join',code});
+  const seat=srv.lobby.rooms.get(code).seatOf(me.playerId);assert.equal(seat.cardSkin,skinId);
+  assert.equal((await host.request({t:'room.card',charId:'',skinId:''})).t,'ok');assert.equal(seat.card,'');
+});

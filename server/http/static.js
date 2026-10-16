@@ -60,6 +60,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { MEDIA_PREFIX } from '../../shared/media.js';
 import { splitHashedPath } from '../../shared/assetPaths.js';
+import { buildResourceManifest } from './resourceManifest.js';
 import { ROOT, noopLog } from './config.js';
 import { sendError, sendJson } from './common.js';
 import { MIME, CompressCache, IMMUTABLE_CACHE, isNotModified, serveFile, serveBuffer } from './files.js';
@@ -146,6 +147,7 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
   const shimBody = Buffer.from(DATA_SHIM_JS);
   const shimTag = `"shim-${shimBody.length.toString(16)}"`;
   const gzipCache = new CompressCache(); // brotli and gzip bodies (files.js)
+  let resourceManifestPromise = null;
 
   return async function serveStatic(req, res, rawPath, query) {
     let decoded;
@@ -160,6 +162,17 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
     const hashed = splitHashedPath(decoded);
     const urlHash = hashed.hash;
     decoded = hashed.path;
+    if (decoded === '/data/resource-manifest.json') {
+      resourceManifestPromise ??= buildResourceManifest({ publicDir }).then(manifest => ({ body: Buffer.from(JSON.stringify(manifest)), hash: manifest.version }));
+      try {
+        const payload = await resourceManifestPromise;
+        await serveBuffer(req, res, { ...payload, type: MIME['.json'], cacheControl: 'no-cache', key: 'resource-manifest', cache: gzipCache });
+      } catch (error) {
+        resourceManifestPromise = null; log.warn?.('[resources] manifest failed', error);
+        sendError(req, res, 503, 'Resource manifest unavailable');
+      }
+      return;
+    }
     if (decoded === '/data.js') {
       const headers = { 'Content-Type': MIME['.js'], 'Cache-Control': 'no-cache', ETag: shimTag, 'Content-Length': shimBody.length };
       if (isNotModified(req, shimTag, new Date(0))) { delete headers['Content-Length']; res.writeHead(304, headers); res.end(); return; }

@@ -35,6 +35,7 @@ import { TICK, SNAPSHOT_EVERY } from '../sim/constants.js';
 import { layerGainRoom } from '../../shared/constants.js';
 import { uniteLeft } from '../sim/spec.js';
 import { diyTokenOwner, diyRecordOf } from '../../shared/diy.js';
+import { battleDamage } from '../../shared/battleDamage.js';
 
 export const MAX_TICKS_PER_INTERVAL = 8;
 export const INTERVAL_MS = 1000 / 30;
@@ -287,11 +288,12 @@ export function timelineSample(b) {
  * a DeadBattle; the run is bounded by HARD_CAP_SECONDS.
  */
 export class HeadlessJob {
-  constructor(battle, { onError = null, players = [] } = {}) {
+  constructor(battle, { onError = null, players = [], captureDamage = false } = {}) {
     this.battle = battle;
     this.onError = onError;
     this.players = players;
     this.timeline = [timelineSample(battle)];
+    this.damageTimeline = captureDamage ? [[Number(battle.time) || 0, battleDamage(battle)]] : null;
     this.every = Math.max(1, Math.round(TIMELINE_EVERY / TICK));
     this.cap = Math.ceil(HARD_CAP_SECONDS / TICK);
     this.n = 0;
@@ -311,7 +313,10 @@ export class HeadlessJob {
         b.step();
         this.n++;
         k++;
-        if (this.n % this.every === 0) this.timeline.push(timelineSample(b));
+        if (this.n % this.every === 0) {
+          this.timeline.push(timelineSample(b));
+          this.damageTimeline?.push([Number(b.time) || 0, battleDamage(b)]);
+        }
         if (timed && (k & 15) === 0 && !b.finished && now() - t0 >= budgetMs) return false;
       }
       if (!b.finished) b.forceEnd('timeout');
@@ -335,6 +340,7 @@ export class HeadlessJob {
       result = { time: Number(b.time) || 0, reason: 'forced', perPlayer, killed: 0, total: 0, errors: 1, synthetic: true };
     }
     this.timeline.push(timelineSample(b));
+    this.damageTimeline?.push([Number(b.time) || 0, battleDamage(b)]);
     this.done = true;
     this._out = { battle: b, result, timeline: this.timeline, crashed: this.crashed };
   }

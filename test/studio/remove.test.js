@@ -1,3 +1,4 @@
+import { symlinkSync } from '../helpers/fsLinks.js';
 // test/studio/remove.test.js — the studio's 删除所选 (POST /studio/api/plugins/remove; DESIGN §32.14.34, docs/PLUGINS.md
 // §15): each plugin folder named moves to plugins/_removed/<id>-<time>/ (nothing deleted: moving it back restores it) and
 // the registry no longer lists it; several go at once; an id that is no plugin folder right inside plugins/ (an invalid id,
@@ -100,7 +101,7 @@ describe('removing plugins in the studio', () => {
     fs.mkdirSync(path.join(plugins, '.hidden'));
     skin(path.join(plugins, 'Mixed-Case'));
     const target = skin(path.join(tmp, 'linked-target'));
-    fs.symlinkSync(target, path.join(plugins, 'linked-skin'));
+    symlinkSync(target, path.join(plugins, 'linked-skin'));
     srv.packs.rescan();
     const r = await remove(['Bad_ID', '../old-skin', 'nope-skin', 'mixed-case', '_keep', '.hidden', 'linked-skin', 'ok-skin']);
     assert.equal(r.status, 200);
@@ -177,7 +178,7 @@ describe('removing plugins in the studio', () => {
     const elsewhere = path.join(tmp, 'elsewhere');
     fs.mkdirSync(elsewhere);
     if (fs.existsSync(removed)) fs.renameSync(removed, kept);
-    fs.symlinkSync(elsewhere, removed);
+    symlinkSync(elsewhere, removed);
     try {
       const r = await remove(['stuck-skin']);
       assert.equal(r.status, 200);

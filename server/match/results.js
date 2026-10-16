@@ -14,6 +14,7 @@
 
 import { bondList } from './bondsMeta.js';
 import { boardOrder } from './board.js';
+import { roundChartHistory } from './history.js';
 
 const STAT_OF = {
   bossDamage: (ps) => ps.stats.bossDamage,
@@ -150,6 +151,7 @@ export function buildResult(m, outcome) {
     hiddenBossId: m.hiddenBossId,
     seed: m.seed,
     durationMs: Math.max(0, m.sched.now() - m.startedAt),
+    roundHistory: roundChartHistory(m),
     players: rows,
   };
 }

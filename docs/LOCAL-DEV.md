@@ -1,6 +1,6 @@
 # 扩展分支开发笔记
 
-这份文档记录本仓库在上游 [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol) 之上做的改动，以及读代码时摸清的结构和坑，方便之后继续开发。上游自己的架构文档见 [DESIGN.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.2.6/docs/DESIGN.md)（总体）、[META.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.2.6/docs/META.md)（对局与经济）、[SIM.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.2.6/docs/SIM.md)（战斗模拟）。
+这份文档记录本仓库在上游 [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol) 之上做的改动，以及读代码时摸清的结构和坑，方便之后继续开发。上游自己的架构文档见 [DESIGN.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.3.0/docs/DESIGN.md)（总体）、[META.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.3.0/docs/META.md)（对局与经济）、[SIM.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.3.0/docs/SIM.md)（战斗模拟）。
 
 ## 1. 仓库与分支
 
@@ -13,13 +13,39 @@
 - 合并上游新版本时从 `main` 开功能分支，完成适配与测试后再合并回 `main`。
 - 同步上游：`git fetch upstream` → `git merge upstream/master` → `npm install` → `npm run setup`（上游常会加素材）→ `node --test`。
 - 素材 `public/assets/`、`.cache/`、`.claude/` 都在 `.gitignore` 里，不进仓库。新机器 clone 后要先 `npm install && npm run setup`。
-- 当前版本为 `v0.3.0-extended.4`，基于上游 `v0.3.0`（`c24e17ee`），合入插件工作台、官方战斗特效、英 / 韩 / 本土配音与作战统计，玩法扩展补齐复活队友与共享血条（社区服完整开关集），同时保留主机控制台、四席完整监控墙、资源与详细统计、重启恢复、空闲更新和更新记录、聊天与带名标点、代操作、回放与 Release 发布签名。完整素材包沿用 `v0.2.5-extended.1` 导入的上游完整包中的 `public/assets/local/` 和 `data/local-assets.json`，包括 11 个官方战场场景；来源和固定 SHA-256 见 DEPLOY §6。0.3.0 的官方配音（英 / 韩 / 本土）与战斗特效素材需按 DEPLOY §6 重新补齐。发布预检与构建都加 `--require-local-art`，同时核对场景清单为 11 个、所有文件哈希与源包一致；该参数只保证存在有效本地素材清单，不替代场景完整性验证。lite 不含官方本地素材。素材不随 Git 分支移动，切换旧代码版本时也要注意素材版本匹配。站点 CSP（`server/http/csp.js`）通过 `SP_ASSET_MIRROR_ORIGINS` 把镜像源追加进 style-src / font-src / img-src / connect-src（与 `/data/asset-mirrors.json` 的镜像列表保持一致；不设置该环境变量时策略与上游逐字节一致，`script-src` 永不加入镜像源）。
+- 当前版本为 `v0.3.0-extended.5`（合并官方 v0.3.0-extended.2 后），基于上游 `v0.3.0`（`c24e17ee`）。上一正式版为 `v0.2.6-extended.5`。新增局内每回合统计、主机聊天与屏蔽词、分组设置和组队海报，保留既有控制台、回档、回放、联动与皮肤扩展。完整包包含 11 个官方战场场景、0.3.0 官方 FX、多语言语音、174 套皮肤和海报素材；lite 需按文档补齐。素材来源与原始校验记录见 DEPLOY §6；发布预检要求 `--require-local-art`，同时核对场景和素材完整性。
+
+`package.json` / APP_VERSION 保持上游基础版本 0.3.0；`server/release-version.js` 单独记录扩展标签。发布附件与公开状态以 Releases 为准。
+
+上游合并的兼容处理：
+
+- 保留社区 Hub UI、皮肤、7 名联动、聊天标点、公告、盟约预选、帧率、ZIP 资源管理和状态增量；快捷键随上游扩成七项，加入 W 悬停购买；作战统计按维护者要求默认开启，保留已保存的关闭偏好，仍用浏览器只读统计。
+- 两套素材功能统一注册 classic `/sw.js`：上游导入包使用独立缓存，本库预载保留按哈希校验、音频别名和 Range。关闭预载停止下载，清理只删除本库缓存，统一 worker 继续服务上游导入素材。旧 `/resource-sw.js` 只保留升级兼容，不再注册争用 scope。
+- 回档补入上游 `itemPool.debt`，取消废弃时间线的浏览器 AI 预演。沿用上游同盟自选库存翻倍、整备区扩展和已展示装备欠账规则；强制发放的库存标记仍保留。
+- `server/match/host/extensions.js` 通过既有 IPC 在玩法插件独立进程内调用控制台能力，支持状态、目录、监控墙、代操作、改属性、回档、结果与回放记录；父进程不执行插件代码。皮肤、盟约预选及全局计时 / 回放配置也跨进程同步。
+- 上游 Forge 导入的临时校验目录在 Windows 使用 junction，CLI 预载使用 file URL；UI 插件消息校验包含本库 `state.*`。这些适配不改变模拟规则。
+- 原版局自动重启恢复保留；玩法插件局尚不保存跨进程恢复快照。普通数据插件可尝试回放；需要额外脚本授权的回放会明确拒绝启动，避免错误地用原版数据播放。完整脚本回放授权流程和插件局重启恢复仍待实现。
 
 各版上游合并、主机扩展与发布验证见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md)。
 
 ## 2. 本地新增了什么
 
+### 2026-10-16 控制台与组队界面修订
+
+- 控制台顶部读取 /api/overview，显示在线人数、房间、对局、CPU 与内存；公告和重启/关闭位于「服务器」。房间先选概览，再分「操作 / 数据」；玩家行只读，展开后按数值、发放、托管分组，数字输入按 Enter 应用，滚轮不改值。对局记录每页 20 条，可搜索房间、玩家、模式、难度、结果。
+- 设置 → 插件管理通过 startAdmin 的 studioUrl 跳转到游戏实际端口。runMain 使用 srv.studio.pageUrl 注入地址；只有本机会话通过 /studio 路由取得跳转，页面没有硬编码 3000 或公开钥匙。社区来源与兼容边界见 [COMMUNITY-PLUGINS.md](COMMUNITY-PLUGINS.md)。
+- 组队海报偏好独立保存为 sp.pref.room.card / sp.pref.room.cardSkin；room.card 的 charId、skinId 由生成目录校验，room.state.seats 的 card/cardSkin 同步队友；不改战斗皮肤、技能或模拟。清空恢复自动分配。
+- data/seat-art.json 由 node tools/build-data.mjs --seat-art-only 生成并下载图片到忽略目录 public/assets/seat-portrait/；加 --offline 仅据缓存生成目录。固定素材清单下含 432 名干员、1356 张图；未被源收录的未来皮肤不在此数量内。完整包包含所列图片。来源为官方 character/skin 表及 docs/research/seat-art-portraits.json 对应的素材清单。
+  新安装的 setup 自动补齐所需海报，也可单独运行 node tools/install-seat-art.mjs 断点续传；只下载目录中声明的 PNG，不更改游戏规则。
+- 同盟选择右栏安全居中，溢出从顶部排起；高度 ≤500px 隐藏创建插画。测试在输入前检查四边和 elementFromPoint 中心命中，避免自动滚动掩盖布局问题。
+
+专项测试：test/seat-art.test.js、test/ui/seat-art.e2e.test.js、test/ui/admin-overview.e2e.test.js、既有 admin 系列和 custom-room-code 浏览器测试。测试使用独立端口和 recovery:false 或临时恢复目录。
+
 本地自己的文件（上游没有，合并不会冲突）：
+
+控制台「设置 → 交流管理 → 房间聊天」可配置玩家文字开关、发言间隔和保留条数；主机消息仍从房间聊天管理发送。
+「对局设置 → 局内每回合统计」可单独关闭实时伤害，已结算回合继续保留。上述配置保存于既有
+`logs/admin-settings.json`，保存立即生效并跨重启保留。源码更新后需重启服务并刷新控制台：控制台首页模板在启动时读取。
 
 | 文件 | 作用 |
 |---|---|
@@ -71,6 +97,27 @@
 
 ### 房间交流（文字聊天与战场标点）
 
+2026-10-16 主机聊天恢复：`POST /api/action {room,action:'chatSend',value:text}` 仅走认证本机控制台，
+复用 `RoomChat.message` 和房间广播，固定主机身份、`role:system`，前端称「主机消息」。
+消息长度校验与普通聊天一致；控制台轮询不重建输入框，失败留草稿、发送中锁按钮，输入法确认不发送。
+主机不占玩家的节流或禁言额度，只发送所选房间；全站公告继续独立。
+
+`logs/admin-settings.json` 新增 `blockedWords`，缺省/空数组禁用。设置页每行一词，忽略大小写的
+普通字面匹配、长词优先，命中替换为 `***`；最多 100 条、40 码点/条，JSON 总计 4096 字节。
+服务端在新玩家及主机消息进入历史前过滤；已有记录、姓名、全站公告不变。配置验证及原子保存后
+立即生效，其他设置保存保留当前词表，重启读取。设置页按对局→交流→记录恢复→维护扩展→清理重排，
+导航在桌面侧边/手机顶部，各项独立保存，时长预览折叠。
+测试入口：`test/chat-settings.test.js`、`test/admin-chat.test.js`、`test/chat.test.js`；
+浏览器 `test/ui/admin-chat-settings.e2e.test.js`，并回归 `admin-chat.e2e.test.js` 与 `admin-settings.e2e.test.js`。
+验证：`.cache-chat-settings-final.log` 定向 67 项通过；`.cache-chat-settings-browser.log` 四项浏览器
+回归通过；补充输入焦点保护、玩家消息过滤及失败保留后，`.cache-chat-settings-browser-final.log`
+最终用例通过。类型检查、变更文件 lint、四语言严格检查通过；设置与聊天面板机械设计检查无发现。
+独立收尾审查指出并已修复轮询的 textarea 焦点保护，复核为 ship。未修改模拟和 golden。
+
+2026-10-16：局内 `pieceClick` 优先将棋盘上的右键交给标点处理，与空地一致；左键详情、手机长按、
+整备区右键与预览/观战查看沿用原行为。`test/ui/pings.e2e.test.js` 在引擎及 DOM 后备视图验证
+右键已占据干员格只发一次标点、不弹详情，左键仍能打开详情。
+
 文字聊天入口在等待室和对局中持续显示，默认位置避开侧边效果、准备按钮和计时器。`server/chat.js` 保存每房间最近 50 条消息，身份、时间由服务端生成；`room.chat` 仅正式玩家可发送，观战席只读。每条最多 200 个 Unicode 码点 / 1024 字节，每会话间隔 1 秒，每房间滚动 1 秒最多 10 条；`clientId` 对最近 50 次发送去重。加入与重连收到 `chat.history`；客户端 `chatStore.js` 合并历史和实时消息，保留草稿，离开或更换房间清空，断线不排队发送。Enter 发送时避开中文输入法候选确认，Shift+Enter 换行、Esc 收起；用户文本由 Preact 转义。
 
 聊天按钮和展开后的标题可用鼠标或触摸拖动；聚焦后方向键微调 1 px、Shift+方向键 10 px，展开面板内可恢复默认位置。`public/js/ui/chatPosition.js` 将归一化坐标保存在浏览器 `sp.pref.chatPosition.name.<编码昵称>`，同一浏览器、同一站点按昵称分别记忆；同名重登录或服务端身份过期仍恢复，没有昵称时才退回 playerId。此为本地显示偏好，同名共用，换浏览器 / 设备 / 站点不共享；不写入游戏协议、聊天内容或草稿。窗口变化后保持相对位置，按钮和展开面板限制在屏内；存储不可用或配置损坏时仍可拖动使用。
@@ -78,6 +125,87 @@
 标点使用 `g.ping {fieldId, area, row, col, kind}` 与 `m.ping`；服务端校验场地可观察权限、棋盘坐标、五种类型及 500 ms 间隔，并附 `playerId` 和服务端的 `name`，客户端不能指定发送者。房间广播后，仅当前观察该战场的客户端显示 2.5 秒，不进入战斗模拟、回档或回放，也不在重连时补发。正式玩家包括淘汰玩家可发送，观战席只接收；切换场地不会重播旧标点音效。客户端保留最多 32 条，阶段或回合变化清空；动画包括落下、上浮与两圈落点扩散，减少动画设置下保留静态落点环。原创 Web Audio 音效沿用音效音量与静音设置，页面隐藏或未解锁音频时不补播。
 
 聊天借鉴 RyantArgnisan/Stronghold-Protocol 的 GPL 实现，署名见 NOTICE；标点参考 ApexPing 的交互思路，没有引入其代码或依赖。两者均为维护者请求的非官方扩展 `[ASSUMED]`，不改战斗规则或 golden。接口详见 META 与 design/network，专项测试见 `test/chat.test.js`、`test/ping.test.js`、`test/ui/chat.test.js` 及对应浏览器测试。
+
+### 社区 Hub UI 移植（2026-10-15）
+
+基于 isomerpoi（雨千代chiyo）的 `ui-redesign-upstream` / `b2bd17a`，按文件移植，未 merge 或 cherry-pick。
+
+直接移入（先确认本地相对 `488db49f` 没有改动）：
+
+- `public/css/components.css`
+- `public/css/devices.css`
+- `public/css/screens/draft.css`
+- `public/css/screens/game-panels.css`
+- `public/css/screens/result.css`
+- `public/js/federation.js`
+- `public/js/render/fx/arrivals.js`
+- `public/js/screens/bandDraft.js`
+- `public/js/screens/room.js`
+- `public/js/screens/settle.js`
+- `public/js/screens/sweep.js`
+- `public/js/screens/title.js`
+- `public/js/ui/accounts.js`
+- `public/js/ui/achievements.js`
+- `public/js/ui/choiceOverlay.js`
+- `public/js/ui/cloudStats.js`
+- `public/js/ui/components.js`
+- `public/js/ui/fieldHost.js`
+- `public/js/ui/friends.js`
+- `public/js/ui/hubBackdrop.js`
+- `public/js/ui/hud.js`
+- `public/js/ui/lobbyMusic.js`
+- `public/js/ui/matchFlow.js`
+- `public/js/ui/matchIntro.js`
+- `public/js/ui/matchPlates.js`
+- `public/js/ui/matchPopups.js`
+- `public/js/ui/matchmaking.js`
+- `public/js/ui/namecards.js`
+- `public/js/ui/ownerName.js`
+- `public/js/ui/pixbots.js`
+- `public/js/ui/protocolScene.js`
+- `public/js/ui/screenFit.js`
+- `public/js/ui/seatArt.js`
+- `public/js/ui/teamPanel.js`
+- `public/js/ui/transitions.js`
+- `public/js/ui/trophies.js`
+- `shared/randomMode.js`
+
+三方合并后检查本地扩展：
+
+- `public/css/screens/game.css`
+- `public/css/screens/loadout.css`
+- `public/css/screens/lobby.css`
+- `public/js/audio.js`
+- `public/js/render/app.js`
+- `public/js/render/units.js`
+- `public/js/screens/game.js`
+- `public/js/ui/loadoutModel.js`
+- `public/js/screens/loadout.js`
+- `public/js/screens/lobby.js`
+- `public/js/ui/settings.js`
+
+保留 `ui/skins.js`、`ui/skinPicker.js` 的真实实现与 `room.skins` 同步；皮肤先 `cleanSkins` 校验再合并导入，卡片和列表均提供随机皮肤与恢复默认。新同盟创建页保留自定义密钥；等待室重新接入已有 `room.addBot` / `room.removeBot`。聊天位置记忆、标点、联动干员和回放暂停逻辑不变。
+
+不支持的匹配、公开房间列表、好友、私密房间、无限火力和名片同步入口按真实协议能力隐藏。没有新增虚假 C2S，也没有玩家端开发者控制台。修复来源包的昵称正则和部署特效变量错误；新界面文字保留字号设置，不用局部 `--t` 覆盖屏蔽设置。
+
+四个 `public/i18n/{en,ja,ko,zh-TW}.json` 补充译文，已有译文优先，来源和授权见 NOTICE。`test/e2e/client.mjs` 新增真实 Hub 创建和密钥加入助手；原浏览器用例只调整新页面流程、选择器和异步加载等待，不删行为断言。验证记录见 LOCAL-CHANGELOG；后续范围与约束仍以 UI-HUB-PORT 为准。
+
+### Hub 第二阶段（2026-10-16，v0.2.6-extended.5）
+
+参考站点公开源码按功能拆入，没有整体替换本库网络、聊天或皮肤实现。完整验收与差异见 [UI-HUB-ACCEPTANCE.md](UI-HUB-ACCEPTANCE.md)。
+
+| 分类 | 新增 / 改动文件与适配 |
+|---|---|
+| 盟约预选 | 新增 `public/js/ui/bondPlan.js`；main、等待室、bandDraft、teamPanel 接入；server/lobby、PlayerState、platform、views、rewind、shared/protocol 保存、广播和校验八个核心盟约 |
+| 渲染上限 | 新增 public/js/frameRate.js；settings、gameLogic/settings 和 render/app 接入，不改变 runner 时钟 |
+| 表情 | shared/constants、protocol、match/intents 改用 72 个允许 ID；ui/emotes 与 emotes.css 分 12 页，保留官方清单；36 张自制图仅放本机 ignored assets |
+| 伤害统计 | 新增 battle/metrics、ui/combatMetrics、combatMetricsLayout；runner 收集只读指标，game 接入非模态面板；不写回 Battle |
+| 全站公告 | 新增 server/announcements、shared/announcements、ui/announcement；server/net、lobby、admin 和 main / title / lobby / room / game 接入；替换旧聊天公告，保留清空 / 禁言 / 踢出 |
+| 资源管理 | 新增 public/js/resources/、ui/resourcePanel、resource-sw、asset-cdn、shared/cdn、resourcePaths、server/http/resourceManifest、tools/build-resource-manifest.mjs；setup 和 static 接入。ZIP 用浏览器原生实现，不新增依赖 |
+| 状态增量 | 新增 shared/stateDelta、server/stateDelta；server/net、lobby、public/js/net 和 shared/protocol 只合传输适配。单独保存实现前快照与增量补丁 |
+| 界面细调 | 手合 components、lobby / room / result / game / title / draft / loadout CSS 与对应组件，移除赞助；保留密钥、皮肤工具栏、聊天、标点、默认六键和更新记录 |
+
+资源清单是机器安装库存：npm run setup 自动生成，单独更新用 node tools/build-resource-manifest.mjs。data/resource-manifest.json 被忽略，绝不手改官方 data 表。服务器首次请求时也按本机库存懒生成，新增素材后重启以更新服务端缓存。HTTPS / localhost 使用 SW；普通局域网 HTTP 或不支持 Cache Storage 的浏览器仍用旧 ui/preload.js / preloadSection.js。四个 vendor 库继续普通 HTTP 预热，SW 不缓存执行代码。缓存与 ZIP 限制详见 [ASSETS.md](ASSETS.md)。
 
 ## 3. 对局引擎速览
 
@@ -375,7 +503,7 @@ EN / JA / KO 客户端里没有焰狐龙梓兰和结城理，zh-TW 里还没有�
 
 ### 聊天、监控与资源
 
-聊天管理复用 `server/chat.js` 与普通离开规则，只允许本机控制台调用；公告使用 `role: 'system'`，不受玩家频率限制，长度限制不变。清空广播带 `clearedThrough` 的空历史；单调消息 ID 不重用，客户端丢弃迟到的废弃消息。禁言绑定房间 playerId，重连不解除；玩家发送返回 `CHAT_MUTED`。轮询复用聊天节点，输入草稿与展开状态不丢失。
+聊天管理复用 `server/chat.js` 与普通离开规则，只允许本机控制台调用；v0.2.6-extended.5 起旧聊天公告改为独立全站公告，正文、级别和绝对起止时间由主机编辑，不进入聊天历史。清空广播带 `clearedThrough` 的空历史；单调消息 ID 不重用，客户端丢弃迟到的废弃消息。禁言绑定房间 playerId，重连不解除；玩家发送返回 `CHAT_MUTED`。轮询复用聊天节点，输入草稿与展开状态不丢失。
 
 `admin-wall.js` 输出四席摘要和对局标识，`monitor.html` 桌面 2×2、手机单列。每席内嵌 `/live?wall=1` 的完整游戏界面，包含棋盘、商店、盟约、HUD 与非权威战斗副本；按 1280×720 桌面视口缩放，可全屏或单独观察。墙内禁止代操作，不创建玩家 WebSocket 或上报战斗结果。仅已鉴权墙模式允许同源 iframe，普通实时页保持禁止嵌入。摘要每秒轮询、5 秒超时，同一对局 / 玩家不重建画面，结束或关闭移除 iframe，退出停止轮询与尺寸监听。局内聊天入口默认避开右侧效果及准备按钮，可拖动并按本机站点和昵称保存；展开面板跟随入口并自动限制在屏内。
 
@@ -401,8 +529,44 @@ EN / JA / KO 客户端里没有焰狐龙梓兰和结城理，zh-TW 里还没有�
 
 `release-notes.js` 从 LOCAL-CHANGELOG 当前发布节提取玩家条目，排除验证记录；游戏端仅公开只读 `/release-notes.json`，不带管理数据。游戏与控制台共用 `public/js/ui/releaseNotes.js`：首次访问建立版本基线，版本变化弹出，关闭记住版本，支持 Esc 和横屏滚动，非中文界面说明条目为中文。未发布记录不冒充新版，正式发版时再同步 RELEASE_TAG。
 
+### 局内每回合曲线
+
+维护者要求（2026-10-16）：所有玩家与观战者在局内交流图标后打开非模态「每回合统计」，内含曲线与每回合干员伤害排行。
+`public/js/ui/roundChart.js` 为游戏与控制台共用 SVG/表格/排行绘制器；指标包括 LP、金币、花费、伤害、
+商店等级、回合收支和可叠层盟约。盟约使用官方数据 `noStack` 过滤，旧记录通过数据查询补判；
+新记录携带该标记以支持插件盟约。控制台的不可叠层盟约仍展示人数/档位，隐藏层数与加层/设层输入。
+
+`logs/admin-settings.json` 的 `roundCharts` 默认 `true`（旧配置缺省同样开启），
+`GET/POST /api/settings` 读取/保存，独立保存其他设置时保留当前值；保存后立即刷新各活动局公开状态。
+`m.public.roundHistory` 仅发送统计字段，新增 `players[].units` 的 `defId/name/dmg/kills` 用于排行，
+关闭时为 `[]`；底层历史继续记录，重新开启即可查看。排行支持按回合、玩家筛选，前 10/全部；
+仅计算各自战场的干员伤害，沿用控制台口径，联防伤害只计入累计数据，不拆分到干员。
+排行扩展验收：`.cache-round-rank-final.log` 定向 68 项通过；`.cache-round-rank-browser.log`
+局内与控制台统计两项浏览器回归通过，`.cache-round-rank-browser-final.log` 最终显示统计口径后
+复核通过，覆盖回合/玩家筛选、前 10/全部、切换保留、三种视口与开关。四语言各 2316 条完整，
+类型检查与变更文件 lint 通过；独立收尾审查为 ship。无模拟或 golden 规则改动。
+玩法插件房间由 `host/proxy.js` 携带配置，通过独立进程/worker 的 `syncExtensions` 同步并刷新公开状态。
+第一回合结算前显示空态；淘汰后曲线止于淘汰回合；旧记录缺失收支显示「—」；回档后废弃记录消失。
+不改变模拟、结算、golden 或官方盟约规则。
+
+专项验证：`node --test test/match/round-history.test.js test/admin.test.js`；浏览器设 `SP_E2E=1` 和
+`CHROME_PATH` 后运行 `node --test test/ui/round-history.e2e.test.js test/ui/admin-stats.e2e.test.js`。
+
+2026-10-16 验证：最终定向 65 项全部通过（`.cache-round-charts-final.log`）；共享图表键盘/开关/
+响应式浏览器用例最终通过（`.cache-round-charts-keyboard-final.log`），控制台设置回归 3 项通过
+（`.cache-round-charts-browser-verified.log`）、原有统计浏览器回归通过。golden 六组 299 场景一致
+（`.cache-round-charts-golden.log`）；四语言各 2302 条严格检查 0 缺失/错误，lint 0 错误，类型检查、
+setup/smoke 通过。收尾独立审查确认重绘后恢复键盘焦点；既有设计系统保持。
+完整 CI 首轮发现轴标题漏翻译，已修复并由最终定向覆盖；该批另有素材代理测试的 Node 版本假设、
+大厅席位 `card/cardSkin` 旧断言及超时失败，不能作为全量通过（`.cache-round-charts-ci.log`）。
+首轮结果为 8019 项、7947 通过、30 失败、1 取消、41 跳过；还包括插件试运行超时、性能阈值、
+Windows 文件锁、既有资源缓存/标题链接断言。观战隐私断言已更新为允许主机启用后公开的已结算
+金币，仍禁止当前私有字段，真实 WebSocket 回归 5 项通过（`.cache-round-charts-socket.log`）。
+发布预检仅枚举 Git 已跟踪文件，因此未提交的新模块在首轮包测试中被报为缺失；
+不改真实 Git 索引，使用预检 `paths` 纳入两份新增模块的结果见 `.cache-round-charts-package.log`。
+
 ### 验证入口
 
 - 服务端：`test/admin-chat.test.js`、`resources-wall.test.js`、`match/history-details.test.js`、`result-summary.test.js`、`recovery.test.js`、`idle-update.test.js`、`release-notes.test.js`（除已写目录者外均在 test 根目录）。
 - 浏览器：`SP_E2E=1 node --test test/ui/admin-chat.e2e.test.js test/ui/admin-stats.e2e.test.js test/ui/next-features.e2e.test.js`；设 `CHROME_PATH`。监控墙真实 30 分钟验收另设 `SP_WALL_SOAK=1`，日常回归无需等待半小时。
-- 最终汇总见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md) 的 `v0.2.6-extended.4` 节；只在明确授权后提交。
+- 最终汇总见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md) 的 `v0.2.6-extended.5` 节；只在明确授权后提交。

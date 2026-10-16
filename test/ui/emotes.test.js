@@ -11,7 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   EMOTES, EMOTE_THEMES, EMOTE_CATALOG, EMOTE_THEME, EMOTE_LABEL, EMOTE_COOLDOWN_MS, EMOTE_BUBBLE_MS,
-  emoteInfo, emoteArtPath, emoteArtGroup,
+  emoteInfo, emoteArtPath, emoteArtGroup, ALL_EMOTE_THEMES, EMOTE_IDS, CUSTOM_EMOTE_ART,
 } from '../../shared/constants.js';
 import { validateC2S } from '../../shared/protocol.js';
 import { buildEmotes, formatEmotes, THEME_DIRS } from '../../tools/build-emotes.mjs';
@@ -67,8 +67,15 @@ describe('emote catalog (shared/constants.js)', () => {
     assert.ok(Object.isFrozen(EMOTE_THEME) && Object.isFrozen(EMOTE_LABEL));
   });
 
-  test('protocol accepts exactly the 36 official battle ids (g.emote { id })', () => {
-    for (const id of EMOTES) assert.equal(validateC2S({ t: 'g.emote', id }), null, id);
+  test('protocol accepts all official and community battle ids (g.emote { id })', () => {
+    assert.equal(EMOTES.length, 36);
+    assert.equal(EMOTE_IDS.length, 72);
+    assert.equal(new Set(EMOTE_IDS).size, 72);
+    assert.equal(ALL_EMOTE_THEMES.length, 12);
+    assert.equal(CUSTOM_EMOTE_ART.length, 36);
+    for (const theme of ALL_EMOTE_THEMES) assert.equal(theme.emotes.length, 6);
+    for (const id of EMOTE_IDS) assert.equal(validateC2S({ t: 'g.emote', id }), null, id);
+    for (const url of CUSTOM_EMOTE_ART) assert.match(url, /^\/assets\/local\/emoticon\/\w+\/pic_\w+\.(png|gif)$/);
     for (const id of ['happy', 'thanks', 'autochess_room_hello', 'multiv3_battle_thanks', 'duel_battle_happy', '__proto__', '', 7, null]) {
       assert.notEqual(validateC2S({ t: 'g.emote', id }), null, String(id));
     }
@@ -269,16 +276,16 @@ describe('public/js/ui/emotes.js helpers', () => {
 
   test('pager helpers: clamp, swipe threshold, remembered theme', async () => {
     const { clampPage, swipeStep, themeIndex, lastThemeIndex, rememberTheme } = await import('../../public/js/ui/emotes.js');
-    assert.deepEqual([clampPage(-3), clampPage(2), clampPage(99), clampPage('x'), clampPage(2.7)], [0, 2, 5, 0, 2]);
+    assert.deepEqual([clampPage(-3), clampPage(2), clampPage(99), clampPage('x'), clampPage(2.7)], [0, 2, 11, 0, 2]);
     assert.deepEqual([swipeStep(-60), swipeStep(60), swipeStep(-10), swipeStep(0), swipeStep(-40)], [1, -1, 0, 0, 1]);
-    assert.equal(themeIndex('emoticon_foolsday_amiya'), 4);
+    assert.equal(themeIndex('emoticon_foolsday_amiya'), 10);
     assert.equal(themeIndex('nope'), 0);
     store.clear();
     assert.equal(lastThemeIndex(), 0, 'first page by default');
     rememberTheme('emoticon_foolsday_wisdel');
-    assert.equal(lastThemeIndex(), 5);
+    assert.equal(lastThemeIndex(), 11);
     rememberTheme('bogus');
-    assert.equal(lastThemeIndex(), 5, 'unknown themes are not stored');
+    assert.equal(lastThemeIndex(), 11, 'unknown themes are not stored');
     store.set('sp.pref.emoteTheme', '"emoticon_gone"');
     assert.equal(lastThemeIndex(), 0, 'a stale theme falls back to the first page');
     store.set('sp.pref.emoteTheme', '{bad json');

@@ -17,6 +17,21 @@ const DEFAULT_PREP = Object.freeze({ mode: 'default' });
 let prep = DEFAULT_PREP;
 // Custom host rule: read once when a 联防 starts; each battle has fresh trait counters.
 let uniteLayerGains = false;
+let roundCharts = true;
+let liveRoundDamage = true;
+export function getLiveRoundDamage() { return liveRoundDamage; }
+export function setLiveRoundDamage(v) {
+  if (typeof v !== 'boolean') return { error: '实时伤害设置必须为开或关' };
+  liveRoundDamage = v;
+  return { ok: true };
+}
+
+export function getRoundCharts() { return roundCharts; }
+export function setRoundCharts(v) {
+  if (typeof v !== 'boolean') return { error: '局内曲线设置必须为开或关' };
+  roundCharts = v;
+  return { ok: true };
+}
 
 export function getUniteLayerGains() { return uniteLayerGains; }
 
@@ -69,7 +84,7 @@ export function setPrep(v) {
 }
 
 /** Back to the data's timers and the official 联防 rule (tests). */
-export function resetHostSettings() { prep = DEFAULT_PREP; uniteLayerGains = false; }
+export function resetHostSettings() { prep = DEFAULT_PREP; uniteLayerGains = false; roundCharts = true; liveRoundDamage = true; }
 
 /** The 休整期 seconds of round r for a match whose data gives `base` (null = untimed stays untimed). */
 export function prepSecondsFor(round, base, p = prep) {

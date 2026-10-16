@@ -44,6 +44,8 @@ import { randomBytes } from 'node:crypto';
 import { isIP } from 'node:net';
 import { C2S, validateC2S } from '../shared/protocol.js';
 import { ERR, ERR_TEXT, NAME_MAX_LEN, PROTOCOL_VERSION } from '../shared/constants.js';
+import { STATE_DELTA_VERSION, isStateKind } from '../shared/stateDelta.js';
+import { StateSender } from './stateDelta.js';
 
 /** Tunables (all overridable through the Network / SessionRegistry constructors). */
 export const NET_DEFAULTS = Object.freeze({
@@ -71,7 +73,7 @@ export const NET_DEFAULTS = Object.freeze({
  * (taking a spectator seat in a running match resends its state like a watcher's g.watch — server/lobby.js spectate) and
  * room.setPlugins (a new visual set: every member downloads its art manifest — server/plugins/visualSet.js).
  */
-export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout', 'room.ownership', 'room.diy', 'room.spectate', 'room.skins', 'room.setPlugins']);
+export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout', 'room.ownership', 'room.diy', 'room.spectate', 'room.skins', 'room.bondPlan', 'state.resync', 'room.setPlugins']);
 
 /** Close codes (see header). */
 export const CLOSE = Object.freeze({ REPLACED: 4001, HELLO_TIMEOUT: 4002, POLICY: 1008, SHUTDOWN: 1001 });
@@ -118,6 +120,14 @@ export class Session {
     this.loadout = null;
     /** @type {Readonly<Record<string, string>> | null} checked cosmetic choices, keyed by operator */
     this.skins = null;
+    /** @type {string | null} Room poster operator and outfit, independent of battle skins. */
+    this.card = null;
+    /** @type {string | null} */
+    this.cardSkin = null;
+    /** @type {string | null} Public communication preference; never a battle rule. */
+    this.bondPlan = null;
+    /** @type {StateSender | null} Negotiated per socket; reconnects always start with full state. */
+    this.stateDelta = null;
     /** @type {Readonly<Record<string, { potential: number, cultivate: number }>> | null} checked per-operator 潜能 / 练度 (lobby-owned, 0.2.2; room.loadout `ops`) */
     this.ops = null;
     /** @type {readonly string[] | null} checked not-owned chess ids (干员持有, lobby-owned, 0.2.0 补位) */
@@ -317,7 +327,14 @@ export function send(ws, msg) {
  */
 export function sendSession(session, msg) {
   if (!session || !session.connected) return false;
+  if (session.stateDelta && isStateKind(msg?.t)) return session.stateDelta.send(msg, data => sendRaw(session.ws, data));
+  if (msg?.t === 'room.closed' || msg?.t === 'm.result') session.stateDelta?.reset();
   return send(session.ws, msg);
+}
+
+/** Cached results retain the canonical legacy wire form; negotiate again when replaying to a socket. */
+export function sendSessionFrame(session, data) {
+  try { return sendSession(session, JSON.parse(data)); } catch { return false; }
 }
 
 /** @param {unknown} rid */
@@ -695,6 +712,7 @@ export class Network {
     session.lastSeen = now;
     session.addr = conn.ip;
     session.limitKey = conn.key;
+    session.stateDelta = msg.stateDelta === STATE_DELTA_VERSION ? new StateSender() : null;
 
     let extra = null;
     try { extra = this.handler.welcomeInfo?.() ?? null; } catch (e) { this.log.error('[net] welcomeInfo crashed', e); }

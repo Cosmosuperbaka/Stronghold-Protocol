@@ -47,7 +47,8 @@ export function validHostMessage(m) {
     case 'reply': return Number.isSafeInteger(m.id) && m.id > 0 && object(m.result)
       && (m.result.error === undefined || str(m.result.error, 80))
       && (m.result.ok === undefined || typeof m.result.ok === 'boolean') && boundedJson(m, HOST_IPC_LIMITS.reply);
-    case 'end': return (m.summary == null || object(m.summary)) && boundedJson(m, HOST_IPC_LIMITS.reply);
+    case 'end': return (m.summary == null || object(m.summary)) && (m.extensions == null || object(m.extensions))
+      && boundedJson(m, m.extensions ? HOST_IPC_LIMITS.message : HOST_IPC_LIMITS.reply);
     case 'failed': return str(m.error, HOST_IPC_LIMITS.error) && boundedJson(m, HOST_IPC_LIMITS.error + 512);
     default: return false;
   }

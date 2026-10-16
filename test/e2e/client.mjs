@@ -364,6 +364,27 @@ export class Client {
     await this.page.waitForSelector('.lobby-screen', { timeout: 20000 });
   }
 
+  /** Create through the hub; alliance difficulty is selected in the waiting room. */
+  async createSimulation(mode, difficulty = '标准模拟') {
+    await this.click('.hub-entry', mode);
+    if (mode === '独立模拟') {
+      await this.click('.proto .pcard', difficulty);
+      await this.click('.proto-start', '开始模拟');
+    } else {
+      await this.click('[data-testid="create-alliance"]', '创建同盟');
+      await this.waitFor((s) => !!s.room?.code, 'alliance created');
+      await this.click('.rs-pill__diff');
+      await this.click('.rs-proto .pcard', difficulty);
+      await this.click('.rs-proto__ok', '确认');
+      await this.page.waitForFunction(() => !document.querySelector('.rs-proto'));
+    }
+  }
+
+  async openJoin() {
+    await this.click('.hub-tile', '密钥加入');
+    await this.page.waitForSelector('.hub-dialog .join-row input');
+  }
+
   // ---- field view (render engine debug hooks) -------------------------------------------------------------------
 
   viewKind() { return this.page.evaluate(() => globalThis.__SP_VIEW__?.kind ?? null); }

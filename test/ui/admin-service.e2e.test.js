@@ -11,7 +11,7 @@ test('service buttons: desktop/mobile, cancellation, failure recovery, restart r
 }, async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-service-ui-'));
   let admin, browser, actions = [], fail = true;
-  const options = { root, lobby: { rooms: new Map(), onMatchEnd() {}, safeData: () => ({}) }, port: 0,
+  const options = { lobby: { rooms: new Map(), onMatchEnd() {}, safeData: () => ({}) }, port: 0,
     resultsDir: root, settingsFile: path.join(root, 'settings.json'), log: { error() {}, warn() {}, info() {} },
     updateOptions: { fetchImpl: async () => new Response('[]') }, service: {
       prepare: async (action) => {
@@ -30,6 +30,7 @@ test('service buttons: desktop/mobile, cancellation, failure recovery, restart r
     const page = await browser.newPage(), errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(admin.url, { waitUntil: 'domcontentloaded' });
+    await page.click('[data-tab="server"]');
     await page.waitForSelector('[data-service="restart"]:not([disabled])');
     const shots = path.resolve('.impeccable/review'); fs.mkdirSync(shots, { recursive: true });
     for (const [name, width, height] of [['desktop', 1440, 900], ['mobile', 390, 844]]) {
@@ -49,11 +50,12 @@ test('service buttons: desktop/mobile, cancellation, failure recovery, restart r
     await page.waitForSelector('[data-service="restart"]:not([disabled])');
     fail = false;
     const token = admin.token;
-    await page.click('[data-tab="settings"]');
+    await page.click('[data-tab="server"]');
     page.once('dialog', (dialog) => dialog.accept());
     await page.click('[data-service="restart"]');
     await page.waitForFunction((old) => !document.querySelector('script:last-of-type').textContent.includes(`const TOKEN = '${old}'`), {}, token);
     assert.deepEqual(actions, ['restart']);
+    await page.click('[data-tab="server"]');
     await page.waitForSelector('[data-service="shutdown"]:not([disabled])');
     page.once('dialog', (dialog) => dialog.accept());
     await page.click('[data-service="shutdown"]');

@@ -62,3 +62,5 @@ node tools/golden.mjs --twice                   # determinism: the corpus twice 
 The original stand-in / DIY seeds remain as outcome regressions even when they field no such operator. The
 `coop2-NORMAL-1-unowned-roster` scenario supplies no owned NORMAL operators, so stand-in coverage does not depend on
 the bot choosing one of a small set of missing operators. `coop2-NORMAL-5-coverage-diy` covers the DIY path.
+
+This fork keeps 7 additional collaboration operators. After the v0.3.0 integration, DIY scenarios diy-136 through diy-151 are regenerated because those operators change the final batches; the other five families match upstream v0.3.0 exactly (49 + 46 + 22 + 21 + 10). DIY has 151 scenarios; the full corpus has 299.

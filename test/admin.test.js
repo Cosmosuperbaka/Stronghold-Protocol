@@ -46,7 +46,7 @@ test('console: localhost only, token required, actions change the running match'
   assert.equal((await req(P, '/api/rooms', { headers: { ...auth, 'x-admin-token': 'f'.repeat(32) } })).status, 403);
   assert.equal((await req(P, '/api/rooms', { headers: { ...auth, host: 'evil.example' } })).status, 403);
   assert.equal((await req(P, '/', { headers: { host: `evil.example:${P}` } })).status, 403);
-  assert.deepEqual((await req(P, '/api/rooms', { headers: auth })).json, { rooms: [] });
+  assert.deepEqual((await req(P, '/api/rooms', { headers: auth })).json, { rooms: [], announcement: null });
 
   // a solo match through the real protocol
   const c = await TestClient.connect(`ws://127.0.0.1:${srv.port}/ws`);
@@ -207,12 +207,11 @@ test('console item stock: confirmation, forced merge, occupancy, removal and rew
   assert.equal(m.itemPool.held(id), 4);
   assert.ok(ps.hand.some(p => p?.adminStockCopies === 2), 'an equipped forced twin merges with its incoming copy');
   checkInvariants(m);
-  // 0.3.0 (#630): the temp area is a window — overflow queues behind the visible five instead of being
-  // refused, so a forced grant never hits a capacity wall (the console's stock audit still applies).
-  while (ps.hand.some(p => !p) || ps.temp.some(p => !p)) {
-    if (!ps.acquireItem('chess_item_6_09_e_a', { requirePool: false })) break;
-  }
+  // Upstream 0.3.0 expands temporary storage rather than refusing a confirmed grant.
+  while (ps.hand.some(p => !p)) ps.acquireItem('chess_item_6_09_e_a', { requirePool: false });
+  const heldBefore = m.itemPool.held(id);
   assert.deepEqual(act({ id, force: true }), { ok: true });
+  assert.equal(m.itemPool.held(id), heldBefore + 1);
   checkInvariants(m);
 });
 
@@ -659,7 +658,7 @@ test('console settings: the 休整期 timer of every timed match, kept in a file
     const post = (prep) => req(a.port, '/api/settings', { method: 'POST', headers: auth, body: { prep } }).then((r) => r.json);
     assert.match((await post({ mode: 'fixed', seconds: 1 })).error, /5–3600/);
     assert.equal(fs.existsSync(file), false, 'nothing written for a bad setting');
-    assert.deepEqual(await post({ mode: 'perRound', rounds: { 2: 40, 9: '' } }), { ok: true, prep: { mode: 'perRound', rounds: { 2: 40 } }, uniteLayerGains: false });
+    assert.deepEqual(await post({ mode: 'perRound', rounds: { 2: 40, 9: '' } }), { ok: true, prep: { mode: 'perRound', rounds: { 2: 40 } }, uniteLayerGains: false, roundCharts: true });
     assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).prep, { mode: 'perRound', rounds: { 2: 40 } });
     assert.equal((await req(a.port, '/api/settings', { method: 'POST', body: { prep: { mode: 'default' } } })).status, 403, 'token required');
     assert.equal(got.uniteLayerGains, false, 'custom rule defaults off');
@@ -668,19 +667,28 @@ test('console settings: the 休整期 timer of every timed match, kept in a file
     assert.match((await postUnite('true')).error, /开或关/);
     assert.equal(fs.readFileSync(file, 'utf8'), before, 'invalid rule leaves the saved settings intact');
     assert.equal(getUniteLayerGains(), false);
-    assert.deepEqual(await postUnite(true), { ok: true, prep: { mode: 'perRound', rounds: { 2: 40 } }, uniteLayerGains: true });
+    assert.deepEqual(await postUnite(true), { ok: true, prep: { mode: 'perRound', rounds: { 2: 40 } }, uniteLayerGains: true, roundCharts: true });
     assert.equal(getUniteLayerGains(), true);
     assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).uniteLayerGains, true);
     assert.equal((await post({ mode: 'perRound', rounds: { 2: 40 } })).uniteLayerGains, true, 'timer-only saves preserve the rule');
+    assert.equal(got.roundCharts, true, 'charts default on');
+    const postCharts = (roundCharts) => req(a.port, '/api/settings', { method: 'POST', headers: auth, body: { roundCharts } }).then((r) => r.json);
+    const savedBefore = fs.readFileSync(file, 'utf8');
+    assert.match((await postCharts('false')).error, /开或关/);
+    assert.equal(fs.readFileSync(file, 'utf8'), savedBefore, 'invalid chart setting is not persisted');
+    assert.equal((await postCharts(false)).roundCharts, false);
+    assert.equal((await post({ mode: 'perRound', rounds: { 2: 40 } })).roundCharts, false, 'timer-only saves preserve charts');
     await a.close();
     resetHostSettings();
     a = await startAdmin({ lobby, port: 0, log: { info() {}, error() {} }, resultsDir, settingsFile: file });
     assert.deepEqual(getPrep(), { mode: 'perRound', rounds: { 2: 40 } }, 'read back at start');
     assert.equal(getUniteLayerGains(), true, 'custom rule survives restart');
+    assert.equal((await req(a.port, '/api/settings', { headers: { 'x-admin-token': a.token } })).json.roundCharts, false, 'chart setting survives restart');
     await a.close();
     fs.writeFileSync(file, JSON.stringify({ prep: { mode: 'default' } }));
     a = await startAdmin({ lobby, port: 0, log: { info() {}, error() {} }, resultsDir, settingsFile: file });
     assert.equal(getUniteLayerGains(), false, 'old settings files keep the official rule');
+    assert.equal((await req(a.port, '/api/settings', { headers: { 'x-admin-token': a.token } })).json.roundCharts, true, 'old settings files default to showing charts');
     await a.close();
   } finally {
     resetHostSettings();

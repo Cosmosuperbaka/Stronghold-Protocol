@@ -47,6 +47,8 @@ test('console statistics: live and saved DIY names, leak details, economy, bond 
     page.setDefaultTimeout(10000);
     await page.setViewport({ width: 1440, height: 1000 });
     await page.goto(admin.url, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('[data-open-room]'); await page.click('[data-open-room]');
+    await page.click('[data-room-tab="data"]');
     await page.waitForSelector('[data-part="units"] li');
     const ranks = await page.$$eval('[data-part="units"] li', (els) => els.map((e) => e.textContent.trim()));
     assert.deepEqual(ranks, ['推进之王 600 伤害 · 1 击杀 · 1 场', '灰烬 400 伤害 · 2 击杀 · 1 场']);

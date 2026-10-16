@@ -8,6 +8,7 @@ export function wallView(lobby, code) {
   const room = lobby.rooms.get(code);
   if (!room) return { error: '房间已关闭', seats: Array(4).fill(null) };
   const m = room.match;
+  if (m?.hosted) return m.admin('wall');
   if (m && !matches.has(m)) matches.set(m, ++nextMatch);
   return { room: code, matchId: m && !m.ended && !m.disposed ? matches.get(m) : null,
     phase: m ? PHASE_NAMES[m.phase] || m.phase : '对局未开始或已结束', round: m?.round ?? null,

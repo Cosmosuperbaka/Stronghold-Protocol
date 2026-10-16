@@ -65,11 +65,9 @@ describe('the fork\'s collab 自选 picks in the browser (real server)', { skip:
       await sleep(500);
 
       // 2) a solo 标准 match: the picks reach it
-      await c.click('.mode-card', '独立模拟');
-      await c.click('.diff-card', '标准模拟');
-      await c.click('.create-box button', '开始独立模拟');
+      await c.createSimulation('独立模拟', '标准模拟');
       await c.waitFor((s) => !!s.room, 'solo room');
-      if (!(await c.st()).phase) await c.click('.room-bar__right button', '开始模拟', { timeout: 20000 });
+      if (!(await c.st()).phase) await c.click('.rs-foot__right button', '开始模拟', { timeout: 20000 });
       await c.waitFor((s) => s.phase === 'INFO_CHECK', 'briefing', 30000);
       const diy = await c.page.evaluate(() => globalThis.__SP__.store.get().match.private?.diy ?? null);
       assert.deepEqual(diy, { [SLOT]: PICK }, 'the match received the pick');
