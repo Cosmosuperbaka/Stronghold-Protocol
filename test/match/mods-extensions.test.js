@@ -89,6 +89,69 @@ test('m.public carries the room extensions (the client DPS panel reads bossPanel
   h.toPrep(1);
   const pub = h.bc.filter((msg) => msg.t === 'm.public').at(-1);
   assert.ok(pub, 'an m.public was broadcast');
-  assert.deepEqual(pub.extensions, { bossPanel: false, dupBand: false, deployCapOff: false, upgradeFill: true });
+  assert.deepEqual(pub.extensions, { bossPanel: false, dupBand: false, deployCapOff: false, upgradeFill: true, revive: false, sharedLp: false });
   h.m.dispose();
+});
+
+test('revive: a doctor whose LP hits 0 is restored to the start LP instead of being eliminated', () => {
+  const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', seed: 5, fake: true, humans: 2, bots: 0,
+    extensions: { revive: true }, script: () => ({ leaks: { p_0: 3, p_1: 1 } }) }).start();
+  h.toPrep(1);
+  const m = h.m;
+  const ps = h.ps('p_0');
+  ps.lp = 1; // this round's leaks will drive it below 0 — revive (not elimination) answers
+  const lp0 = ps.lp;
+  h.drive(() => m.phase === 'PREP' && m.round === 2);
+  assert.equal(ps.alive, true, 'revive: the doctor is not eliminated');
+  assert.equal(ps.lp, m.gd.startLp(ps.bandId), 'revive: the LP is restored to the start LP');
+  assert.equal(ps.eliminatedRound, null, 'revive: no elimination round recorded');
+  const mate = h.ps('p_1');
+  assert.equal(mate.alive, true, 'the untouched teammate keeps playing');
+  h.invariants();
+  m.dispose();
+  void lp0;
+});
+
+test('revive off (default): an LP-0 doctor is eliminated as usual', () => {
+  const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', seed: 5, fake: true, humans: 2, bots: 0,
+    script: () => ({ leaks: { p_0: 3, p_1: 1 } }) }).start();
+  h.toPrep(1);
+  const m = h.m;
+  const ps = h.ps('p_0');
+  ps.lp = 1;
+  h.drive(() => m.phase === 'PREP' && m.round === 2);
+  assert.equal(ps.alive, false, 'default: the doctor is eliminated');
+  assert.equal(ps.lp, 0, 'default: the eliminated doctor sits at 0 LP');
+  assert.equal(ps.eliminatedRound, 1, 'default: the elimination round is recorded');
+  h.invariants();
+  m.dispose();
+});
+
+test('sharedLp: a normal round spreads the team total over the alive players (remainder to the alive order)', () => {
+  // both doctors leak (no perfect seat → no 联防 rescue): 3 + 1 = 4 total → an even 2 + 2 split
+  const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', seed: 5, fake: true, humans: 2, bots: 0,
+    extensions: { sharedLp: true }, script: () => ({ leaks: { p_0: 3, p_1: 1 } }) }).start();
+  h.toPrep(1);
+  const m = h.m;
+  const [a, b] = [h.ps('p_0'), h.ps('p_1')];
+  const total0 = a.lp + b.lp;
+  h.drive(() => m.phase === 'PREP' && m.round === 2);
+  assert.equal(a.lp, m.gd.startLp(a.bandId) - 2, 'sharedLp: p_0 pays the even share 2 of the team total 4');
+  assert.equal(b.lp, m.gd.startLp(b.bandId) - 2, 'sharedLp: p_1 pays the same share 2 (no remainder at 4/2)');
+  assert.equal(total0 - (a.lp + b.lp), 4, 'the team total is conserved: 4 leaks → 4 LP');
+  h.invariants();
+  m.dispose();
+});
+
+test('sharedLp off (default): each doctor pays its own leaks', () => {
+  const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', seed: 5, fake: true, humans: 2, bots: 0,
+    script: () => ({ leaks: { p_0: 3, p_1: 1 } }) }).start();
+  h.toPrep(1);
+  const m = h.m;
+  const [a, b] = [h.ps('p_0'), h.ps('p_1')];
+  h.drive(() => m.phase === 'PREP' && m.round === 2);
+  assert.equal(a.lp, m.gd.startLp(a.bandId) - 3, 'default: p_0 pays its own 3 leaks');
+  assert.equal(b.lp, m.gd.startLp(b.bandId) - 1, 'default: p_1 pays its own 1 leak');
+  h.invariants();
+  m.dispose();
 });

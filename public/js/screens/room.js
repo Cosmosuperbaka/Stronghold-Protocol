@@ -208,13 +208,15 @@ function InviteBox({ code, name, difficulty }) {
 }
 
 /** 玩法扩展 labels (shared/constants.js ROOM_EXTENSIONS). */
-const EXT_LABEL = { dupBand: N_('重复策略'), bossPanel: N_('DPS面板'), deployCapOff: N_('取消部署上限'), upgradeFill: N_('升本补卡') };
+const EXT_LABEL = { dupBand: N_('重复策略'), bossPanel: N_('DPS面板'), deployCapOff: N_('取消部署上限'), upgradeFill: N_('升本补卡'), revive: N_('复活队友'), sharedLp: N_('共享血条') };
 /** The rules note of each extension, under the switches. */
 const EXT_TIP = {
   dupBand: t('重复策略的规则：开局选择策略时不再限制「队友已选」，多名博士可以选到同一个策略。'),
   bossPanel: t('DPS面板：右上角显示我棋盘上每名干员本回合造成的伤害与每秒伤害（DPS），可点击收缩，全阶段可见。'),
   deployCapOff: t('取消部署上限的规则：不再限制同时部署的干员数量，棋盘放得下就可以继续部署（官方上限 8，加成后封顶 12）。'),
   upgradeFill: t('升本补卡的规则：升级调度中心时，新栏位立刻补上新干员卡（官方为新栏位空着，等下一次刷新）。'),
+  revive: t('复活队友的规则：博士的目标生命值耗尽时不再被淘汰，而是恢复为开局的目标生命值，战斗继续（中途退出房间仍会被淘汰）。'),
+  sharedLp: t('共享血条的规则：普通回合内全队的目标生命值扣减合并后均摊，漏怪不再是漏怪者一个人的账（联防回合仍由漏怪者自负）。'),
 };
 
 /**

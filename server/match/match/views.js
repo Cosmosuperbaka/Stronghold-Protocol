@@ -225,6 +225,28 @@ export class MatchViews {
       if (f && f.cc) n = f.done && f.result ? counted(f.result.perPlayer && f.result.perPlayer[ps.playerId]) : Number(f.progress && f.progress.leaks) || 0;
       else if (f && f.battle) { try { n = battleProgress(f.battle).leaks; } catch { n = 0; } }
     }
+    // 玩法扩展 sharedLp (共享血条): the live counter shows the player's projected even share of the team's total
+    // (settle.js does the authoritative spread at settlement, remainder to the first players of the alive order —
+    // mirrored here so the LP bars of the team panel fall together). 联防 keeps the leaker's own counter above.
+    if (this.ext?.sharedLp && this.phase === PHASE.COMBAT) {
+      const mates = this.alivePlayers();
+      let total = 0;
+      for (const q of mates) {
+        let k = 0;
+        if (this.lastResults.has(q.playerId)) k = counted(this.lastResults.get(q.playerId));
+        else {
+          const f = this.fields.find((x) => x && x.kind === 'normal' && Array.isArray(x.players) && x.players.includes(q.playerId));
+          if (f && f.cc) k = f.done && f.result ? counted(f.result.perPlayer && f.result.perPlayer[q.playerId]) : Number(f.progress && f.progress.leaks) || 0;
+          else if (f && f.battle) { try { k = battleProgress(f.battle).leaks; } catch { k = 0; } }
+        }
+        total += Math.min(this.gd.lpCapPerRound, Math.max(0, Math.trunc(Number(k) || 0)));
+      }
+      const base = Math.floor(total / mates.length);
+      const rem = total - base * mates.length;
+      const idx = mates.findIndex((q) => q.playerId === ps.playerId);
+      const loss = base + (idx >= 0 && idx < rem ? 1 : 0);
+      return loss > 0 ? { pendingLp: loss } : {};
+    }
     const loss = Math.min(this.gd.lpCapPerRound, Math.max(0, Math.trunc(Number(n) || 0)));
     return loss > 0 ? { pendingLp: loss } : {};
   }

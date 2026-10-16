@@ -37,14 +37,33 @@ export class MatchSettle {
       losses: {},
     } : null;
     const alive = this.alivePlayers();
+    // 玩法扩展 sharedLp (共享血条): a normal round's total LP loss is spread evenly over the still-alive players —
+    // leaks stop being the leaker's private bill and the team's LP bars move together. 联防 rounds keep the leakers'
+    // own charges (the 联防 dialog explains them per player; flattening them would contradict what it shows).
+    let chargeOf = null;
+    if (this.ext?.sharedLp && !uniteRan && alive.length > 1) {
+      let total = 0;
+      for (const ps of alive) {
+        const r = this.lastResults.get(ps.playerId) || { leaked: [], perfect: true, coins: 0, layerGains: {}, killed: 0, damageDealt: 0 };
+        const counted = (r.leaked || []).filter((l) => l && l.counted !== false).length;
+        total += Math.min(cap, counted);
+      }
+      if (total > 0) {
+        const base = Math.floor(total / alive.length);
+        let rem = total - base * alive.length;
+        chargeOf = new Map();
+        for (const ps of alive) chargeOf.set(ps.playerId, base + (rem-- > 0 ? 1 : 0));
+      }
+    }
     for (const ps of alive) {
       const r = this.lastResults.get(ps.playerId) || { leaked: [], perfect: true, coins: 0, layerGains: {}, killed: 0, damageDealt: 0 };
       const counted = (r.leaked || []).filter((l) => l && l.counted !== false).length;
       const loss = uniteRan && plan.leakers.includes(ps) ? Math.min(cap, survivors.get(ps.playerId) || 0) : Math.min(cap, counted);
+      const charge = chargeOf ? chargeOf.get(ps.playerId) : loss;
       if (this.uniteResultView) this.uniteResultView.losses[ps.playerId] = loss;
       ps.leakHistory = normalLeakHistory(this, ps, r, { plan, uniteResult, uniteRan, loss });
-      ps.lp -= loss;
-      ps.stats.lpLost += loss;
+      ps.lp -= charge;
+      ps.stats.lpLost += charge;
       ps.stats.leaks += counted;
       ps.stats.kills += Number(r.killed) || 0;
       ps.stats.dmgDealt += Number(r.damageDealt) || 0;
@@ -77,11 +96,19 @@ export class MatchSettle {
         this.dispatch(ps, 'onLayers', { bondId, from: before, to: ps.layers[bondId], reason: 'battle' });
       }
       this._charDamageTickers(ps, r);
-      this.dispatch(ps, 'onBattleResult', { result: r, lpLoss: loss, perfect: counted === 0 && r.perfect !== false, unite: uniteResult || null });
+      this.dispatch(ps, 'onBattleResult', { result: r, lpLoss: charge, perfect: counted === 0 && r.perfect !== false, unite: uniteResult || null });
       ps.recompute();
     }
     for (const ps of alive) {
       if (ps.lp <= 0) {
+        // 玩法扩展 revive (复活队友): the LP-hit doctor is restored to their band's start LP instead of being
+        // eliminated — the run keeps going, and a mid-match departure still eliminates as before (the board is gone).
+        if (this.ext?.revive) {
+          ps.lp = this.gd.startLp(ps.bandId);
+          this.toast(ps, 'info', '复活队友：目标生命值已恢复');
+          this.tickerText(msg('{name}博士复活了', { name: ps.name }), FLOW_TICKER_PRIORITY);
+          continue;
+        }
         ps.lp = 0;
         ps.eliminate(this.round);
         this.toast(ps, 'error', '你的目标生命值耗尽，已被淘汰');

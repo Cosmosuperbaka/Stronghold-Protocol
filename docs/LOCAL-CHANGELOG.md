@@ -2,14 +2,13 @@
 
 只记录本分支在上游之上的改动。上游自己的更新见 [CHANGELOG.md](../CHANGELOG.md)，实现细节见 [LOCAL-DEV.md](LOCAL-DEV.md)。
 
-## 2026-10-16 — v0.3.0-extended.1：合并上游 0.3.0（插件工作台、官方特效与三语配音）
+## 2026-10-16 — v0.3.0-extended.2：玩法扩展补齐复活队友与共享血条
 
-- 合并上游 `0.3.0`（`c24e17ee`），基础版本更新为 `0.3.0`：新增插件工作台（`/studio/`，沙箱执行与审核流程）、官方战斗特效、英 / 韩 / 本土三套配音、作战统计面板与秘术师能量条；装备库存改为可借记（#624）、合作局共享池与自选池翻倍（#650）、临时整备区改为可溢出窗口（#630），房间协议增加内容集与插件开关。
-- 保留本地扩展：主机控制台与房间 / 玩家管理、四席完整只读监控墙、重启恢复、房间聊天与拖动记忆、带名战场标点、DPS 面板、素材预载系统、战斗倍速与四项玩法扩展开关；本地 `setExtensions` 与上游 `setPlugins` / `setMode` / 内容集确认在同一房间协议中共存，恢复、回放与记录沿用原格式并兼容新字段。
-- 素材与数据：`data/assets.json` 按 0.3.0 重新生成（217 名干员含 7 名联动、174 套皮肤、132 个模组、59 件装备与英 / 韩 / 本土语音条目），`public/i18n/en.json` 补齐本地界面文案；官方 0.3.0 的配音与战斗特效素材需按 [DEPLOY §6](DEPLOY.md) 补齐后再出整合包。
-- 自选池仍为 79 名；恢复文件绑定版本与规则指纹，`v0.2.6-extended.4` 及更早的跨版本恢复不兼容，升级前请结束活动对局。
-- 与上游 0.3.0 的适配（本地侧）：DPS 面板并入上游的 `.gm__effects` 顶右列（就绪原因下移沿用），本地面板字号改读文字大小根 `--t`（DPS / 预载 / 房间玩法扩展共 29 处）；皮肤选择器与资源商店解耦（`ui/assetUrls.js` 新增纯函数 `skinAvatarUrl`，`assets.js` 的 `validSpine` 移入 `shared/skins.js`，预载面板懒加载资源商店），保持 `main.js` 静态图不含 `assets.js`；`tools/plugin.mjs test` 的 `--import` 改传 `file://` URL；`.gitattributes` 为无扩展名文本（`.dockerignore` / `Dockerfile` / `LICENSE` / `.gitignore`）补 `eol=lf`，避免 Windows 检出（`core.autocrlf=true`）逐行断言失败。
-- 本版验证：全量 `node --test --test-concurrency=4` 共 TOTALS 项（PASSED 通过、SKIPPED 跳过、FAILED 失败）；golden 六个家族一致，且关闭本地「升本补卡」时与上游 0.3.0 的 matches digest 逐字节相同（合并留痕的模拟代码与上游行为一致）；lint、imports、typecheck、真实打包预检见发布日志。
+- 玩法扩展补齐社区服的完整开关集，新增两项（房间「玩法扩展」面板中勾选，默认关闭）：
+  - **复活队友**：博士的目标生命值耗尽时不再被淘汰，而是恢复为开局的目标生命值，战斗继续；中途退出房间仍按原规则淘汰（棋盘已清，无从复活）。结算提示与滚动播报同步显示复活。
+  - **共享血条**：普通回合内全队的目标生命值扣减合并后按存活博士均摊（余数按存活顺序分给前几名），漏怪不再是漏怪者一个人的账；联防回合保持漏怪者自负（与联防结果对话框逐人展示的口径一致）。战斗中的实时扣血预览（`pendingLp`）也按同一口径平摊，团队面板的血条一起下落。
+- 实现：`server/match/match/settle.js`（均摊与复活）、`server/match/match/views.js`（实时预览对齐）、`server/match/audit.js`（结算审计感知两个开关：均摊守恒与份额检查、复活放行 LP 回升与 LP≤0 条款）、`shared/constants.js`（`ROOM_EXTENSIONS` 增加键并更新默认值与说明）、`public/js/screens/room.js`（面板标签与规则提示）。
+- 验证：`test/match/mods-extensions.test.js` 由 6 项扩至 **10 项全过**（两个开关各验开 / 关，revive 校验不淘汰且恢复开局生命、sharedLp 校验 4 点团队总量守恒的 2+2 均摊与默认逐人扣减）；`attachAudit` 全流程用例 30/30；golden 六家族一致（默认开关下无玩法变化）；`i18n` / `i18n-packs` / `lobby` 全绿，`en.json` 仅追加 6 条翻译。基础版本仍为 `0.3.0`，扩展标签升至 `v0.3.0-extended.2`。
 - 本地环境说明（本机 Windows，非合并缺陷，已逐条对照）：WorkBuddy 注入的托管 Node 22 在本机 `fs.cpSync` 上原生崩溃（最小复现：任意目录递归复制即退出码 0xC0000409，Node 22.20 / 22.22 均如此，系统 Node 26 正常），故本地全量改用 Node 26 并加 `--test-reporter=tap`；`test/studio/trial.test.js` 的 `child.killed` 断言在 Windows 上不成立（先 `taskkill /F` 再 `child.kill()`，Node 不置该标志；探针确认子进程确已结束、并发槽已释放）；`test/plugins/script-review.test.js` 与 `test/studio/review.test.js` 的 1 秒探针预算少于本机加载 SES 的耗时（预算提到 3 秒即通过）；`test/ui/plugins-content.test.js` 存在上游自身的 `setImmediate` / `setTimeout` 竞态（三次一败，单跑通过）。
 
 ## 2026-10-15 — v0.2.6-extended.4：主机管理、统计、恢复与聊天拖动
@@ -275,3 +274,13 @@
 
 - `scripts/start-tunnel.bat`：一键开服 + cloudflared 公网隧道，列出访问地址。
 - `scripts/stop-server.bat`：释放游戏端口（结束服务器和指向它的隧道），仅 Windows。
+
+## 2026-10-16 — v0.3.0-extended.1：合并上游 0.3.0（插件工作台、官方特效与三语配音）
+
+- 合并上游 `0.3.0`（`c24e17ee`），基础版本更新为 `0.3.0`：新增插件工作台（`/studio/`，沙箱执行与审核流程）、官方战斗特效、英 / 韩 / 本土三套配音、作战统计面板与秘术师能量条；装备库存改为可借记（#624）、合作局共享池与自选池翻倍（#650）、临时整备区改为可溢出窗口（#630），房间协议增加内容集与插件开关。
+- 保留本地扩展：主机控制台与房间 / 玩家管理、四席完整只读监控墙、重启恢复、房间聊天与拖动记忆、带名战场标点、DPS 面板、素材预载系统、战斗倍速与四项玩法扩展开关；本地 `setExtensions` 与上游 `setPlugins` / `setMode` / 内容集确认在同一房间协议中共存，恢复、回放与记录沿用原格式并兼容新字段。
+- 素材与数据：`data/assets.json` 按 0.3.0 重新生成（217 名干员含 7 名联动、174 套皮肤、132 个模组、59 件装备与英 / 韩 / 本土语音条目），`public/i18n/en.json` 补齐本地界面文案；官方 0.3.0 的配音与战斗特效素材需按 [DEPLOY §6](DEPLOY.md) 补齐后再出整合包。
+- 自选池仍为 79 名；恢复文件绑定版本与规则指纹，`v0.2.6-extended.4` 及更早的跨版本恢复不兼容，升级前请结束活动对局。
+- 与上游 0.3.0 的适配（本地侧）：DPS 面板并入上游的 `.gm__effects` 顶右列（就绪原因下移沿用），本地面板字号改读文字大小根 `--t`（DPS / 预载 / 房间玩法扩展共 29 处）；皮肤选择器与资源商店解耦（`ui/assetUrls.js` 新增纯函数 `skinAvatarUrl`，`assets.js` 的 `validSpine` 移入 `shared/skins.js`，预载面板懒加载资源商店），保持 `main.js` 静态图不含 `assets.js`；`tools/plugin.mjs test` 的 `--import` 改传 `file://` URL；`.gitattributes` 为无扩展名文本（`.dockerignore` / `Dockerfile` / `LICENSE` / `.gitignore`）补 `eol=lf`，避免 Windows 检出（`core.autocrlf=true`）逐行断言失败。
+- 本版验证：全量 `node --test --test-concurrency=4` 共 7,866 项（7,789 通过、74 跳过、3 失败，失败均为下条列出的本机环境项，逐条归因后确认非合并缺陷）；golden 六个家族一致，且关闭本地「升本补卡」时与上游 0.3.0 的 matches digest 逐字节相同（合并留痕的模拟代码与上游行为一致）；lint、imports、typecheck、真实打包预检见发布日志。
+

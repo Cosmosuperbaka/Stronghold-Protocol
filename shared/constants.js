@@ -31,8 +31,14 @@ export const NAME_MAX_LEN = 12;
 // panel, room.setExtensions) ------------------------------------------------------------------------------------------------
 /**
  * The room extension switches a co-op room's host may flip (room.setExtensions; room.state.extensions, the match's
- * m.public.extensions). `revive` (复活队友) and `sharedLp` (共享血条) are planned but not implemented yet — not offered
- * here until they are (the community server's full set is ['revive', 'sharedLp', 'dupBand', 'bossPanel', 'deployCapOff']).
+ * m.public.extensions). The community server's full set is
+ * ['revive', 'sharedLp', 'dupBand', 'bossPanel', 'deployCapOff'] — this deployment implements all of it:
+ *   `revive` = 复活队友: a doctor whose LP hits 0 is restored to their strategy's start LP (settle.js) instead of
+ *              being eliminated — the run keeps going. A mid-match departure still eliminates as before (the board
+ *              is gone, there is nothing to revive).
+ *   `sharedLp` = 共享血条: a normal round's total LP loss is spread evenly over the still-alive players (settle.js) —
+ *              leaks stop being the leaker's private bill. 联防 rounds keep the leakers' own charges, matching what
+ *              the 联防 result dialog explains per player.
  *   `dupBand` = 重复策略: the opening strategy draft no longer marks a teammate's pick as 队友已选 — two or more players
  *              may take the same strategy (the automatic assignments may repeat too).
  *   `bossPanel` = DPS面板: the top-right DPS panel (ui/dpsPanel.js) shows for the room's players (default on).
@@ -42,9 +48,9 @@ export const NAME_MAX_LEN = 12;
  *              at the new level (following the freeze toggle), instead of the official 「只开位，空着等下一次刷新」
  *              (GitHub #332 / PR #333).
  */
-export const ROOM_EXTENSIONS = Object.freeze(['dupBand', 'bossPanel', 'deployCapOff', 'upgradeFill']);
+export const ROOM_EXTENSIONS = Object.freeze(['dupBand', 'bossPanel', 'deployCapOff', 'upgradeFill', 'revive', 'sharedLp']);
 /** Default of each room extension (a new room starts with these). */
-export const ROOM_EXTENSIONS_DEFAULT = Object.freeze({ bossPanel: true, dupBand: false, deployCapOff: false, upgradeFill: true });
+export const ROOM_EXTENSIONS_DEFAULT = Object.freeze({ bossPanel: true, dupBand: false, deployCapOff: false, upgradeFill: true, revive: false, sharedLp: false });
 /** Validated copy of a room.setExtensions payload (unknown keys dropped, non-booleans → default). */
 export function normalizeExtensions(v) {
   const e = v && typeof v === 'object' && !Array.isArray(v) ? v : {};
