@@ -6,6 +6,7 @@ import { StubMatch } from '../server/match/StubMatch.js';
 import { handleAction, roomsView } from '../server/admin.js';
 import { validateC2S } from '../shared/protocol.js';
 import { mergeChat, emptyChat } from '../public/js/ui/chatStore.js';
+import { setBlockedWords } from '../server/chat.js';
 
 function fixture(t) {
   const registry = new SessionRegistry();
@@ -22,6 +23,25 @@ function fixture(t) {
   const act = (action, playerId, value) => handleAction(lobby, { room: room.code, action, playerId, value });
   return { lobby, room, host, peer, viewer, act, player };
 }
+
+test('console messages use the room chat, mask words, retain server identity and stay room-scoped', (t) => {
+  const f = fixture(t);
+  t.after(() => setBlockedWords([]));
+  setBlockedWords(['secret', 'a.b']);
+  const other = f.player('Other'); f.lobby.create(other, { mode: 'solo', difficulty: 'NORMAL' });
+  assert.deepEqual(f.act('chatSend', null, '<img> SECRET a.b'), { ok: true });
+  const message = f.room.chat.messages.at(-1);
+  assert.equal(message.text, '<img> *** ***');
+  assert.equal(message.role, 'system');
+  assert.equal(message.playerId, 'host');
+  assert.ok(f.viewer.frames.some((x) => x.t === 'chat.message' && x.text === message.text));
+  assert.ok(!other.frames.some((x) => x.t === 'chat.message'));
+  assert.deepEqual(mergeChat(emptyChat(f.room.code), message).messages[0].role, 'system');
+  assert.ok(f.act('chatSend', null, ' ').error);
+  assert.ok(f.act('chatSend', null, 'x'.repeat(201)).error);
+  assert.equal(f.room.chat.messages.length, 1, 'invalid messages are not recorded');
+  assert.ok(validateC2S({ t: 'room.chatSend', text: 'spoof' }));
+});
 test('host announcements bypass player throttles, reach every room and remain server-only', (t) => {
   const f = fixture(t);
   const notice = text => ({ text, level: 'info', startAt: Date.now(), endAt: Date.now() + 60000 });
@@ -37,6 +57,11 @@ test('host announcements bypass player throttles, reach every room and remain se
   assert.ok(otherHost.frames.some(m => m.t === 'site.announcement' && m.announcement.text === 'all'));
   for (const type of ['room.announce', 'room.chatClear', 'room.chatMute', 'room.chatKick']) assert.ok(validateC2S({ t: type }));
   assert.equal(roomsView(f.lobby)[0].chat.messages.length, 0);
+  const persistent = { ...notice('until removed'), endAt: 8640000000000000, untilRemoved: true };
+  assert.deepEqual(f.act('announce', null, persistent), { ok: true });
+  assert.equal(f.lobby.announcements.frame().announcement.untilRemoved, true);
+  assert.deepEqual(f.act('announce', null, null), { ok: true });
+  assert.equal(f.lobby.announcements.frame().announcement, null);
 });
 
 test('kicking during a match follows the existing permanent departure hook', (t) => {

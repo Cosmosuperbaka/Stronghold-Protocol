@@ -52,7 +52,7 @@ import { net } from '../net.js';
 import { store, useStore, shallowEqual, emptyMatch, isSpectating, serverNow, loadPref, savePref } from '../store.js';
 import { data, useData } from '../data.js';
 import { chessAvatarUrl } from '../ui/assetUrls.js';
-import { CARD_PREF, cardOperators, seatPortrait } from '../ui/seatArt.js';
+import { CARD_PREF, CARD_SKIN_PREF, cardOperators, seatPortrait } from '../ui/seatArt.js';
 import { C2S } from '../../../shared/protocol.js';
 import { difficultyInfo, ProtoCard } from './lobby.js';
 import { ProtocolScene } from '../ui/protocolScene.js';
@@ -153,9 +153,18 @@ const CAN_PRIVATE = !!C2S && Object.hasOwn(C2S, 'room.setPrivate');
 
 
 /** 名片干员 picker: search, rarity, the operators' avatars; 默认 clears the pick. */
-function CardPicker({ current, list, m, onPick, onClose }) {
+function CardPicker({ current, currentSkin, list, m, onPick, onClose }) {
   const [q, setQ] = useState('');
   const [star, setStar] = useState(0);
+  const [selected, setSelected] = useState(null);
+  if (selected) return html`<${Modal} open=${true} title=${selected.name} onClose=${onClose} width="min(9.6rem, 94vw)" class="cardpick">
+    <${Button} size="sm" onClick=${() => setSelected(null)}>${t('返回')}<//>
+    <div class="cardpick__grid cardpick__grid--skins">
+      <button type="button" class="cardpick__op" onClick=${() => onPick(selected.charId, '')}><span class="cardpick__img"><img src=${chessAvatarUrl(m, selected) || selected.choices?.[0]?.portrait} alt="" /></span><span class="cardpick__name">${t('默认')}</span></button>
+      ${(selected.choices || []).map(s => html`<button key=${s.id} type="button" class=${`cardpick__op${current === selected.charId && currentSkin === s.id ? ' is-on' : ''}`} onClick=${() => onPick(selected.charId, s.id)} title=${s.name}>
+        <span class="cardpick__img"><img src=${s.portrait} alt="" loading="lazy" /></span><span class="cardpick__name">${s.name}</span></button>`)}
+    </div>
+  <//>`;
   const needle = q.trim().toLowerCase();
   const shown = list.filter((c) => (!star || c.rarity === star) && (!needle || String(c.name || '').toLowerCase().includes(needle)
     || String(c.appellation || '').toLowerCase().includes(needle)));
@@ -170,8 +179,8 @@ function CardPicker({ current, list, m, onPick, onClose }) {
     <div class="cardpick__grid">
       <button type="button" class=${`cardpick__op cardpick__op--auto${!current ? ' is-on' : ''}`} onClick=${() => onPick('')} title=${t('按博士编号自动分配')}>
         <span class="cardpick__img"><${Icon} name="refresh" /></span><span class="cardpick__name">${t('默认')}</span></button>
-      ${shown.map((c) => html`<button key=${c.charId} type="button" class=${`cardpick__op${current === c.charId ? ' is-on' : ''}`} onClick=${() => onPick(c.charId)} title=${c.name}>
-        <span class="cardpick__img"><img src=${chessAvatarUrl(m, c)} alt="" loading="lazy" draggable=${false} /></span>
+      ${shown.map((c) => html`<button key=${c.charId} type="button" class=${`cardpick__op${current === c.charId ? ' is-on' : ''}`} onClick=${() => setSelected(c)} title=${c.name}>
+        <span class="cardpick__img"><img src=${chessAvatarUrl(m, c) || c.choices?.[0]?.portrait} alt="" loading="lazy" draggable=${false} /></span>
         <span class="cardpick__name">${c.name}</span>${c.rarity ? html`<span class=${`cardpick__star r${c.rarity}`}>${c.rarity}★</span>` : null}</button>`)}
     </div>
     <p class="cardpick__note"><${Icon} name="info" />${CARD_SYNC ? t('选择后，同盟里的博士都会看到这张立绘') : t('目前只有你自己看得到；服务器下次更新后，同盟里的其他博士也能看到你的选择')}</p>
@@ -350,26 +359,28 @@ export function RoomScreen() {
   const prevEmpty = useRef(null);
   const [, tick] = useState(0);
   useEffect(() => { const id = setInterval(() => tick((x) => x + 1), 1000); return () => { clearInterval(id); alive.current = false; }; }, []);
-  useData('chess', 'assets');
+  useData('chess', 'assets', 'seat-art');
   const m = data.get('assets');
   // 名片干员: the pickable operators, the default pool (5★/6★ by charId, the same order on every client), one's pick
-  const cardList = useMemo(() => cardOperators(data.list('chess')), [data.get('chess')]);
+  const cardList = useMemo(() => cardOperators(data.list('chess'), data.get('seat-art')), [data.get('chess'), data.get('seat-art')]);
   const [myCard, setMyCard] = useState(() => { const v = loadPref(CARD_PREF, ''); return typeof v === 'string' ? v : ''; });
+  const [mySkin, setMySkin] = useState(() => { const v = loadPref(CARD_SKIN_PREF, ''); return typeof v === 'string' ? v : ''; });
   const [picking, setPicking] = useState(false);
   const portraits = useMemo(() => ({
-    pool: cardList.filter((c) => (c.rarity ?? 0) >= 5).sort((a, b) => (a.charId < b.charId ? -1 : 1)),
-    byChar: new Map(cardList.map((c) => [c.charId, c])), m, myId: me.playerId, myCard,
-  }), [cardList, m, me.playerId, myCard]);
-  const pickCard = (charId) => {
-    setMyCard(charId); savePref(CARD_PREF, charId); setPicking(false);
+    pool: cardList.filter((c) => (c.rarity ?? 0) >= 5 && c.assets).sort((a, b) => (a.charId < b.charId ? -1 : 1)),
+    byChar: new Map(cardList.map((c) => [c.charId, c])), m, myId: me.playerId, myCard, mySkin,
+  }), [cardList, m, me.playerId, myCard, mySkin]);
+  const pickCard = (charId, skinId = '') => {
+    setMyCard(charId); savePref(CARD_PREF, charId); setMySkin(skinId); savePref(CARD_SKIN_PREF, skinId); setPicking(false);
   };
   // tell the server (teammates see it) once it knows room.card; a refused id stays local
   const seatCard = room ? (roomFacts(room, me.playerId).mine?.card || '') : '';
+  const seatSkin = room ? (roomFacts(room, me.playerId).mine?.cardSkin || '') : '';
   useEffect(() => {
-    if (!CARD_SYNC || !room || conn.status !== 'online' || seatCard === (myCard || '')) return;
+    if (!CARD_SYNC || !room || conn.status !== 'online' || seatCard === (myCard || '') && seatSkin === (mySkin || '')) return;
     if (myCard && !portraits.byChar.has(myCard)) return;
-    net.request('room.card', { charId: myCard || '' }).catch(() => {});
-  }, [room?.code, myCard, seatCard, conn.status]);
+    net.request('room.card', { charId: myCard || '', skinId: mySkin || '' }).catch(toastError);
+  }, [room?.code, myCard, mySkin, seatCard, seatSkin, conn.status, cardList]);
 
   // arrived through 搜寻队友 (match.found for this room): 搜寻成功 once
   useEffect(() => {
@@ -607,7 +618,7 @@ export function RoomScreen() {
       tags=${[{ key: 'mode', label: t('精确搜寻'), icon: html`<${Icon} name="search" />` },
         { key: 'diff', label: t(DIFFICULTY_NAMES[room.difficulty]), color: DIFFICULTY_COLORS[room.difficulty], icon: html`<${DifficultyIcon} difficulty=${room.difficulty} />` }]} />` : null}
     ${foundShown ? html`<${FoundPanel} class=${foundLeaving ? 'is-leaving' : ''} seats=${facts.seats.length} text=${t('同盟集结完毕')} />` : null}
-    ${picking ? html`<${CardPicker} current=${myCard} list=${cardList} m=${m} onPick=${pickCard} onClose=${() => setPicking(false)} />` : null}
+    ${picking ? html`<${CardPicker} current=${myCard} currentSkin=${mySkin} list=${cardList} m=${m} onPick=${pickCard} onClose=${() => setPicking(false)} />` : null}
     ${protoShown ? html`<${RoomProtocol} room=${room} variant=${variant} busy=${busy} onClose=${() => setPicker(false)} onPick=${setDifficulty} leaving=${protoLeaving} />` : null}
   </div>`;
 }

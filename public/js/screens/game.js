@@ -92,6 +92,7 @@ import { EmoteWheel } from '../ui/emotes.js';
 import { EffectsList } from '../ui/effectsList.js';
 import { CombatHud } from '../ui/combatHud.js';
 import { CombatMetricsPanel } from '../ui/combatMetrics.js';
+import { RoundHistoryPanel } from '../ui/roundHistory.js';
 import { SettingsModal, settingsStore, useSettings } from '../ui/settings.js';
 import { ExitModal, AwayOverlay, awayStore } from '../ui/matchChrome.js';
 import { openGuide } from '../ui/guide.js';
@@ -283,6 +284,9 @@ function MatchScreen() {
   // Off unless the setting is on. A gameplay-plugin room (modRoom: content.vanilla === false) is simulated in a
   // Worker, which has no damaged/heal data, so the button stays hidden. The hud.right ui-slot is not this gate.
   const [metricsOpen, setMetricsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const showHistory = pub?.roundCharts === true;
+  useEffect(() => { if (!showHistory) setHistoryOpen(false); }, [showHistory]);
   const showMetrics = metricsSetting && !modRoom && !spectator;
   useEffect(() => { if (!showMetrics) setMetricsOpen(false); }, [showMetrics]);
   const [emoteOpen, setEmoteOpen] = useState(false);
@@ -1201,6 +1205,17 @@ function MatchScreen() {
       }),
       view.on('pieceClick', (e) => {
         if (!e) return;
+        const L = live.current;
+        // A unit on the board must not intercept the right-click ping used on empty ground.
+        if (e.button === 2 && !L.spectator && !L.pen && !L.drag && !L.facing) {
+          const combat = isCombatPhase(L.pub?.phase);
+          const fieldId = combat ? (L.field?.fieldId || L.watching || L.home) : (L.watching || ownFieldId(L.myId));
+          const tile = pingTileAt(L.view, combat ? (L.field?.rect || GEO.NORMAL_RECT) : GEO.NORMAL_RECT, e.clientX, e.clientY);
+          if (fieldId && tile) {
+            actions.ping(fieldId, tile.row, tile.col, L.pingKind);
+            return;
+          }
+        }
         audio.sfx('click', { volume: 0.4 });
         // an enemy of the preview pen (research 09 §2.2 "Intel": tap it for its detail card)
         const penKey = previewEnemyKey(e);
@@ -1208,9 +1223,8 @@ function MatchScreen() {
         if (e.unitId != null || e.unit) { setDetail({ kind: 'unit', unit: e.unit || null, unitId: e.unitId, uid: e.uid, prepMapChar: e.prepMapChar === true }); return; }
         if (!Number.isInteger(e.uid)) return;
         setDetail({ kind: 'piece', uid: e.uid });
-        // a tap selects an own piece (underframe + range); right-click / long-press only opens its detail card. A tap on
+        // a tap selects an own piece (underframe + range); bench right-click / long-press opens its detail card. A tap on
         // the piece that was selected when the press started deselects it.
-        const L = live.current;
         if (e.detail || e.button === 2 || !L.editable || L.facing) return;
         const wasSel = pressSel.current === e.uid;
         pressSel.current = null;
@@ -1786,10 +1800,15 @@ function MatchScreen() {
           </div>
         </div>` : null}
         ${showMetrics && metricsOpen ? html`<${CombatMetricsPanel} myId=${myId} onClose=${() => setMetricsOpen(false)} />` : null}
+        ${showHistory && historyOpen ? html`<${RoundHistoryPanel} history=${pub.roundHistory} players=${pub.players} onClose=${() => setHistoryOpen(false)} />` : null}
         ${spectator ? null : html`<${EmoteWheel} open=${emoteOpen} onToggle=${setEmoteOpen} onSend=${(id) => actions.emote(id)} disabled=${conn.status !== 'online'} />`}
+        ${showHistory ? html`<button type="button" class="gm__gear gm__metrics" aria-label=${t('每回合统计')} title=${t('每回合统计')}
+          aria-expanded=${historyOpen} aria-controls="round-history-panel" onKeyDown=${(e) => { if (e.key === ' ') e.stopPropagation(); }}
+          onClick=${() => { setHistoryOpen(!historyOpen); setMetricsOpen(false); setEmoteOpen(false); }}><${Icon} name="chart" /></button>` : null}
         ${showMetrics ? html`<button type="button" class="gm__gear gm__metrics" aria-label=${t('作战统计')} title=${t('作战统计')} aria-expanded=${metricsOpen}
           aria-controls="combat-metrics-panel" onKeyDown=${(e) => { if (e.key === ' ') e.stopPropagation(); }} onClick=${() => {
             setMetricsOpen(!metricsOpen);
+            setHistoryOpen(false);
             setEmoteOpen(false);
             setDetail(null);
             setSel(null);

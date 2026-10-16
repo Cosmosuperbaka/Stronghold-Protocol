@@ -171,7 +171,7 @@ describe('the vanilla content of a server (server/plugins/identity.js)', () => {
     assert.notEqual(edit('data/config.json', '{"economy":{"income":[0,6]}} \n'), base, 'white space is bytes too');
     assert.notEqual(edit('sim/battle/deploy.js', 'export const b = 3;\n'), base, 'a sim file');
     assert.notEqual(edit('shared/protocol.js', 'export const c = 4;\n'), base, 'a shared file');
-    for (const rel of ['data/assets.json', 'data/local-assets.json', 'data/emotes.json', 'data/i18n/en.json', 'sim/nodeData.js', 'sim/content/kits/README.md', 'shared/notes.md', 'data/readme.txt']) {
+    for (const rel of [...PRESENTATION_DATA.map((name) => `data/${name}.json`), 'data/i18n/en.json', 'sim/nodeData.js', 'sim/content/kits/README.md', 'shared/notes.md', 'data/readme.txt']) {
       assert.equal(edit(rel, '{"changed":true}\n'), base, rel);
     }
     assert.equal(computeVanillaContent(opts()).cs, base, 'restored: the same cs again');

@@ -194,7 +194,12 @@ test('co-op spectator over websockets: watches the real match like an eliminated
   await a.waitFor('m.public', (p) => p.phase === 'PREP' && p.round === 2, 15000);
   for (const c of [s, back]) {
     assert.equal(c.log.filter((x) => x.t === 'm.private' || x.t === 'm.toast' || x.t === 'm.unitStats').length, 0, 'no private frame');
-    assert.ok(!c.log.some((x) => /"(funds|hand|shop|temp)":/.test(JSON.stringify(x))), 'no private player data');
+    for (const frame of c.log) {
+      // Host-enabled charts intentionally share settled closing funds; current private state stays private.
+      const visible = frame.t === 'm.public' ? { ...frame, roundHistory: undefined } : frame;
+      assert.ok(!/"(funds|hand|shop|temp)":/.test(JSON.stringify(visible)), 'no current private player data');
+      if (frame.t === 'm.public' && frame.roundCharts) assert.ok(Array.isArray(frame.roundHistory));
+    }
   }
   // the last player leaves: the match ends and the room closes for its spectator
   await ok(a, { t: 'g.leave' });

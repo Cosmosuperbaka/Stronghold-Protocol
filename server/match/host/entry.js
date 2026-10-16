@@ -270,7 +270,12 @@ function handle(m) {
     else if (m.method === 'extensionAdmin') {
       try { result = extensions.extensionAdmin(match, ...m.args); } catch (e) { log.error('[host] console operation failed', e); result = { error: ERR_INTERNAL }; }
     }
-    else if (m.method === 'syncExtensions') { extensions.syncExtensionSettings(m.args?.[0]); result = { ok: true }; }
+    else if (m.method === 'syncExtensions') {
+      extensions.syncExtensionSettings(m.args?.[0]);
+      match.markPublic?.();
+      match.flush?.(true);
+      result = { ok: true };
+    }
     else {
       try {
         const fn = match[m.method];

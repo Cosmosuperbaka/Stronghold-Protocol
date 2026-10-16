@@ -95,33 +95,88 @@
   }
   .chat-log { max-height: 260px; overflow: auto; overflow-wrap: anywhere; }
   .chat-members .row { margin-top: 8px; }
+  .chat-compose { margin: 12px 0 18px; max-width: 760px; }
+  .chat-compose textarea, #blocked-words { display: block; width: 100%; margin: 8px 0; padding: 10px; resize: vertical;
+    font: inherit; line-height: 1.6; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; }
+  .chat-compose :focus-visible, #settings :focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
+  #settings { max-width: 1300px; margin: 0 auto; width: 100%; }
+  .settings-intro h2 { margin: 0; font-size: 22px; }
+  .settings-intro .meta { overflow-wrap: anywhere; }
+  .settings-layout { display: grid; grid-template-columns: 168px minmax(0, 1fr); gap: 28px; align-items: start; }
+  .settings-nav { position: sticky; top: 16px; flex-direction: column; gap: 6px; }
+  .settings-nav a { padding: 10px 12px; }
+  .settings-content { min-width: 0; }
+  .settings-group { display: grid; gap: 12px; margin-bottom: 32px; scroll-margin-top: 16px; }
+  .settings-group-title { margin: 0; padding-bottom: 6px; font-size: 20px; }
+  .settings-group .room { min-width: 0; }
+  .settings-group .room h2 { margin-top: 0; font-size: 17px; }
+  .settings-group .meta { max-width: 82ch; line-height: 1.65; overflow-wrap: anywhere; }
+  .settings-group form > .row { margin-top: 14px; }
+  .settings-preview { margin-top: 16px; }
+  .settings-preview summary { cursor: pointer; padding: 8px 0; color: var(--mint); }
+  #settings-cleanup .room { border-color: #6c4440; }
+  @media (max-width: 760px) {
+    .settings-layout { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+    .settings-nav { position: static; flex-direction: row; flex-wrap: wrap; }
+    .settings-nav a { padding: 8px 10px; }
+    .settings-group { margin-bottom: 24px; }
+    #settings .row { flex-wrap: wrap; }
+    #settings input[type="number"] { max-width: 100%; }
+  }
+  [hidden] { display: none !important; }
+  header { flex-wrap: wrap; }
+  header > .meta { flex: 1 1 380px; font-size: 12px; }
+  nav { flex-wrap: wrap; }
+  nav a { font: inherit; color: var(--text); background: #1e2421; border: 1px solid var(--line); border-radius: 4px; padding: 3px 8px; text-decoration: none; }
+  nav a:hover { border-color: var(--mint); }
+  .status-bar { padding: 8px 20px; border-bottom: 1px solid var(--line); color: var(--dim); font-variant-numeric: tabular-nums; }
+  .status-bar .tag { color: var(--mint); }
+  #site-announcement textarea { display: block; width: 100%; margin: 6px 0 12px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); padding: 8px; resize: vertical; }
+  .room-summary button { width: 100%; text-align: left; }
+  .room-summary tr.is-selected { background: #20382e; }
+  .room-tabs { margin: 12px 0; }
+  .room-tabs [aria-pressed="true"] { color: var(--mint); border-color: var(--mint); }
+  .action-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px; margin-bottom: 12px; }
+  .action-groups fieldset { min-width: 0; border: 1px solid var(--line); padding: 10px; }
+  .action-groups legend { color: var(--mint); padding: 0 4px; }
+  .action-groups .row { margin: 6px 0; }
+  .action-groups label { display: inline-flex; align-items: center; gap: 6px; }
+  .action-groups .autocomplete { max-width: 100%; }
+  .panes { grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); }
+  #record-filter { flex: 1 1 230px; min-width: 0; }
+  .record-pagination { margin-top: 12px; }
+  @media (max-width: 1000px) { header > .meta { flex-basis: 100%; } main { padding: 12px; } .room { padding: 12px; } }
+  @media (max-width: 720px) { header { padding: 10px 12px; } .status-bar { padding: 8px 12px; } nav { gap: 6px; } nav button, nav a { min-height: 36px; } .room-summary td { white-space: normal; min-width: 86px; } }
+  @media (max-width: 420px) { main { padding: 8px; } .room { padding: 10px; } .service-bar { padding: 8px 0; } }
 </style>
 </head>
 <body>
 <header>
   <h1>主机控制台</h1>
-  <a class="live-link" href="/resources" target="_blank" rel="noopener">资源</a>
-  <nav aria-label="页面"><button data-tab="rooms" aria-pressed="true">房间</button><button data-tab="records" aria-pressed="false">对局记录</button><button data-tab="settings" aria-pressed="false">设置</button></nav>
+  <nav aria-label="页面"><button data-tab="rooms" aria-pressed="true">房间</button><button data-tab="records" aria-pressed="false">对局记录</button><button data-tab="settings" aria-pressed="false">设置</button><button data-tab="server" aria-pressed="false">服务器</button><a href="/resources" target="_blank" rel="noopener">资源 ↗</a></nav>
   <span class="meta">只能在这台电脑上打开 · 修改直接生效、不扣金币；只有「加层」「补发机变卡」「装备」会触发游戏效果</span>
   <span id="status" aria-live="polite"></span>
 </header>
-<div class="row service-bar" aria-label="服务控制">
+<div class="row status-bar" aria-label="服务器状态"><span id="host-overview" role="status">正在读取在线人数与资源…</span><span class="tag" id="notice-badge" hidden>公告生效中</span></div>
+<main id="server" hidden>
+<section class="room"><h2>服务控制</h2><div class="row service-bar" aria-label="服务控制">
   <button data-service="restart" disabled>重启服务</button>
   <button data-service="shutdown" class="danger" disabled>关闭服务</button>
   <span id="service-status" class="meta" role="status" aria-live="polite">正在读取服务状态…</span>
-</div>
+</div></section>
 <section id="site-announcement" class="room" aria-label="全站公告">
   <h2>全站公告</h2>
   <p class="meta" id="site-notice-status">暂无公告</p>
   <label>公告正文 <textarea id="site-notice-text" maxlength="1000" rows="3" aria-label="公告正文"></textarea></label>
   <div class="row">
     <label>级别 <select id="site-notice-level"><option value="info">通知</option><option value="warning">提醒</option><option value="urgent">紧急通知</option></select></label>
-    <label>开始时间 <input id="site-notice-start" type="datetime-local" aria-label="公告开始时间"></label>
-    <label>结束时间 <input id="site-notice-end" type="datetime-local" aria-label="公告结束时间"></label>
+    <label>开始 <select id="site-notice-delay"><option value="0">立即</option><option value="600000">10 分钟后</option><option value="3600000">1 小时后</option></select></label>
+    <label>持续 <select id="site-notice-duration"><option value="600000">10 分钟</option><option value="3600000" selected>1 小时</option><option value="untilRemoved">直到撤下</option></select></label>
     <button data-site-notice="save">发布全站公告</button><button data-site-notice="remove" class="danger">立即撤下</button>
   </div>
-  <p class="meta">所有页面与房间可见。时间留空：立即开始，一小时后结束。编辑后点击发布替换当前公告，重启服务后清空。</p>
+  <p class="meta">默认立即开始、持续 1 小时；可选择定时开始或直到撤下。发布会替换当前公告，重启服务后清空。</p>
 </section>
+</main>
 <main id="rooms"></main>
 <main id="records" hidden></main>
 <main id="settings" hidden></main>
@@ -131,6 +186,8 @@
 <datalist id="card-list"></datalist>
 <div id="msg" role="status" aria-live="polite"></div>
 <script type="module">
+import { drawRoundChart, drawUnitRounds } from '/js/ui/roundChart.js';
+const chartBonds = await fetch('/data/bonds.json').then((r) => r.ok ? r.json() : {}).catch(() => ({}));
 import { showReleaseNotes, showReleaseUpdatePrompt } from "/js/ui/releaseNotes.js";
 const TOKEN = '__TOKEN__';
 const $ = (s, el = document) => el.querySelector(s);
@@ -207,6 +264,38 @@ const idNames = new Map(); // operator / item / card id → its catalog label (t
 const diyEntries = new Map(); // 发放自选 label → its catalog entry (skills, modules, locked, def)
 const diyDraft = new Map(); // player id → { label, skill, mod }: the 发放自选 controls survive the re-renders
 const open = new Set(); // players whose 详情 row is expanded
+let selectedRoom = null, latestRooms = [];
+const roomTabs = new Map();
+function roomOverview(rooms) {
+  return `<section class="room"><h2>房间概览 · ${rooms.length}</h2><p class="meta">选择房间查看操作或数据。</p><div class="xscroll"><table class="room-summary"><thead><tr><th>房间</th><th>模式 / 难度</th><th>阶段 / 回合</th><th>剩余时间</th><th>玩家 · LP · 在线状态</th></tr></thead><tbody>${rooms.map(r => {
+    const m = r.match;
+    return `<tr class="${selectedRoom === r.code ? 'is-selected' : ''}"><td><button data-open-room="${esc(r.code)}" aria-expanded="${selectedRoom === r.code}">${esc(r.code)}</button></td><td>${r.mode === 'solo' ? '独立模拟' : '同盟'} · ${esc(r.difficulty)}</td><td>${m ? `${esc(m.phaseName)} · 第 ${m.round} 回合` : '等待开局'}</td><td>${m ? m.left != null ? `${m.left} 秒` : m.paused ? '已暂停' : '不限时' : '—'}</td><td>${(m?.players || r.seats).map(p => `${esc(p.name)}${p.bot ? ' (AI)' : ''} · ${p.lp != null ? `LP ${p.lp} · ` : ''}${p.connected || p.bot ? '在线' : '离线'}`).join('<br>')}</td></tr>`;
+  }).join('')}</tbody></table></div></section>`;
+}
+function renderRooms() {
+  if (selectedRoom && !latestRooms.some(r => r.code === selectedRoom)) selectedRoom = null;
+  const r = latestRooms.find(r => r.code === selectedRoom);
+  $('#rooms').innerHTML = latestRooms.length ? roomOverview(latestRooms) + (r ? roomCard(r) : '') : '<p class="empty">还没有房间。玩家建房后会出现在这里。</p>';
+  if (r) {
+    $(`[data-chat="${r.code}"]`)?.replaceWith(chatPanel(r));
+    $(`[data-stats="${r.code}"]`)?.replaceWith(statsPanel(r));
+    if (r.match) loadCatalog(r.code).catch(() => say('干员目录加载失败', true));
+  }
+}
+async function refreshStatus() {
+  if (servicePending) return;
+  try {
+    const data = await api('/api/overview'), r = data.current;
+    if (r) $('#host-overview').textContent = `在线 ${r.sessions} 人 · 房间 ${r.rooms} · 对局 ${r.matches} · CPU ${r.cpu.toFixed(1)}% · 内存 ${(r.rss / 1048576).toFixed(0)} MB`;
+    const n = data.announcement;
+    $('#notice-badge').hidden = !n || n.startAt > Date.now();
+    $('#site-notice-status').textContent = n ? `${n.startAt > Date.now() ? '待生效' : '生效中'} · ${n.untilRemoved ? '直到撤下' : new Date(n.endAt).toLocaleString()} · ${n.text}` : '暂无公告';
+    if ($('#rooms').hidden && chatPanels.size) {
+      const rooms = await api('/api/rooms');
+      for (const r of rooms.rooms || []) if (chatPanels.has(r.code)) chatPanel(r);
+    }
+  } catch { $('#host-overview').textContent = '服务器状态读取失败，正在重试…'; }
+}
 
 function say(text, err = false) {
   const el = $('#msg');
@@ -216,6 +305,27 @@ function say(text, err = false) {
   clearTimeout(say.t);
   say.t = setTimeout(() => { el.style.display = 'none'; }, 4000);
 }
+
+async function sendChat(form) {
+  const input = form.querySelector('[data-chat-text]'), button = form.querySelector('button[type="submit"]');
+  const status = form.querySelector('[data-chat-status]'), text = input.value;
+  if (button.disabled) return;
+  if (!text.trim()) { status.textContent = '请输入消息'; input.focus(); return; }
+  button.disabled = true; status.textContent = '发送中…';
+  const r = await api('/api/action', { room: form.dataset.chatCompose, action: 'chatSend', value: text }).catch(() => ({ error: '连接服务器失败' }));
+  button.disabled = false;
+  if (r.ok) { if (input.value === text) input.value = ''; status.textContent = '已发送'; refresh(); }
+  else status.textContent = '发送失败：' + r.error;
+}
+document.addEventListener('submit', (e) => {
+  const form = e.target.closest('[data-chat-compose]');
+  if (form) { e.preventDefault(); sendChat(form); }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.target.matches('[data-chat-text]') && e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
+    e.preventDefault(); sendChat(e.target.closest('form'));
+  }
+});
 
 async function act(room, action, playerId, value, label) {
   const send = (v) => api('/api/action', { room, action, playerId, value: v }).catch(() => ({ error: '连接服务器失败' }));
@@ -294,9 +404,9 @@ function detailRow(code, p, cols) {
   const bondRows = (list) => list.map((b) => `<tr>
       <td class="${b.active ? 'on' : ''}">${esc(b.name)}</td>
       <td>${b.count} / ${esc(b.thresholds.join('·'))}</td>
-      <td>${b.layers}
+      <td>${b.noStack ? '—' : `${b.layers}
         <input class="small" type="number" min="1" placeholder="+层" aria-label="${esc(p.name)} ${esc(b.name)} 增加层数" data-act="bondAdd" data-bond="${b.id}" ${at(`${esc(b.name)} 加层`)} data-clear>
-        <input class="small" type="number" min="0" max="999" placeholder="设为" aria-label="${esc(p.name)} ${esc(b.name)} 设定层数" data-act="bondSet" data-bond="${b.id}" ${at(`${esc(b.name)} 设层`)} data-clear></td>
+        <input class="small" type="number" min="0" max="999" placeholder="设为" aria-label="${esc(p.name)} ${esc(b.name)} 设定层数" data-act="bondSet" data-bond="${b.id}" ${at(`${esc(b.name)} 设层`)} data-clear>`}</td>
       <td><input class="small" type="number" value="${b.bonus}" aria-label="${esc(p.name)} ${esc(b.name)} 人数加成" data-act="bondBonus" data-bond="${b.id}" ${at(`${esc(b.name)} 人数加成`)}></td>
     </tr>`).join('');
   const used = p.bonds.filter((b) => b.count || b.layers || b.bonus || b.active);
@@ -317,7 +427,7 @@ function detailRow(code, p, cols) {
       <button ${on(code, p, 'bountyRemove', '删除悬赏')} data-value="${esc(b.id)}" aria-label="删除悬赏 ${esc(b.name)}">删除</button></li>`),
   ].join('');
   const enemies = p.enemies.map((e) => `<li>${esc(e.name)} ×${e.count}${e.elite ? ' <span class="tag">精英</span>' : ''}${e.boss ? ' <span class="tag">领袖</span>' : ''}${e.fly ? ' <span class="meta">飞行</span>' : ''}${e.bounty ? ' <span class="meta">悬赏</span>' : ''}</li>`).join('');
-  return `<tr class="detail"><td colspan="${cols}"><div class="panes">
+  return `<tr class="detail"><td colspan="${cols}">${playerActions(code, p)}<div class="panes">
     <div><h3>盟约</h3>
       <p class="meta">加层走游戏逻辑（会触发获得层数的效果），设层直接改、不触发效果。层数只在盟约激活时生效，人数加成可以强行激活。</p>
       <div class="scroll"><table><thead><tr><th scope="col">盟约</th><th scope="col">人数/门槛</th><th scope="col">层数</th><th scope="col">人数加成</th></tr></thead>
@@ -360,26 +470,24 @@ function diyLabel(label, v) {
   return `${label}${sk}${md}`;
 }
 
-function playerRow(code, p) {
-  const who = `${esc(p.name)}${p.bot ? ' <span class="tag">AI</span>' : ''}${p.connected ? '' : ' <span class="tag off">离线</span>'}${p.alive ? '' : ' <span class="tag off">淘汰</span>'}`;
+function playerActions(code, p) {
   const field = (action, value, label) => `<input class="num" type="number" value="${value}" aria-label="${esc(p.name)} ${label}" data-act="${action}" data-player="${esc(p.id)}" data-room="${code}" data-label="${label}">`;
-  return `<tr>
-    <td>${who} <a class="live-link" target="_blank" rel="noopener" href="/live?room=${encodeURIComponent(code)}&playerId=${encodeURIComponent(p.id)}" aria-label="实时查看 ${esc(p.name)}">实时查看 / 代操作</a></td>
-    <td>${field('lp', p.lp, 'LP')}</td>
-    <td>${p.funds} <input class="num" type="number" placeholder="±金币" aria-label="${esc(p.name)} 增减金币" data-act="funds" data-player="${esc(p.id)}" data-room="${code}" data-label="金币" data-clear></td>
-    <td>${field('level', p.level, '商店等级')}</td>
-    <td>${p.freeRefreshes} <button data-click="refresh" data-player="${esc(p.id)}" data-room="${code}" data-label="免费刷新" aria-label="${esc(p.name)} 免费刷新 +1">+1</button></td>
-    <td>${p.board} / ${p.hand}</td>
-    <td>${p.ready ? '已就绪' : ''}${p.autoplay ? ' <span class="tag on">托管中</span>' : ''}
-      ${p.bot ? '' : `<button ${on(code, p, 'autoplay', p.autoplay ? '取消托管' : '开启托管')} data-value="${p.autoplay ? 0 : 1}">${p.autoplay ? '取消托管' : '托管'}</button>`}</td>
-    <td class="row">
+  return `<div class="action-groups"><fieldset><legend>数值</legend>
+    <div class="row"><label>LP ${field('lp', p.lp, 'LP')}</label><label>等级 ${field('level', p.level, '商店等级')}</label></div>
+    <div class="row"><label>金币 ${p.funds} <input class="num" type="number" placeholder="±金币" aria-label="${esc(p.name)} 增减金币" data-act="funds" data-player="${esc(p.id)}" data-room="${code}" data-label="金币" data-clear></label></div>
+    <div class="row">免费刷新 ${p.freeRefreshes} <button data-click="refresh" data-player="${esc(p.id)}" data-room="${code}" data-label="免费刷新" aria-label="${esc(p.name)} 免费刷新 +1">+1</button></div>
+    <p class="meta">数值输入后按 Enter 应用。</p></fieldset><fieldset><legend>发放</legend><div class="row">
       ${candidateInput('chess', code, p.id, `placeholder="发放干员…" aria-label="${esc(p.name)} 发放干员" data-grant="chess" data-player="${esc(p.id)}" data-room="${code}"`)}
       ${candidateInput('diy', code, p.id, `placeholder="发放自选…" aria-label="${esc(p.name)} 发放自选干员" data-grant="diy" data-player="${esc(p.id)}" data-room="${code}" value="${esc(diyDraft.get(p.id)?.label || '')}"`)}
       <span data-diy-sel="${esc(p.id)}">${diySelects(code, p.id)}</span>
       ${candidateInput('item', code, p.id, `placeholder="发放道具…" aria-label="${esc(p.name)} 发放道具" data-grant="item" data-player="${esc(p.id)}" data-room="${code}"`)}
-      <button data-toggle="${esc(p.id)}" aria-expanded="${open.has(p.id)}">${open.has(p.id) ? '收起' : '详情'}</button>
-    </td>
-  </tr>${open.has(p.id) ? detailRow(code, p, 8) : ''}`;
+    </div></fieldset><fieldset><legend>托管</legend><p>${p.autoplay ? '托管中' : p.bot ? 'AI 队友' : '玩家操作'}</p>
+      ${p.bot ? '' : `<button ${on(code, p, 'autoplay', p.autoplay ? '取消托管' : '开启托管')} data-value="${p.autoplay ? 0 : 1}">${p.autoplay ? '取消托管' : '开启托管'}</button>`}
+      <a class="live-link" target="_blank" rel="noopener" href="/live?room=${encodeURIComponent(code)}&playerId=${encodeURIComponent(p.id)}" aria-label="实时查看 ${esc(p.name)}">实时查看 / 代操作</a></fieldset></div>`;
+}
+function playerRow(code, p) {
+  const who = `${esc(p.name)}${p.bot ? ' <span class="tag">AI</span>' : ''}${p.connected ? '' : ' <span class="tag off">离线</span>'}${p.alive ? '' : ' <span class="tag off">淘汰</span>'}`;
+  return `<tr class="player-summary"><td>${who}</td><td>${p.lp}</td><td>${p.funds}</td><td>${p.level}</td><td>${p.freeRefreshes}</td><td>${p.board} / ${p.hand}</td><td>${p.ready ? '已就绪' : '未就绪'}${p.autoplay ? ' · 托管中' : ''}<br><span class="meta">预选盟约：${esc(p.bondPlan || '未预选')}</span></td><td><button data-toggle="${esc(p.id)}" aria-expanded="${open.has(p.id)}">${open.has(p.id) ? '收起' : '操作 / 详情'}</button></td></tr>${open.has(p.id) ? detailRow(code,p,8) : ''}`;
 }
 
 const chatPanels = new Map();
@@ -389,6 +497,12 @@ function chatPanel(r) {
     panel = document.createElement('details');
     panel.dataset.chatPanel = r.code;
     panel.innerHTML = `<summary>聊天管理</summary><div class="chat-log" role="log" aria-label="房间聊天记录"></div>
+      <form class="chat-compose" data-chat-compose="${r.code}">
+        <label for="chat-text-${r.code}">以主机身份发送到本房间</label>
+        <textarea id="chat-text-${r.code}" rows="3" data-chat-text aria-describedby="chat-help-${r.code}"></textarea>
+        <p class="meta" id="chat-help-${r.code}">最多 200 字。Enter 发送，Shift+Enter 换行；消息会应用屏蔽词，并保留在本房间聊天记录中。</p>
+        <div class="row"><button type="submit" class="primary">发送消息</button><span data-chat-status role="status"></span></div>
+      </form>
       <div class="row">
       <button class="danger" data-click="chatClear" data-room="${r.code}" data-label="清空聊天" data-confirm="清空本房间所有聊天记录？在线玩家也会同步清空。">清空聊天</button></div><div class="chat-members"></div>`;
     chatPanels.set(r.code, panel);
@@ -396,7 +510,7 @@ function chatPanel(r) {
   const signature = JSON.stringify([r.chat, r.seats, r.spectators]);
   if (panel.dataset.signature !== signature) {
     panel.dataset.signature = signature;
-    $('.chat-log', panel).innerHTML = r.chat.messages.length ? r.chat.messages.map((m) => `<p><strong>${m.role === 'system' ? '主机公告' : esc(m.name)}</strong> · ${clock(m.at)}<br>${esc(m.text)}</p>`).join('') : '<p class="meta">暂无消息</p>';
+    $('.chat-log', panel).innerHTML = r.chat.messages.length ? r.chat.messages.map((m) => `<p><strong>${m.role === 'system' ? '主机消息' : esc(m.name)}</strong> · ${clock(m.at)}<br>${esc(m.text)}</p>`).join('') : '<p class="meta">暂无消息</p>';
     $('.chat-members', panel).innerHTML = [...r.seats.filter((p) => !p.bot && !p.left), ...(r.spectators || []).map((p) => ({ ...p, viewer: true }))].map((p) => `<div class="row"><span>${esc(p.name)}${p.viewer ? '（观战）' : ''}</span>
       ${p.viewer ? '' : `<button data-click="chatMute" data-room="${r.code}" data-player="${esc(p.id)}" data-value="${!p.muted}" data-label="禁言管理">${p.muted ? '解除禁言' : '禁言'}</button>`}
       <button class="danger" data-click="chatKick" data-room="${r.code}" data-player="${esc(p.id)}" data-label="踢出" data-confirm="将 ${esc(p.name)} 移出房间？对局中按离开规则处理。">踢出</button></div>`).join('');
@@ -428,7 +542,7 @@ function roomCard(r) {
       <div class="row" style="margin-top:8px">
         <span class="tag phase">${esc(m.phaseName)}</span>
         <span>第 ${m.round} 回合</span>
-        ${m.left != null ? `<span class="meta">剩余 ${m.left} 秒</span>` : ''}
+        <span class="meta">${m.left != null ? `剩余 ${m.left} 秒` : m.paused ? '已暂停' : '不限时'}</span>
         ${m.paused ? '<span class="tag">已暂停</span>' : ''}
         ${m.errors ? `<span class="tag" style="color:var(--warn)">错误 ${m.errors}</span>` : ''}
       </div>
@@ -452,7 +566,9 @@ function roomCard(r) {
         <tbody>${m.players.map((p) => playerRow(r.code, p)).join('')}</tbody>
       </table></div>`;
   }
-  body += `<div data-chat="${r.code}"></div><div data-stats="${r.code}"></div>`;
+  const dataTab = roomTabs.get(r.code) === 'data';
+  body = `<div class="row room-tabs" aria-label="房间子页"><button data-room-tab="operations" data-room="${r.code}" aria-pressed="${!dataTab}">操作</button><button data-room-tab="data" data-room="${r.code}" aria-pressed="${dataTab}">数据</button></div>
+    <div ${dataTab ? 'hidden' : ''}>${body}<div data-chat="${r.code}"></div></div><div ${dataTab ? '' : 'hidden'}><div data-stats="${r.code}"></div></div>`;
   return `<section class="room" aria-labelledby="room-${r.code}">
     <div class="row">
       <h2 id="room-${r.code}">房间 ${r.code}</h2>
@@ -468,11 +584,10 @@ function roomCard(r) {
 // series colors follow the seat order, never the rank (validated against the panel surfaces, docs/HANDOFF.md 4.8)
 const SERIES = ['#3987e5', '#d95926', '#199e70', '#c98500'];
 const INK = { grid: '#2c2c2a', axis: '#383835', label: '#898781', text: '#dfe6e2', surface: '#101311' };
-const METRICS = [['lp', 'LP'], ['funds', '剩余金币'], ['spent', '累计花费'], ['dmg', '累计伤害'], ['roundDmg', '本回合伤害'], ['level', '商店等级'], ['income', '本回合收入'], ['expense', '本回合支出']];
 const TOTALS = [['dmgDealt', '伤害'], ['kills', '击杀'], ['leaks', '漏怪'], ['perfectRounds', '无伤回合'], ['lpLost', '损失 LP'], ['fundsGained', '获得金币'],
   ['gold', '花费'], ['buys', '购买'], ['sells', '出售'], ['refreshes', '刷新'], ['merges', '晋升'], ['itemsEquipped', '配装'], ['healing', '治疗'],
   ['bossDamage', '领袖伤害'], ['activatedLayers', '盟约层数']];
-const ACTION_NAMES = { announce: '主机公告', chatClear: '清空聊天', chatMute: '禁言管理', chatKick: '踢出', rewind: '回档', endPrep: '结束休整期', pause: '暂停/继续', enemyPick: '指定敌人', battleWin: '判胜', battleLose: '判负',
+const ACTION_NAMES = { announce: '主机公告', chatSend: '主机消息', chatClear: '清空聊天', chatMute: '禁言管理', chatKick: '踢出', rewind: '回档', endPrep: '结束休整期', pause: '暂停/继续', enemyPick: '指定敌人', battleWin: '判胜', battleLose: '判负',
   timerScale: '休整期倍率', prepTimer: '本房间休整期', endMatch: '结束对局', funds: '金币', lp: 'LP', level: '商店等级', refresh: '免费刷新', chess: '发放干员', diy: '发放自选', diySkill: '改自选技能', item: '发放道具',
   bondAdd: '加层', bondSet: '设层', bondBonus: '人数加成', autoplay: '托管', effectRemove: '删除效果', bountyRemove: '删除悬赏', card: '补发机变卡',
   pieceRemove: '移除棋子', piecePromote: '升精锐', pieceEquip: '装备' };
@@ -490,119 +605,8 @@ function seriesOf(history, nameOf) {
 }
 
 /** Points of one player for a metric: every round alive, plus the round it was eliminated in. */
-function pointsOf(history, id, key) {
-  const out = [];
-  let wasAlive = true;
-  for (const h of history) {
-    const p = h.players.find((x) => x.playerId === id);
-    if (!p) continue;
-    const value = key.startsWith('bond:') ? (p.bonds ? (p.bonds.find((b) => b.id === key.slice(5))?.layers ?? 0) : null) : p[key];
-    if ((p.alive || wasAlive) && value != null && Number.isFinite(Number(value))) out.push({ round: h.round, v: Number(value) });
-    wasAlive = p.alive;
-  }
-  return out;
-}
-
-function niceScale(max) {
-  if (!(max > 0)) return { top: 1, step: 1 };
-  const raw = max / 4;
-  const pow = 10 ** Math.floor(Math.log10(raw));
-  const step = Math.max(1, [1, 2, 5, 10].map((k) => k * pow).find((x) => x >= raw));
-  return { top: Math.ceil(max / step) * step, step };
-}
-
-/**
- * A line chart of one metric by round, one line per player, drawn into `host`: legend, end labels, a crosshair with
- * one tooltip listing every player at that round, and a table view. `state` { metric, table } survives re-renders.
- */
 function drawChart(host, history, nameOf, state) {
-  host.textContent = '';
-  if (!history.length) { host.innerHTML = '<p class="meta">第一回合结算后开始记录。</p>'; return; }
-  const series = seriesOf(history, nameOf);
-  const bonds = new Map();
-  for (const h of history) for (const p of h.players) for (const b of p.bonds || []) if (b.active) bonds.set(b.id, b.name);
-  const metrics = [...METRICS, ...[...bonds].map(([id, name]) => ['bond:' + id, '盟约层数 · ' + name])];
-  const [key, label] = metrics.find((x) => x[0] === state.metric) || metrics[0];
-  const bar = document.createElement('div');
-  bar.className = 'row';
-  bar.innerHTML = `<label>指标 <select aria-label="曲线指标">${metrics.map(([k, l]) => `<option value="${esc(k)}" ${k === key ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
-    <button aria-pressed="${!!state.table}">${state.table ? '看曲线' : '看表格'}</button>`;
-  bar.querySelector('select').addEventListener('change', (e) => { state.metric = e.target.value; drawChart(host, history, nameOf, state); });
-  bar.querySelector('button').addEventListener('click', () => { state.table = !state.table; drawChart(host, history, nameOf, state); });
-  host.append(bar);
-  const rounds = history.map((h) => h.round);
-  if (state.table) {
-    const t = document.createElement('div');
-    t.className = 'xscroll';
-    t.innerHTML = `<table><caption class="meta" style="text-align:left">${esc(label)}（每回合结算后）</caption>
-      <thead><tr><th scope="col">回合</th>${series.map((s) => `<th scope="col" class="n">${esc(s.name)}</th>`).join('')}</tr></thead>
-      <tbody>${rounds.map((r) => `<tr><th scope="row">${r}</th>${series.map((s) => { const p = pointsOf(history, s.id, key).find((x) => x.round === r); return `<td class="n">${p ? full.format(p.v) : '—'}</td>`; }).join('')}</tr>`).join('')}</tbody></table>`;
-    host.append(t);
-    return;
-  }
-  const lines = series.map((s) => ({ ...s, pts: pointsOf(history, s.id, key) }));
-  const W = 720, H = 260, L = 52, R = 96, T = 12, B = 30;
-  const x0 = rounds[0], x1 = rounds[rounds.length - 1];
-  const X = (r) => (x1 === x0 ? L + (W - L - R) / 2 : L + ((r - x0) / (x1 - x0)) * (W - L - R));
-  const { top, step } = niceScale(Math.max(0, ...lines.flatMap((l) => l.pts.map((p) => p.v))));
-  const Y = (v) => T + (1 - v / top) * (H - T - B);
-  let svg = '';
-  for (let v = 0; v <= top + 1e-9; v += step) {
-    svg += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="${v === 0 ? INK.axis : INK.grid}" stroke-width="1"/>`;
-    svg += `<text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" fill="${INK.label}" font-size="11">${fmt(v)}</text>`;
-  }
-  const every = Math.ceil(rounds.length / 15);
-  rounds.forEach((r, i) => { if (i % every === 0 || i === rounds.length - 1) svg += `<text x="${X(r)}" y="${H - B + 18}" text-anchor="middle" fill="${INK.label}" font-size="11">${r}</text>`; });
-  svg += `<text x="${W - R}" y="${H - 2}" text-anchor="end" fill="${INK.label}" font-size="11">回合</text>`;
-  for (const l of lines) {
-    if (!l.pts.length) continue;
-    svg += `<polyline fill="none" stroke="${l.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${l.pts.map((p) => `${X(p.round)},${Y(p.v)}`).join(' ')}"/>`;
-    for (const p of l.pts) svg += `<circle cx="${X(p.round)}" cy="${Y(p.v)}" r="4" fill="${l.color}" stroke="${INK.surface}" stroke-width="2"/>`;
-  }
-  // end labels in text ink, nudged apart; the line end beside each carries the color
-  const ends = lines.filter((l) => l.pts.length).map((l) => { const p = l.pts[l.pts.length - 1]; return { l, x: X(p.round), y: Y(p.v) }; }).sort((a, b) => a.y - b.y);
-  for (let i = 1; i < ends.length; i++) ends[i].y = Math.max(ends[i].y, ends[i - 1].y + 13);
-  const over = ends.length ? ends[ends.length - 1].y - (H - B) : 0;
-  if (over > 0) for (const e of ends) e.y -= over;
-  for (const e of ends) svg += `<text x="${e.x + 8}" y="${e.y + 4}" fill="${INK.text}" font-size="12">${esc(e.l.name)}</text>`;
-  svg += `<line class="cross" x1="0" x2="0" y1="${T}" y2="${H - B}" stroke="${INK.label}" stroke-width="1" visibility="hidden"/>`;
-  svg += `<rect class="hit" x="${L - 10}" y="0" width="${W - L - R + 20}" height="${H}" fill="transparent"/>`;
-
-  const legend = document.createElement('div');
-  legend.className = 'legend';
-  for (const l of lines) { const sp = document.createElement('span'); sp.style.setProperty('--c', l.color); sp.textContent = l.name; legend.append(sp); }
-  const wrap = document.createElement('div');
-  wrap.className = 'chart-wrap';
-  wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}曲线，第 ${x0}–${x1} 回合，切换到表格可读出数值"><title>${esc(label)}</title>${svg}</svg><div class="tip" role="presentation"></div>`;
-  host.append(legend, wrap);
-
-  const svgEl = wrap.querySelector('svg'), cross = wrap.querySelector('.cross'), tip = wrap.querySelector('.tip');
-  wrap.querySelector('.hit').addEventListener('mousemove', (e) => {
-    const box = svgEl.getBoundingClientRect();
-    const k = box.width / W;
-    const vx = (e.clientX - box.left) / k;
-    let r = rounds[0];
-    for (const x of rounds) if (Math.abs(X(x) - vx) < Math.abs(X(r) - vx)) r = x;
-    cross.setAttribute('x1', X(r)); cross.setAttribute('x2', X(r)); cross.setAttribute('visibility', 'visible');
-    tip.textContent = '';
-    const head = document.createElement('b');
-    head.textContent = `第 ${r} 回合 · ${label}`;
-    tip.append(head);
-    const rows = lines.map((l) => ({ l, p: l.pts.find((p) => p.round === r) })).filter((x) => x.p).sort((a, b) => b.p.v - a.p.v);
-    for (const { l, p } of rows) {
-      const line = document.createElement('div');
-      const sw = document.createElement('span'); sw.className = 'k'; sw.style.setProperty('--c', l.color);
-      const v = document.createElement('span'); v.className = 'v'; v.textContent = full.format(p.v);
-      const n = document.createElement('span'); n.textContent = l.name;
-      line.append(sw, v, n);
-      tip.append(line);
-    }
-    tip.style.display = 'block';
-    const px = X(r) * k;
-    tip.style.left = `${px + 12 + tip.offsetWidth > box.width ? px - 12 - tip.offsetWidth : px + 12}px`;
-    tip.style.top = '8px';
-  });
-  wrap.querySelector('.hit').addEventListener('mouseleave', () => { cross.setAttribute('visibility', 'hidden'); tip.style.display = 'none'; });
+  drawRoundChart(host, history, nameOf, state, { bondRecord: (id) => chartBonds[id] });
 }
 
 /** Running totals, one row per player. players: [{ name, stats }] */
@@ -660,7 +664,7 @@ function drawRounds(host, history, nameOf, state) {
   const detail = document.createElement('div');
   const reasons = { income: '基础收入', pending: '待发收入', interest: '利息', sell: '出售', admin: '主机调整', buy: '购买', refresh: '刷新', levelUp: '升级', discard: '休整期弃币', eliminated: '淘汰清零', effect: '其他效果', bounty: '悬赏' };
   const entries = (o) => Object.entries(o).map(([k,v]) => `${esc(reasons[k] || k)} ${fmt(v)}`).join('、') || '无';
-  detail.innerHTML = `<h4>经济与盟约明细</h4>${h.players.map((p) => `<p><strong>${esc(nameOf(p.playerId))}</strong>：${p.economy ? `期初 ${p.economy.opening} → 结余 ${p.economy.closing}；收入 ${entries(p.economy.income)}；支出 ${entries(p.economy.expense)}；刷新 ${p.economy.refreshes} / 购买 ${p.economy.buys} / 出售 ${p.economy.sells}` : '旧记录无经济明细'}<br>盟约：${p.bonds ? p.bonds.filter((b) => b.active).map((b) => `${esc(b.name)} ${b.layers} 层 / 档位 ${b.tier}`).join('、') || '无激活盟约' : '旧记录无盟约明细'}</p>`).join('')}`;
+  detail.innerHTML = `<h4>经济与盟约明细</h4>${h.players.map((p) => `<p><strong>${esc(nameOf(p.playerId))}</strong>：${p.economy ? `期初 ${p.economy.opening} → 结余 ${p.economy.closing}；收入 ${entries(p.economy.income)}；支出 ${entries(p.economy.expense)}；刷新 ${p.economy.refreshes} / 购买 ${p.economy.buys} / 出售 ${p.economy.sells}` : '旧记录无经济明细'}<br>盟约：${p.bonds ? p.bonds.filter((b) => b.active).map((b) => `${esc(b.name)}${b.noStack || chartBonds[b.id]?.noStack ? '' : ` ${b.layers} 层`} / 档位 ${b.tier}`).join('、') || '无激活盟约' : '旧记录无盟约明细'}</p>`).join('')}`;
   host.append(detail);
 }
 
@@ -685,45 +689,6 @@ function leaksView(history, nameOf) {
  * series color (the player column names it too); `share` = the operator's part of its player's operator damage that
  * round. state { round: null = the latest, player: '' = everyone, all: false = top 10 }.
  */
-function drawUnitRounds(host, history, nameOf, state) {
-  host.textContent = '';
-  if (!history.length) { host.innerHTML = '<p class="meta">第一回合结算后开始记录。</p>'; return; }
-  const latest = history[history.length - 1].round;
-  const h = history.find((x) => x.round === state.round) || history[history.length - 1];
-  const colorOf = new Map(h.players.map((p, i) => [p.playerId, SERIES[i] || INK.label]));
-  const rows = [];
-  for (const p of h.players) {
-    if (state.player && p.playerId !== state.player) continue;
-    const units = p.units || [];
-    const sum = units.reduce((n, u) => n + u.dmg, 0);
-    for (const u of units) rows.push({ ...u, playerId: p.playerId, share: sum > 0 ? u.dmg / sum : 0 });
-  }
-  rows.sort((a, b) => b.dmg - a.dmg || b.kills - a.kills);
-  const shown = state.all ? rows : rows.slice(0, 10);
-  const max = rows.length ? rows[0].dmg : 0;
-  const bar = document.createElement('div');
-  bar.className = 'row';
-  bar.innerHTML = `<label>查看 <select data-k="round" aria-label="查看第几回合">${history.map((x) => `<option value="${x.round}" ${x.round === h.round ? 'selected' : ''}>第 ${x.round} 回合${x.round === latest ? '（最新）' : ''}</option>`).join('')}</select></label>
-    <label>玩家 <select data-k="player" aria-label="只看哪个玩家"><option value="">全部</option>${h.players.map((p) => `<option value="${esc(p.playerId)}" ${p.playerId === state.player ? 'selected' : ''}>${esc(nameOf(p.playerId))}</option>`).join('')}</select></label>
-    ${rows.length > 10 ? `<button aria-pressed="${!!state.all}">${state.all ? '只看前 10' : `看全部 ${rows.length} 个`}</button>` : ''}
-    ${h.enemy ? `<span class="meta">敌人：${esc(h.enemy.typeName)} · ${esc(h.enemy.special)}</span>` : ''}`;
-  bar.querySelector('[data-k="round"]').addEventListener('change', (e) => {
-    const r = Number(e.target.value);
-    state.round = r === latest ? null : r;
-    drawUnitRounds(host, history, nameOf, state);
-  });
-  bar.querySelector('[data-k="player"]').addEventListener('change', (e) => { state.player = e.target.value; drawUnitRounds(host, history, nameOf, state); });
-  bar.querySelector('button')?.addEventListener('click', () => { state.all = !state.all; drawUnitRounds(host, history, nameOf, state); });
-  const t = document.createElement('div');
-  t.className = 'xscroll';
-  t.innerHTML = rows.length ? `<table><thead><tr><th scope="col" class="n">#</th><th scope="col">干员</th><th scope="col">玩家</th><th scope="col" class="n">伤害</th><th scope="col" style="min-width:160px"><span class="sr-only">伤害条</span></th><th scope="col" class="n">击杀</th><th scope="col" class="n">占本人</th></tr></thead>
-    <tbody>${shown.map((u, i) => `<tr><td class="n">${i + 1}</td><th scope="row">${esc(u.name)}</th><td>${esc(nameOf(u.playerId))}</td><td class="n">${full.format(u.dmg)}</td>
-      <td><span class="dmg-bar" style="--c:${colorOf.get(u.playerId)};width:${max > 0 ? Math.max(1, (u.dmg / max) * 100) : 0}%"></span></td>
-      <td class="n">${u.kills}</td><td class="n">${pct(u.share)}</td></tr>`).join('')}</tbody></table>`
-    : '<p class="meta">这回合没有干员伤害记录（比如没有干员上场）。</p>';
-  host.append(bar, t);
-}
-
 /** One composition as a line: special｜普 normal｜精 elite. */
 const comboText = (c) => `${c.special}｜普 ${c.normalName || '—'}｜精 ${c.eliteName || '—'}${c.fly ? '（飞行）' : ''}`;
 const pct = (x) => `${(x * 100).toFixed(x >= 0.1 ? 0 : 1)}%`;
@@ -842,20 +807,26 @@ async function showSummary() {
   $('#summary-data').innerHTML = `<p>${d.games} 局 · ${d.wins} 胜 · 胜率 ${(100*d.winRate).toFixed(1)}% · 跳过 ${d.skipped} 份损坏或字段缺失记录</p><div class="xscroll"><table><thead><tr><th>模式 / 难度</th><th>局数</th><th>胜率</th><th>平均到达回合</th></tr></thead><tbody>${d.groups.map((g)=>`<tr><td>${esc(g.mode)} / ${esc(g.difficulty)}</td><td>${g.games}</td><td>${(100*g.winRate).toFixed(1)}%</td><td>${g.averageRound.toFixed(1)}</td></tr>`).join('')}</tbody></table></div><div class="units"><div><h3>常用干员（按局去重）</h3>${rank(d.operators,r=>r.games+' 局')}</div><div><h3>常用盟约</h3>${rank(d.bonds,r=>r.games+' 局')}</div><div><h3>伤害累计</h3>${rank([...d.operators].sort((a,b)=>b.damage-a.damage),r=>fmt(r.damage))}</div><div><h3>单局最高伤害</h3>${rank([...d.operators].sort((a,b)=>b.maxDamage-a.maxDamage),r=>fmt(r.maxDamage))}</div></div><p class="meta">旧记录仅统计已保存的阵容、激活盟约与伤害；早期未保存的回合使用情况不会补算。</p>`;
 }
 
+let recordList = [], recordQuery = '', recordPage = 0;
+const RECORD_PAGE_SIZE = 20;
+function drawRecordList() {
+  const q = recordQuery.trim().toLowerCase();
+  const all = recordList.filter(x => !q || [x.room, x.id, x.mode, x.mode === 'solo' ? '独立模拟' : '同盟', x.difficulty, outcomeText(x), ...(x.players || []).map(p => p.name)].join(' ').toLowerCase().includes(q));
+  const pages = Math.max(1, Math.ceil(all.length / RECORD_PAGE_SIZE));
+  recordPage = Math.min(Math.max(0, recordPage), pages - 1);
+  const list = all.slice(recordPage * RECORD_PAGE_SIZE, (recordPage + 1) * RECORD_PAGE_SIZE);
+  $('#records-list').innerHTML = list.length ? `<div class="xscroll"><table><thead><tr><th>结束时间</th><th>房间</th><th>模式</th><th>结果</th><th>通过回合</th><th>时长</th><th>玩家</th><th>操作</th></tr></thead><tbody>${list.map(x => `<tr><td>${new Date(x.savedAt).toLocaleString('zh-CN', { hour12: false })}</td><td>${esc(x.room)}</td><td>${x.mode === 'solo' ? '独立模拟' : '同盟'} · ${esc(x.difficulty)}</td><td class="${x.victory ? 'good' : 'bad'}">${outcomeText(x)}</td><td>${x.roundsPassed ?? ''}</td><td>${dur(x.durationMs)}</td><td>${(x.players || []).map(p => esc(p.name)).join('、')}</td><td><button data-record="${esc(x.id)}">查看</button><a class="replay-link" href="/replay?id=${encodeURIComponent(x.id)}" target="_blank" rel="noopener">回放</a><button class="danger" data-record-delete="${esc(x.id)}">删除</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">没有匹配的记录。</p>';
+  $('#record-pagination').innerHTML = `<button data-record-page="${recordPage - 1}" ${recordPage === 0 ? 'disabled' : ''}>上一页</button><span role="status">第 ${recordPage + 1} / ${pages} 页 · ${all.length} 条 · 每页 ${RECORD_PAGE_SIZE} 条</span><button data-record-page="${recordPage + 1}" ${recordPage + 1 >= pages ? 'disabled' : ''}>下一页</button>`;
+}
 async function showRecords() {
   const host = $('#records');
   const data = await api('/api/results').catch(() => ({ records: [] }));
-  const list = data.records || [];
+  recordList = data.records || [];
+
   host.innerHTML = `<section class="room"><h2>跨局汇总</h2><div class="row"><label>开始日期 <input id="summary-from" type="date"></label><label>结束日期 <input id="summary-to" type="date"></label><label>模式 <select id="summary-mode"><option value="">全部</option><option value="solo">独立</option><option value="coop">同盟</option></select></label><label>难度 <input id="summary-difficulty" placeholder="全部"></label><button data-summary-filter>应用筛选</button></div><div id="summary-data" role="status">正在汇总…</div></section><section class="room"><div class="row"><h2>对局记录</h2><span class="meta">对局结束时自动保存在 logs/results/，只在这台电脑上可见</span>
-      <button style="margin-left:auto" data-records-reload>刷新</button></div>
-    ${list.length ? `<div class="xscroll"><table><thead><tr><th scope="col">结束时间</th><th scope="col">房间</th><th scope="col">模式</th><th scope="col">结果</th><th scope="col" class="n">通过回合</th><th scope="col" class="n">时长</th><th scope="col">玩家</th><th scope="col"><span class="meta">操作</span></th></tr></thead>
-      <tbody>${list.map((x) => `<tr><td>${new Date(x.savedAt).toLocaleString('zh-CN', { hour12: false })}</td><td>${esc(x.room)}</td>
-        <td>${x.mode === 'solo' ? '独立模拟' : '同盟'} · ${esc(x.difficulty)}</td>
-        <td class="${x.victory ? 'good' : 'bad'}">${outcomeText(x)}</td>
-        <td class="n">${x.roundsPassed ?? ''}</td><td class="n">${dur(x.durationMs)}</td>
-        <td>${x.players.map((p) => `${esc(p.name)}${p.bot ? '<span class="meta">(AI)</span>' : ''}`).join('、')}</td>
-        <td><button data-record="${esc(x.id)}">查看</button><a class="replay-link" href="/replay?id=${encodeURIComponent(x.id)}" target="_blank" rel="noopener">回放</a><button class="danger" data-record-delete="${esc(x.id)}">删除</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">还没有记录。对局结束后会出现在这里。</p>'}
+      <button style="margin-left:auto" data-records-reload>刷新</button></div><div class="row"><label for="record-filter">搜索记录</label><input id="record-filter" type="search" placeholder="房间码、玩家、模式、难度或结果" value="${esc(recordQuery)}"></div><div id="records-list"></div><div class="row record-pagination" id="record-pagination"></div>
   </section><div id="record"></div>`;
+  drawRecordList();
   await showSummary();
 }
 
@@ -878,7 +849,7 @@ async function showRecord(id) {
         <tbody>${players.map((p) => `<tr><th scope="row">${esc(p.name)}${p.isBot ? ' <span class="tag">AI</span>' : ''}${p.alive ? '' : ` <span class="tag off">第 ${p.eliminatedRound ?? '?'} 回合淘汰</span>`}</th>
           <td>${p.title ? esc(p.title.name || p.title.id) : ''}</td><td class="n">${p.roundsPassed}</td><td class="n">${p.lp}</td><td>${esc(p.band || '')}</td>
           <td style="white-space:normal;min-width:260px">${(p.lineup || []).map((u) => `${esc(u.name)}${u.golden ? '<span class="on">·精锐</span>' : ''}${u.items && u.items.length ? `<span class="meta">（${u.items.map(esc).join('、')}）</span>` : ''}`).join('、') || '<span class="meta">空</span>'}</td>
-          <td style="white-space:normal;min-width:160px">${(p.bonds || []).map((b) => `<span class="${b.active ? 'on' : 'meta'}">${esc(b.name)}${b.layers ? ` ${b.layers} 层` : ''}</span>`).join('、')}</td></tr>`).join('')}</tbody></table></div></div>
+          <td style="white-space:normal;min-width:160px">${(p.bonds || []).map((b) => `<span class="${b.active ? 'on' : 'meta'}">${esc(b.name)}${b.layers && !b.noStack && !chartBonds[b.id || b.bondId]?.noStack ? ` ${b.layers} 层` : ''}</span>`).join('、')}</td></tr>`).join('')}</tbody></table></div></div>
       <div><h3>每回合曲线</h3><div data-part="chart"></div></div>
       <div><h3>每回合详情</h3><div data-part="rounds"></div></div>
       <details><summary>漏怪分析</summary><div data-part="leaks"></div></details>
@@ -1109,13 +1080,14 @@ async function showSettings() {
   const n = Math.max(0, ...d.defaults.map((x) => x.rounds.length));
   const base = (r) => { const v = d.defaults.map((x) => x.rounds[r - 1]).filter((s) => s > 0); return v.length ? Math.max(...v) : ''; };
   host.innerHTML = `<section class="room" id="release-update" aria-label="版本更新"></section>
-    <section class="room"><h2>整局回放</h2>
+    <section class="room" id="plugin-settings"><h2>插件管理</h2><p>在插件工作台安装、启停、编辑和导出插件。</p><a class="replay-link" href="/studio" target="_blank" rel="noopener noreferrer">打开插件工作台 ↗</a><p class="meta">仅本机可通过此入口获取工作台权限；工作台关闭时会显示原因。</p></section>
+    <section class="room" id="replay-settings"><h2>整局回放</h2>
       <p class="meta" id="replay-help">默认录制，保留最近 50 局回放，自动清理只删除回放文件。普通战斗与联防可播放，领袖战仅展示结果。关闭后，当前对局后续战斗及新对局不再录制，未完整录制的对局不保存回放。</p>
       <label><input id="replay-enabled" type="checkbox" aria-describedby="replay-help" ${d.replay.enabled ? 'checked' : ''} ${d.replay.forcedOff ? 'disabled' : ''}> 录制整局回放</label>
       ${d.replay.forcedOff ? '<p class="note">SP_REPLAY=0 已强制关闭录制，修改环境变量并重启后才能开启。</p>' : ''}
       <div class="row"><button class="primary" data-replay-save ${d.replay.forcedOff ? 'disabled' : ''}>保存回放设置</button><span id="replay-saved" class="meta" role="status"></span></div>
     </section>
-    <section class="room"><h2>数据清理</h2><p class="meta">选择要清理的数据。删除后无法恢复；进行中的对局仍会在结束时生成新记录。单局删除请到「对局记录」。</p>
+    <section class="room" id="storage-settings"><h2>数据清理</h2><p class="meta">选择要清理的数据。删除后无法恢复；进行中的对局仍会在结束时生成新记录。单局删除请到「对局记录」。</p>
       <form id="storage-form" onsubmit="return false"><p id="storage-counts" class="meta" role="status">正在读取数量…</p>
         <label><input type="checkbox" name="storage" value="results"> 对局结果（logs/results/）</label>
         <label><input type="checkbox" name="storage" value="replays"> 回放文件（logs/replays/）</label>
@@ -1124,14 +1096,20 @@ async function showSettings() {
       </form>
     </section>
     <section class="room" id="recovery-settings"><h2>重启恢复</h2><div id="recovery-content" role="status">正在读取…</div></section>
-    <section class="room"><h2>联防叠层</h2>
+    <section class="room" id="round-charts-settings"><h2>局内每回合统计</h2>
+    <p class="meta" id="round-charts-help">默认开启。所有玩家与观战者可在局内查看每回合曲线与干员伤害排行；关闭后隐藏整个统计入口和面板。保存后立即对所有房间生效，重启服务器后保留。</p>
+    <form id="round-charts-form" class="stats-body" onsubmit="return false">
+      <label><input id="round-charts-enabled" type="checkbox" aria-describedby="round-charts-help" ${d.roundCharts !== false ? 'checked' : ''}> 在局内显示每回合统计</label>
+      <div class="row"><button class="primary" data-round-charts-save>保存</button><button data-round-charts-reset>撤销修改</button><span class="meta" id="round-charts-saved" role="status"></span></div>
+    </form></section>
+    <section class="room" id="unite-settings"><h2>联防叠层</h2>
     <p class="meta" id="unite-layers-help">自定义规则，默认关闭。开启后，援助干员可在联防中继续叠层，每场战斗的叠层额度重新获得；新增层数在结算时保留，盟约层数上限仍为 999。最终攻势和隐秘核心不受此开关影响。</p>
     <p class="meta">适用于所有房间，从下一次联防开始生效。设置保存在 ${esc(d.file)}，重启服务器后保留。</p>
     <form id="unite-layers-form" class="stats-body" onsubmit="return false">
       <label><input id="unite-layers-enabled" type="checkbox" aria-describedby="unite-layers-help" ${d.uniteLayerGains ? 'checked' : ''}> 允许联防叠层</label>
       <div class="row"><button class="primary" data-unite-layers-save>保存</button><button data-unite-layers-reset>撤销修改</button><span class="meta" id="unite-layers-saved" role="status"></span></div>
     </form></section>
-    <section class="room"><h2>休整期时长</h2>
+    <section class="room" id="prep-settings"><h2>休整期时长</h2>
     <p class="meta">所有房间、所有对局都用这一份，保存在 ${esc(d.file)}，重启服务器也保留。只对有计时的同盟对局生效：独立模拟和只有一个真人的同盟房间本来就不限时。
       进行中的对局从下一个休整期开始生效；房间默认跟随这里的配置，也可在房间卡片单独覆盖。房间倍率直接作用于游戏默认时长，不和这里的倍率重复相乘。不限时的休整期等所有人就绪后结束，也可以在房间里点「结束休整期」。</p>
     <form id="prep-form" class="stats-body" onsubmit="return false">
@@ -1144,8 +1122,9 @@ async function showSettings() {
         ${Array.from({ length: n }, (_, i) => i + 1).map((r) => `<label>第 ${r} 回合 <input class="small" type="number" step="1" min="5" max="3600" data-prep-round="${r}" placeholder="${base(r)}" value="${p.mode === 'perRound' && p.rounds[r] != null ? p.rounds[r] : ''}"></label>`).join('')}
       </div></div>
       <div class="row"><button class="primary" data-prep-save>保存</button><button data-prep-reset>撤销修改</button><span class="meta" id="prep-saved"></span></div>
-      <div class="xscroll" id="prep-preview"></div>
+      <details class="settings-preview"><summary>查看默认时长与调整预览</summary><div class="xscroll" id="prep-preview"></div></details>
     </form></section>`;
+  arrangeSettings();
   drawPrepPreview();
   await loadRecovery();
   refreshStorage();
@@ -1153,6 +1132,34 @@ async function showSettings() {
   releaseUpdate = await api('/api/update').catch(() => ({ state: 'error', error: '读取更新状态失败' }));
   drawReleaseUpdate();
   if (['checking', 'downloading', 'verifying', 'scheduled'].includes(releaseUpdate.state)) startUpdatePolling();
+}
+
+function arrangeSettings() {
+  const host = $('#settings');
+  const blocked = document.createElement('section');
+  blocked.id = 'chat-settings'; blocked.className = 'room';
+  blocked.innerHTML = `<h2>聊天屏蔽词</h2><p class="meta" id="blocked-help">每行一个词，最多 100 条，每条最多 40 字。按普通文本匹配，忽略英文大小写；命中部分替换为 ***。留空并保存可关闭过滤。对所有房间的新消息立即生效，包括主机消息；已有记录不变。</p>
+    <form id="blocked-words-form" onsubmit="return false"><label for="blocked-words">屏蔽词列表</label>
+    <textarea id="blocked-words" rows="7" aria-describedby="blocked-help">${esc((settingsData.blockedWords || []).join('\n'))}</textarea>
+    <div class="row"><button type="button" class="primary" data-blocked-save>保存屏蔽词</button><button type="button" data-blocked-reset>撤销修改</button><span id="blocked-saved" role="status"></span></div></form>`;
+  const sections = new Map([...host.children].map((el) => [el.id, el]));
+  sections.set(blocked.id, blocked);
+  const groups = [
+    ['game', '对局设置', ['prep-settings', 'unite-settings', 'round-charts-settings']],
+    ['chat', '交流管理', ['chat-settings']],
+    ['history', '记录与恢复', ['replay-settings', 'recovery-settings']],
+    ['system', '维护与扩展', ['release-update', 'plugin-settings']],
+    ['cleanup', '数据清理', ['storage-settings']],
+  ];
+  host.innerHTML = `<div class="settings-intro"><h2>主机设置</h2><p class="meta">每项设置单独保存。除页面另有说明外，保存后立即生效；主机配置保存在 ${esc(settingsData.file)}。</p></div>
+    <div class="settings-layout"><nav class="settings-nav" aria-label="设置分类">${groups.map(([id,label])=>`<a href="#settings-${id}">${label}</a>`).join('')}</nav><div class="settings-content"></div></div>`;
+  for (const [id, label, ids] of groups) {
+    const group = document.createElement('div'); group.id = 'settings-' + id; group.className = 'settings-group';
+    group.setAttribute('aria-label', label);
+    group.innerHTML = `<h2 class="settings-group-title">${label}</h2>`;
+    for (const key of ids) if (sections.has(key)) group.append(sections.get(key));
+    $('.settings-content', host).append(group);
+  }
 }
 
 async function loadRecovery() {
@@ -1251,7 +1258,7 @@ function updateDiyDraft(el) {
   d.label = el.value;
   if (diyEntries.get(was) !== diyEntries.get(d.label) && diyEntries.get(was)?.charId !== diyEntries.get(d.label)?.charId) { d.skill = ''; d.mod = ''; }
   diyDraft.set(pid, d);
-  const box = el.closest('td').querySelector(`[data-diy-sel="${CSS.escape(pid)}"]`);
+  const box = el.closest('fieldset, td').querySelector(`[data-diy-sel="${CSS.escape(pid)}"]`);
   if (box) box.innerHTML = diySelects(el.dataset.room, pid);
 }
 
@@ -1269,6 +1276,7 @@ function showCandidates(el) {
   });
 }
 document.addEventListener('input', (e) => {
+  if (e.target.id === 'record-filter') { recordQuery = e.target.value; recordPage = 0; drawRecordList(); return; }
   if (e.target.matches('input[data-candidate-kind]')) showCandidates(e.target);
 });
 document.addEventListener('focusin', (e) => {
@@ -1367,30 +1375,32 @@ async function refresh(force = false) {
   if ($('#rooms').hidden && !force) return;
   let data;
   try { data = await api('/api/rooms'); } catch { if (!servicePending) $('#status').textContent = '无法连接服务器'; return; }
-  $('#site-notice-status').textContent = data.announcement ? `${data.announcement.level} · ${new Date(data.announcement.startAt).toLocaleString()} → ${new Date(data.announcement.endAt).toLocaleString()} · ${data.announcement.text}` : '暂无公告';
   if (servicePending) return;
   if (data.error) { $('#status').textContent = data.error; return; }
-  if (document.activeElement?.matches('input, select')) { for (const r of data.rooms) chatPanel(r); return; }
+  if (document.activeElement?.matches('input, select, textarea')) { for (const r of data.rooms) chatPanel(r); return; }
   $('#status').textContent = `更新于 ${new Date().toLocaleTimeString()}`;
   const json = JSON.stringify(data.rooms);
   if (json === lastJson) return;
   lastJson = json;
-  $('#rooms').innerHTML = data.rooms.length ? data.rooms.map(roomCard).join('') : '<p class="empty">还没有房间。玩家建房后会出现在这里。</p>';
-  // the statistics panels survive the re-render (statsPanel)
-  for (const r of data.rooms) $(`[data-stats="${r.code}"]`)?.replaceWith(statsPanel(r));
-  for (const r of data.rooms) $(`[data-chat="${r.code}"]`)?.replaceWith(chatPanel(r));
+  latestRooms = data.rooms;
+  renderRooms();
   for (const code of chatPanels.keys()) if (!data.rooms.some((r) => r.code === code)) chatPanels.delete(code);
   for (const code of panels.keys()) if (!data.rooms.some((r) => r.code === code)) panels.delete(code);
-  const live = data.rooms.find((r) => r.match);
-  if (live) loadCatalog(live.code).catch(() => { $('#status').textContent = '干员目录加载失败'; });
 }
 
 document.addEventListener('click', (e) => {
+  const roomButton = e.target.closest('[data-open-room]');
+  const pageButton = e.target.closest('[data-record-page]');
+  if (pageButton) { recordPage = Number(pageButton.dataset.recordPage); drawRecordList(); return; }
+  if (roomButton) { selectedRoom = selectedRoom === roomButton.dataset.openRoom ? null : roomButton.dataset.openRoom; renderRooms(); return; }
+  const roomTab = e.target.closest('[data-room-tab]');
+  if (roomTab) { roomTabs.set(roomTab.dataset.room, roomTab.dataset.roomTab); renderRooms(); return; }
   const notice = e.target.closest('button[data-site-notice]');
   if (notice) {
-    const startAt = $('#site-notice-start').value ? new Date($('#site-notice-start').value).getTime() : Date.now();
-    const endAt = $('#site-notice-end').value ? new Date($('#site-notice-end').value).getTime() : startAt + 3600000;
-    act('*', 'announce', null, notice.dataset.siteNotice === 'remove' ? null : { text: $('#site-notice-text').value, level: $('#site-notice-level').value, startAt, endAt }, '全站公告'); return;
+    const startAt = Date.now() + Number($('#site-notice-delay').value);
+    const untilRemoved = $('#site-notice-duration').value === 'untilRemoved';
+    const endAt = untilRemoved ? 8640000000000000 : startAt + Number($('#site-notice-duration').value);
+    act('*', 'announce', null, notice.dataset.siteNotice === 'remove' ? null : { text: $('#site-notice-text').value, level: $('#site-notice-level').value, startAt, endAt, untilRemoved }, '全站公告'); refreshStatus(); return;
   }
   const serviceButton = e.target.closest('button[data-service]');
   if (serviceButton && !serviceButton.disabled) { controlService(serviceButton.dataset.service); return; }
@@ -1420,6 +1430,41 @@ document.addEventListener('click', (e) => {
       saved.textContent = r.ok ? '已保存' : `保存失败：${r.error}`;
       if (r.ok) { settingsData.replay = r.replay; input.checked = r.replay.enabled; }
     }).finally(() => { replaySave.disabled = input.disabled = !!settingsData.replay.forcedOff; });
+    return;
+  }
+  if (e.target.closest('[data-blocked-reset]')) {
+    $('#blocked-words').value = (settingsData.blockedWords || []).join('\n'); $('#blocked-saved').textContent = ''; return;
+  }
+  const blockedSave = e.target.closest('[data-blocked-save]');
+  if (blockedSave) {
+    const input = $('#blocked-words'), status = $('#blocked-saved'), reset = $('[data-blocked-reset]');
+    const blockedWords = input.value.split(/\r?\n/).map((w) => w.trim()).filter(Boolean);
+    blockedSave.disabled = input.disabled = reset.disabled = true; status.textContent = '保存中…';
+    api('/api/settings', { blockedWords }).catch(() => ({ error: '连接服务器失败' })).then((r) => {
+      if (r.ok) { settingsData.blockedWords = r.blockedWords; input.value = r.blockedWords.join('\n'); status.textContent = '已保存，所有房间的新消息立即生效'; }
+      else { status.textContent = '保存失败：' + r.error; say(status.textContent, true); }
+    }).finally(() => { blockedSave.disabled = input.disabled = reset.disabled = false; });
+    return;
+  }
+  if (e.target.closest('button[data-round-charts-reset]')) {
+    $('#round-charts-enabled').checked = settingsData.roundCharts !== false;
+    $('#round-charts-saved').textContent = '';
+    return;
+  }
+  const chartSave = e.target.closest('button[data-round-charts-save]');
+  if (chartSave) {
+    const input = $('#round-charts-enabled'), saved = $('#round-charts-saved');
+    const reset = $('#round-charts-form [data-round-charts-reset]');
+    const roundCharts = input.checked;
+    chartSave.disabled = input.disabled = reset.disabled = true;
+    saved.textContent = '保存中…';
+    api('/api/settings', { roundCharts }).catch(() => ({ error: '连接服务器失败' })).then((r) => {
+      if (r.ok) {
+        settingsData.roundCharts = r.roundCharts;
+        input.checked = r.roundCharts;
+        saved.textContent = '已保存，所有房间立即生效';
+      } else { saved.textContent = `保存失败：${r.error}`; say(saved.textContent, true); }
+    }).finally(() => { chartSave.disabled = input.disabled = reset.disabled = false; });
     return;
   }
   if (e.target.closest('button[data-unite-layers-reset]')) {
@@ -1477,9 +1522,9 @@ async function setTab(name) {
   // panels before these awaits leaves a blank frame on every navigation.
   if (name === 'records') await showRecords();
   else if (name === 'settings') await showSettings();
-  else { lastJson = ''; await refresh(true); }
+  else if (name === 'rooms') { lastJson = ''; await refresh(true); }
   if (request !== tabRequest) return;
-  for (const id of ['rooms', 'records', 'settings']) $(`#${id}`).hidden = name !== id;
+  for (const id of ['rooms', 'records', 'settings', 'server']) $(`#${id}`).hidden = name !== id;
 }
 document.addEventListener('change', (e) => {
   const el = e.target;
@@ -1529,6 +1574,10 @@ document.addEventListener('keydown', (e) => {
     });
   }
 });
+// Keep number drafts stable when a wheel gesture passes over a focused input.
+document.addEventListener('wheel', e => { if (e.target.matches('input[type="number"]') && document.activeElement === e.target) e.preventDefault(); }, { passive: false });
+refreshStatus();
+setInterval(refreshStatus, 3000);
 refresh();
 roomPoll = setInterval(refresh, 1500);
 loadService();

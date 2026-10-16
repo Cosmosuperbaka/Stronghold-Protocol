@@ -28,6 +28,7 @@ test('console room prep: follows settings, room-only modes, errors, reset and re
     await page.setViewport({ width: 1440, height: 900 });
     await page.goto(admin.url, { waitUntil: 'domcontentloaded' });
     const mode = '[data-room-prep-mode]';
+    await page.waitForSelector('[data-open-room]'); await page.click('[data-open-room]');
     const apply = () => page.click('[data-room-prep-save]');
     const current = text => page.waitForFunction(text => document.querySelector('[data-room-prep-current]')?.textContent.includes(text), {}, text);
     await page.waitForSelector(mode);

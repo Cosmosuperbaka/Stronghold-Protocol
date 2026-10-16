@@ -21,7 +21,7 @@
 // (`reason`: 'plugin-crash' | 'plugin-hang' | 'plugin-start'). A request the worker leaves unanswered for
 // REQUEST_TIMEOUT_MS is answered INTERNAL too (a living worker never takes that long: the watchdog acts first).
 
-import { getPrep, getUniteLayerGains } from '../hostSettings.js';
+import { getPrep, getUniteLayerGains, getRoundCharts } from '../hostSettings.js';
 import { getReplayConfig } from '../replay.js';
 import { ERR } from '../../../shared/constants.js';
 import { msg, wireMessage } from '../../../shared/i18n.js';
@@ -48,7 +48,7 @@ export function wireOptions(opts) {
   for (const k of ['roomCode', 'mode', 'difficulty', 'modeId', 'aiPicksLast', 'seats', 'spectators', 'seed', 'matchNo', 'hostId', 'prepOverride', 'cs', 'vs', 'requireCs']) {
     if (opts[k] !== undefined) out[k] = opts[k];
   }
-  out.extensionSettings = { prep: getPrep(), uniteLayerGains: getUniteLayerGains(), replay: getReplayConfig() };
+  out.extensionSettings = { prep: getPrep(), uniteLayerGains: getUniteLayerGains(), roundCharts: getRoundCharts(), replay: getReplayConfig() };
   return out;
 }
 

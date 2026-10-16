@@ -12,18 +12,23 @@ function hash32(s) {
 
 /** 名片干员: the player's own pick (localStorage; sent as room.card where the server knows it). */
 export const CARD_PREF = 'room.card';
+export const CARD_SKIN_PREF = 'room.cardSkin';
 
 /**
  * The operators a seat card can show: one record per charId (the elite form for its E2 art), 6★ first.
  * @param {any[]} chessList chess.json records
  * @returns {any[]}
  */
-export function cardOperators(chessList) {
+export function cardOperators(chessList, catalogue = null) {
   const by = new Map();
   for (const c of Array.isArray(chessList) ? chessList : []) {
     if (!c || c.isDiy || c.visible === false || typeof c.charId !== 'string') continue;
     const prev = by.get(c.charId);
     if (!prev || (c.isGolden && !prev.isGolden)) by.set(c.charId, c);
+  }
+  for (const c of Object.values(catalogue?.chars || {})) {
+    const prev = by.get(c.charId);
+    by.set(c.charId, { ...c, ...prev, choices: c.choices });
   }
   return [...by.values()].sort((a, b) => ((b.rarity ?? 0) - (a.rarity ?? 0)) || String(a.name).localeCompare(String(b.name), 'zh'));
 }
@@ -31,13 +36,16 @@ export function cardOperators(chessList) {
 /**
  * The seat card's portrait: the operator the player picked (room.state seats[].card, or one's own pick), else one of
  * the 5★/6★ operators chosen by the player id — the same on every client (null before the data loads).
- * @param {any} seat room.state seat @param {{ pool: any[], byChar: Map<string, any>, m: any, myId: any, myCard: string }} ctx
+ * @param {any} seat room.state seat @param {{ pool: any[], byChar: Map<string, any>, m: any, myId: any, myCard: string, mySkin?: string }} ctx
  */
-export function seatPortrait(seat, { pool, byChar, m, myId, myCard }) {
+export function seatPortrait(seat, { pool, byChar, m, myId, myCard, mySkin = '' }) {
   if (!seat || seat.playerId == null) return null;
   const pick = (seat.playerId === myId && myCard) || seat.card;
   const rec = pick && byChar ? byChar.get(pick) : null;
-  if (rec) return chessPortraitUrl(m, rec);
+  if (rec) {
+    const skin = seat.playerId === myId ? mySkin : seat.cardSkin;
+    return rec.choices?.find(s => s.id === skin)?.portrait || chessPortraitUrl(m, rec) || rec.choices?.[0]?.portrait || null;
+  }
   if (!Array.isArray(pool) || !pool.length) return null;
   return chessPortraitUrl(m, pool[hash32(seat.playerId) % pool.length]);
 }

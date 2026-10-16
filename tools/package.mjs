@@ -105,7 +105,7 @@ export const FOLDER = 'Stronghold-Protocol';
 export const ROOT_FILES = ['package.json', 'package-lock.json', 'LICENSE', 'NOTICE.md', 'THIRD-PARTY-NOTICES.md', 'README.md', 'CHANGELOG.md'];
 /** The player docs. */
 export const PLAYER_DOCS = ['docs/PLAYING.md', 'docs/DEPLOY.md', 'docs/SKINS.md', 'docs/LOCAL-CHANGELOG.md',
-  'docs/LOCAL-DEV.md', 'docs/PRIVACY.md', 'scripts/README.md'];
+  'docs/LOCAL-DEV.md', 'docs/PRIVACY.md', 'docs/COMMUNITY-PLUGINS.md', 'docs/RELEASE-CANDIDATE.md', 'scripts/README.md'];
 /** Real interface screenshots referenced by the extension README. */
 export const PLAYER_DOC_DIRS = ['docs/img/features/'];
 const PLUGIN_DOCS = ['docs/PLAYING.md', 'docs/DEPLOY.md', 'docs/PLUGINS.md', 'docs/PLUGIN-GUIDE.md',
@@ -116,14 +116,14 @@ export const AUTHOR_TEST_FILES = ['test/helpers/battleHarness.js'];
 /** Only these repository-owned plugin resources ship, even if an owner's plugin was accidentally tracked. */
 export const isPluginResource = (rel) => rel === 'plugins/README.md' || rel === 'plugins/AGENTS.md' || rel.startsWith('plugins/_template/');
 /** Research tables read at run time: server/sim/nodeData.js (the Node sim's fallback) and tools/fetch-assets.mjs. */
-export const RUNTIME_RESEARCH = ['docs/research/03-operators.json', 'docs/research/05-enemies.json', 'docs/research/05-maps.json', 'docs/research/07-assets.json', 'docs/research/operator-skins.json'];
+export const RUNTIME_RESEARCH = ['docs/research/03-operators.json', 'docs/research/05-enemies.json', 'docs/research/05-maps.json', 'docs/research/07-assets.json', 'docs/research/operator-skins.json', 'docs/research/seat-art-portraits.json'];
 /** The start scripts (scripts/make-windows-bundle.mjs is the maintainer's Windows pack, docs/WINDOWS.md). */
 export const PLAYER_SCRIPTS = ['scripts/install-service-windows.ps1', 'scripts/launch.mjs', 'scripts/open-browser.mjs',
   'scripts/apply-release-update.mjs',
   'scripts/start-windows-sandbox.bat', 'scripts/run-server.cmd', 'scripts/start-windows.bat', 'scripts/start-windows.ps1', 'scripts/start.sh',
   'scripts/start-tunnel.bat', 'scripts/start-tunnel.mjs', 'scripts/stop-server.bat', 'scripts/free-port.mjs'];
 /** The tools a player runs (npm run setup / doctor / assets, the postinstall) and the ones setup starts. */
-export const PLAYER_TOOLS = ['tools/build-resource-manifest.mjs', 'tools/crop-board-atlas.mjs', 'tools/doctor.mjs', 'tools/fetch-assets.mjs', 'tools/install-skins.mjs', 'tools/setup.mjs', 'tools/vendor.mjs', 'tools/fetch-stats-assets.mjs', 'tools/plugin.mjs'];
+export const PLAYER_TOOLS = ['tools/build-resource-manifest.mjs', 'tools/crop-board-atlas.mjs', 'tools/doctor.mjs', 'tools/fetch-assets.mjs', 'tools/install-skins.mjs', 'tools/build-seat-art.mjs', 'tools/install-seat-art.mjs', 'tools/setup.mjs', 'tools/vendor.mjs', 'tools/fetch-stats-assets.mjs', 'tools/plugin.mjs'];
 /** Whole tool directories: fetch-assets' modules, the local-client extraction setup runs. */
 export const PLAYER_TOOL_DIRS = ['tools/assets/', 'tools/local-extract/'];
 /** Whole runtime directories (their tracked files). */
@@ -303,6 +303,7 @@ export const manifestFiles = listedArtFiles;
 export function artPlan(root, { lite = false, jpVoice = FULL_ZIP_JP_VOICE, optionalVoice = FULL_ZIP_OPTIONAL_VOICE, fx = FULL_ZIP_FX } = {}) {
   if (lite) return { files: [], missing: [], orphans: [], held: [], fxHeld: [], local: false, scenes: [] };
   const listed = manifestFiles(readJson(path.join(root, 'data', 'assets.json')) ?? {});
+  for (const f of manifestFiles(readJson(path.join(root, 'data', 'seat-art.json')) ?? {})) listed.add(f);
   const local = isFile(path.join(root, 'data', 'local-assets.json'));
   if (local) for (const f of manifestFiles(readJson(path.join(root, 'data', 'local-assets.json')) ?? {})) listed.add(f);
   const files = new Set();

@@ -2,6 +2,30 @@
 
 Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 
+本库 2026-10-16：生成的素材预载索引 `resource-manifest` 与组队海报目录 `seat-art` 仅用于展示，
+与本机素材清单一样排除在玩法内容指纹 `cs` 之外；增删这些资源不应改变玩法身份。
+
+本库控制台（维护者要求，2026-10-16）：聊天管理恢复本房间主机消息输入和发送，标记「主机消息」，
+不与全站公告混用。轮询保留草稿，失败保留文本并可重试，Enter 发送避开输入法合成，Shift+Enter 换行。
+设置页依次为对局设置（休整时长、联防叠层、局内统计）、交流管理（屏蔽词）、记录与恢复
+（回放、重启恢复）、维护与扩展（版本更新、插件）、数据清理。桌面左侧分类导航，窄屏顶部导航；
+各项独立保存，时长预览默认折叠，危险清理置底。屏蔽词每行一条，可保存和撤销修改。
+
+本库 2026-10-16：组队海报提供常显更换按钮，搜索干员后选择服装；独立保存并同步队友，不改战斗外观。
+手机同盟选择右栏安全居中，溢出从顶部排起；高度 ≤500px 隐藏创建插画，密钥框不被顶栏遮挡。
+
+本库标点（2026-10-16）：棋盘上右键点击干员与空地一致，发送当前选中的标点，不打开干员详情；
+左键查看详情与手机长按保留。整备区右键、敌人预览栏和观战席沿用原查看规则。
+
+本库 2026-10-16（维护者要求）：局内左下角「每回合统计」（位于交流按钮后）为所有玩家（含淘汰者）与观战者提供
+非模态统计面板，复用主机控制台图表，支持 LP、剩余金币、累计花费、累计/本回合伤害、商店等级、
+本回合收入/支出及可叠层盟约的层数；可切换表格，第一回合结算前显示等待记录。
+同一面板内切换「每回合曲线 / 干员伤害排行」。排行复用控制台实现，按回合与玩家筛选、
+默认前 10 并可展开全部，显示干员/玩家、伤害、伤害条、击杀和占本人伤害比例；切换分页保留选择。
+主机设置 `roundCharts` 默认开启，保存后全房间立即生效并持久化；关闭时隐藏入口、关闭已打开面板，
+不停止历史记录。两处图表的盟约选项均排除数据标记 `noStack` 的盟约（含旧记录）；控制台的这类
+盟约保留人数/档位信息，省略层数及加层/设层输入。
+
 Custom alliance keys (§29.15): the co-op lobby's create section has an optional labelled input. Empty means random;
 otherwise require four ASCII letters or digits, uppercase the input, and preserve invalid characters / excess length
 so an unintended key is never silently created. Show the format hint, disable creation for invalid input, and report

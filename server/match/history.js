@@ -43,12 +43,26 @@ export function recordRound(m, { includeBattleResults = true } = {}) {
       economy: ps.economy ? { ...structuredClone(ps.economy), closing: ps.funds, refreshes: ps.round.refreshes, buys: ps.round.buys, sells: ps.round.sells } : null,
       income: ps.economy ? Object.values(ps.economy.income).reduce((n, v) => n + v, 0) : null,
       expense: ps.economy ? Object.values(ps.economy.expense).reduce((n, v) => n + v, 0) : null,
-      bonds: Object.entries(ps.lastRoundBonds || ps.bonds || {}).map(([id,b]) => ({ id, name: ps.gd.bond(id)?.name || id, active: b.active, layers: b.layers, tier: b.tier })),
+      bonds: Object.entries(ps.lastRoundBonds || ps.bonds || {}).map(([id,b]) => ({ id, name: ps.gd.bond(id)?.name || id, noStack: !!ps.gd.bond(id)?.noStack, active: b.active, layers: b.layers, tier: b.tier })),
       leakDetails: includeBattleResults ? structuredClone(ps.leakHistory || []) : [],
       units,
     };
   });
   m.history.push({ round: m.round, enemy: enemyOf(m), players });
+}
+
+/** Settled chart/ranking values only: omit economic sources, enemy overrides and host logs. */
+export function roundChartHistory(m) {
+  const keys = ['playerId', 'alive', 'lp', 'funds', 'spent', 'dmg', 'roundDmg', 'level', 'income', 'expense'];
+  return (m.history || []).map((h) => ({
+    round: h.round,
+    players: h.players.map((p) => ({
+      ...Object.fromEntries(keys.map((key) => [key, p[key]])),
+      units: (p.units || []).map(({ defId, name, dmg, kills }) => ({ defId, name, dmg, kills })),
+      bonds: (p.bonds || []).filter((b) => !(b.noStack || m.gd.bond(b.id)?.noStack))
+        .map(({ id, name, active, layers }) => ({ id, name, active, layers })),
+    })),
+  }));
 }
 
 /** The round's composition (the shared pick of its wave; a leader round's escorts follow it), with names. */

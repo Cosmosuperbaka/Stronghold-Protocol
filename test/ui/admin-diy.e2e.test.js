@@ -37,6 +37,8 @@ test('console candidates: immediate DIY options and consistent grants without ch
     });
     await page.setViewport({ width: 1440, height: 900 });
     await page.goto(admin.url, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('[data-open-room]'); await page.click('[data-open-room]');
+    await page.click('button[data-toggle]');
     const input = 'input[data-grant="diy"]';
     const selectAll = async () => {
       await page.keyboard.down('Control');
@@ -96,7 +98,6 @@ test('console candidates: immediate DIY options and consistent grants without ch
 
     // The other grants keep their catalogs, payloads and raw-id input; picking never submits.
     await page.setViewport({ width: 1440, height: 1000 });
-    await page.click('button[data-toggle]');
     await page.waitForSelector('input[data-grant="card"]');
     const catalog = await fetch(`${admin.url}/api/catalog?room=${code}`, {
       headers: { 'X-Admin-Token': admin.token },

@@ -13,9 +13,9 @@
 - 合并上游新版本时从 `main` 开功能分支，完成适配与测试后再合并回 `main`。
 - 同步上游：`git fetch upstream` → `git merge upstream/master` → `npm install` → `npm run setup`（上游常会加素材）→ `node --test`。
 - 素材 `public/assets/`、`.cache/`、`.claude/` 都在 `.gitignore` 里，不进仓库。新机器 clone 后要先 `npm install && npm run setup`。
-- 当前版本为 `v0.2.6-extended.5`，基于上游 `v0.2.6`（`488db49f`），新增聊天管理、四席完整监控墙、资源与详细统计、重启恢复、空闲更新和更新记录；聊天可拖动记住位置，房间休整期配置默认继承全局。保留带名标点、服务控制、代操作、回放与 Release 发布签名。完整素材包沿用 `v0.2.5-extended.1` 导入的上游完整包中的 `public/assets/local/` 和 `data/local-assets.json`，包括 11 个官方战场场景；来源和固定 SHA-256 见 DEPLOY §6。发布预检与构建都加 `--require-local-art`，同时核对场景清单为 11 个、所有文件哈希与源包一致；该参数只保证存在有效本地素材清单，不替代场景完整性验证。lite 不含官方本地素材。素材不随 Git 分支移动，切换旧代码版本时也要注意素材版本匹配。
+- 当前版本为 `v0.3.0-extended.1`（发布候选，尚未上传 Release），基于上游 `v0.3.0`（`c24e17ee`）。上一正式版为 `v0.2.6-extended.5`。新增局内每回合统计、主机聊天与屏蔽词、分组设置和组队海报，保留既有控制台、回档、回放、联动与皮肤扩展。完整包包含 11 个官方战场场景、0.3.0 官方 FX、多语言语音、174 套皮肤和海报素材；lite 需按文档补齐。素材来源与原始校验记录见 DEPLOY §6；发布预检要求 `--require-local-art`，同时核对场景和素材完整性。
 
-当前源码另已整合上游 **v0.3.0（c24e17ee）**；`package.json` / APP_VERSION 为 0.3.0，最新发布附件仍为上面的 v0.2.6-extended.5。`server/release-version.js` 保留最新正式扩展标签，不能把源码合并写成已发布的新 Release。
+`package.json` / APP_VERSION 保持上游基础版本 0.3.0；`server/release-version.js` 单独记录扩展标签。候选标签不代表远端已发布，公开状态以 Releases 为准。
 
 上游合并的兼容处理：
 
@@ -29,6 +29,17 @@
 各版上游合并、主机扩展与发布验证见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md)。
 
 ## 2. 本地新增了什么
+
+### 2026-10-16 控制台与组队界面修订
+
+- 控制台顶部读取 /api/overview，显示在线人数、房间、对局、CPU 与内存；公告和重启/关闭位于「服务器」。房间先选概览，再分「操作 / 数据」；玩家行只读，展开后按数值、发放、托管分组，数字输入按 Enter 应用，滚轮不改值。对局记录每页 20 条，可搜索房间、玩家、模式、难度、结果。
+- 设置 → 插件管理通过 startAdmin 的 studioUrl 跳转到游戏实际端口。runMain 使用 srv.studio.pageUrl 注入地址；只有本机会话通过 /studio 路由取得跳转，页面没有硬编码 3000 或公开钥匙。社区来源与兼容边界见 [COMMUNITY-PLUGINS.md](COMMUNITY-PLUGINS.md)。
+- 组队海报偏好独立保存为 sp.pref.room.card / sp.pref.room.cardSkin；room.card 的 charId、skinId 由生成目录校验，room.state.seats 的 card/cardSkin 同步队友；不改战斗皮肤、技能或模拟。清空恢复自动分配。
+- data/seat-art.json 由 node tools/build-data.mjs --seat-art-only 生成并下载图片到忽略目录 public/assets/seat-portrait/；加 --offline 仅据缓存生成目录。固定素材清单下含 432 名干员、1356 张图；未被源收录的未来皮肤不在此数量内。完整包包含所列图片。来源为官方 character/skin 表及 docs/research/seat-art-portraits.json 对应的素材清单。
+  新安装的 setup 自动补齐所需海报，也可单独运行 node tools/install-seat-art.mjs 断点续传；只下载目录中声明的 PNG，不更改游戏规则。
+- 同盟选择右栏安全居中，溢出从顶部排起；高度 ≤500px 隐藏创建插画。测试在输入前检查四边和 elementFromPoint 中心命中，避免自动滚动掩盖布局问题。
+
+专项测试：test/seat-art.test.js、test/ui/seat-art.e2e.test.js、test/ui/admin-overview.e2e.test.js、既有 admin 系列和 custom-room-code 浏览器测试。测试使用独立端口和 recovery:false 或临时恢复目录。
 
 本地自己的文件（上游没有，合并不会冲突）：
 
@@ -81,6 +92,27 @@
 0.2.0 起上游把 `Match` 的方法拆到了 `server/match/match/*.js`，启动代码从 `server/index.js` 拆到了 `server/http/`。
 
 ### 房间交流（文字聊天与战场标点）
+
+2026-10-16 主机聊天恢复：`POST /api/action {room,action:'chatSend',value:text}` 仅走认证本机控制台，
+复用 `RoomChat.message` 和房间广播，固定主机身份、`role:system`，前端称「主机消息」。
+消息长度校验与普通聊天一致；控制台轮询不重建输入框，失败留草稿、发送中锁按钮，输入法确认不发送。
+主机不占玩家的节流或禁言额度，只发送所选房间；全站公告继续独立。
+
+`logs/admin-settings.json` 新增 `blockedWords`，缺省/空数组禁用。设置页每行一词，忽略大小写的
+普通字面匹配、长词优先，命中替换为 `***`；最多 100 条、40 码点/条，JSON 总计 4096 字节。
+服务端在新玩家及主机消息进入历史前过滤；已有记录、姓名、全站公告不变。配置验证及原子保存后
+立即生效，其他设置保存保留当前词表，重启读取。设置页按对局→交流→记录恢复→维护扩展→清理重排，
+导航在桌面侧边/手机顶部，各项独立保存，时长预览折叠。
+测试入口：`test/chat-settings.test.js`、`test/admin-chat.test.js`、`test/chat.test.js`；
+浏览器 `test/ui/admin-chat-settings.e2e.test.js`，并回归 `admin-chat.e2e.test.js` 与 `admin-settings.e2e.test.js`。
+验证：`.cache-chat-settings-final.log` 定向 67 项通过；`.cache-chat-settings-browser.log` 四项浏览器
+回归通过；补充输入焦点保护、玩家消息过滤及失败保留后，`.cache-chat-settings-browser-final.log`
+最终用例通过。类型检查、变更文件 lint、四语言严格检查通过；设置与聊天面板机械设计检查无发现。
+独立收尾审查指出并已修复轮询的 textarea 焦点保护，复核为 ship。未修改模拟和 golden。
+
+2026-10-16：局内 `pieceClick` 优先将棋盘上的右键交给标点处理，与空地一致；左键详情、手机长按、
+整备区右键与预览/观战查看沿用原行为。`test/ui/pings.e2e.test.js` 在引擎及 DOM 后备视图验证
+右键已占据干员格只发一次标点、不弹详情，左键仍能打开详情。
 
 文字聊天入口在等待室和对局中持续显示，默认位置避开侧边效果、准备按钮和计时器。`server/chat.js` 保存每房间最近 50 条消息，身份、时间由服务端生成；`room.chat` 仅正式玩家可发送，观战席只读。每条最多 200 个 Unicode 码点 / 1024 字节，每会话间隔 1 秒，每房间滚动 1 秒最多 10 条；`clientId` 对最近 50 次发送去重。加入与重连收到 `chat.history`；客户端 `chatStore.js` 合并历史和实时消息，保留草稿，离开或更换房间清空，断线不排队发送。Enter 发送时避开中文输入法候选确认，Shift+Enter 换行、Esc 收起；用户文本由 Preact 转义。
 
@@ -492,6 +524,42 @@ EN / JA / KO 客户端里没有焰狐龙梓兰和结城理，zh-TW 里还没有�
 `idle-update.js` 默认关闭，`logs/auto-update.json` 持久化开关。开启后首次立即检查，其后间隔至少一小时；只接受已签名可安装的正式新版，复用签名安装器，不自动回退、不强制结束对局。有活动局先等，无活动局向全部房间公告后等 60 秒；新局取消倒计时。失败标签停止自动重试，直到重新开关 / 重启或有新版；外部守护不支持自动重启时报告原因。关闭后忽略未完成检查的迟到结果。`POST /api/update` 新增 `{action:'automatic',enabled}`。
 
 `release-notes.js` 从 LOCAL-CHANGELOG 当前发布节提取玩家条目，排除验证记录；游戏端仅公开只读 `/release-notes.json`，不带管理数据。游戏与控制台共用 `public/js/ui/releaseNotes.js`：首次访问建立版本基线，版本变化弹出，关闭记住版本，支持 Esc 和横屏滚动，非中文界面说明条目为中文。未发布记录不冒充新版，正式发版时再同步 RELEASE_TAG。
+
+### 局内每回合曲线
+
+维护者要求（2026-10-16）：所有玩家与观战者在局内交流图标后打开非模态「每回合统计」，内含曲线与每回合干员伤害排行。
+`public/js/ui/roundChart.js` 为游戏与控制台共用 SVG/表格/排行绘制器；指标包括 LP、金币、花费、伤害、
+商店等级、回合收支和可叠层盟约。盟约使用官方数据 `noStack` 过滤，旧记录通过数据查询补判；
+新记录携带该标记以支持插件盟约。控制台的不可叠层盟约仍展示人数/档位，隐藏层数与加层/设层输入。
+
+`logs/admin-settings.json` 的 `roundCharts` 默认 `true`（旧配置缺省同样开启），
+`GET/POST /api/settings` 读取/保存，独立保存其他设置时保留当前值；保存后立即刷新各活动局公开状态。
+`m.public.roundHistory` 仅发送统计字段，新增 `players[].units` 的 `defId/name/dmg/kills` 用于排行，
+关闭时为 `[]`；底层历史继续记录，重新开启即可查看。排行支持按回合、玩家筛选，前 10/全部；
+仅计算各自战场的干员伤害，沿用控制台口径，联防伤害只计入累计数据，不拆分到干员。
+排行扩展验收：`.cache-round-rank-final.log` 定向 68 项通过；`.cache-round-rank-browser.log`
+局内与控制台统计两项浏览器回归通过，`.cache-round-rank-browser-final.log` 最终显示统计口径后
+复核通过，覆盖回合/玩家筛选、前 10/全部、切换保留、三种视口与开关。四语言各 2316 条完整，
+类型检查与变更文件 lint 通过；独立收尾审查为 ship。无模拟或 golden 规则改动。
+玩法插件房间由 `host/proxy.js` 携带配置，通过独立进程/worker 的 `syncExtensions` 同步并刷新公开状态。
+第一回合结算前显示空态；淘汰后曲线止于淘汰回合；旧记录缺失收支显示「—」；回档后废弃记录消失。
+不改变模拟、结算、golden 或官方盟约规则。
+
+专项验证：`node --test test/match/round-history.test.js test/admin.test.js`；浏览器设 `SP_E2E=1` 和
+`CHROME_PATH` 后运行 `node --test test/ui/round-history.e2e.test.js test/ui/admin-stats.e2e.test.js`。
+
+2026-10-16 验证：最终定向 65 项全部通过（`.cache-round-charts-final.log`）；共享图表键盘/开关/
+响应式浏览器用例最终通过（`.cache-round-charts-keyboard-final.log`），控制台设置回归 3 项通过
+（`.cache-round-charts-browser-verified.log`）、原有统计浏览器回归通过。golden 六组 299 场景一致
+（`.cache-round-charts-golden.log`）；四语言各 2302 条严格检查 0 缺失/错误，lint 0 错误，类型检查、
+setup/smoke 通过。收尾独立审查确认重绘后恢复键盘焦点；既有设计系统保持。
+完整 CI 首轮发现轴标题漏翻译，已修复并由最终定向覆盖；该批另有素材代理测试的 Node 版本假设、
+大厅席位 `card/cardSkin` 旧断言及超时失败，不能作为全量通过（`.cache-round-charts-ci.log`）。
+首轮结果为 8019 项、7947 通过、30 失败、1 取消、41 跳过；还包括插件试运行超时、性能阈值、
+Windows 文件锁、既有资源缓存/标题链接断言。观战隐私断言已更新为允许主机启用后公开的已结算
+金币，仍禁止当前私有字段，真实 WebSocket 回归 5 项通过（`.cache-round-charts-socket.log`）。
+发布预检仅枚举 Git 已跟踪文件，因此未提交的新模块在首轮包测试中被报为缺失；
+不改真实 Git 索引，使用预检 `paths` 纳入两份新增模块的结果见 `.cache-round-charts-package.log`。
 
 ### 验证入口
 

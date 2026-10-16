@@ -8,11 +8,14 @@ import { roomsView, catalogView, handleAction } from '../../server/admin.js';
 import { liveState, liveIntent } from '../../server/admin-live.js';
 import { getReplayConfig, setReplayConfig } from '../../server/match/replay.js';
 import { wallView } from '../../server/admin-wall.js';
+import { setRoundCharts, resetHostSettings } from '../../server/match/hostSettings.js';
 const quiet = { info() {}, warn() {}, error() {}, debug() {} };
 for (const transport of ['process', 'worker']) test(`local console preserves gameplay-plugin administration through ${transport}`, { timeout: 30000 }, async t => {
   const savedReplay = getReplayConfig();
   setReplayConfig({ enabled: true, identity: 'plugin-admin-test' });
   t.after(() => setReplayConfig(savedReplay));
+  setRoundCharts(false);
+  t.after(() => resetHostSettings());
   const f = fixture(t);
   f.put('admin-probe', { data: ['patch.json'] }, { 'patch.json': bondPatch(0.35) });
   const contents = createContentSets({ registry: f.registry, vanillaData: getData({ log: quiet }), log: quiet });
@@ -40,6 +43,11 @@ for (const transport of ['process', 'worker']) test(`local console preserves gam
   assert.equal(live.ok, true);
   assert.equal(live.room, 'TEST');
   assert.equal(live.controllable, true);
+  assert.equal(live.public.roundCharts, false, 'initial host chart setting reaches the isolated match');
+  assert.deepEqual(live.public.roundHistory, []);
+  setRoundCharts(true);
+  m.syncExtensions();
+  assert.equal((await liveState(lobby, { room: 'TEST', playerId: 'p_0' })).public.roundCharts, true, 'live host changes reach isolated matches');
   assert.deepEqual(await liveIntent(lobby, { room: 'TEST', playerId: 'p_0', matchId: 'stale', intent: { t: 'g.infoReady' } }), { error: '玩家状态或回合已变化，请等待画面刷新后重试', code: 'BAD_TARGET' });
   assert.deepEqual(await m.setSkins('p_0', {}), { ok: true });
   assert.deepEqual(await m.setBondPlan('p_0', null), { ok: true });

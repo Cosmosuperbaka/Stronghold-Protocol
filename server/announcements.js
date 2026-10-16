@@ -14,7 +14,7 @@ export class SiteAnnouncements {
     const text = normalizeAnnouncementText(value.text), { level, startAt, endAt } = value;
     if (!text || [...text].length > ANNOUNCEMENT_MAX_TEXT || Buffer.byteLength(text, 'utf8') > 4096) return { error: '公告须为 1–500 字' };
     if (!Object.hasOwn(ANNOUNCEMENT_LEVELS, level) || !Number.isFinite(startAt) || !Number.isFinite(endAt) || endAt <= startAt || endAt <= this.now()) return { error: '公告级别或起止时间无效' };
-    this.notice = { id: `${this.now()}-${++this.seq}`, text, level, startAt, endAt };
+    this.notice = { id: `${this.now()}-${++this.seq}`, text, level, startAt, endAt, ...(value.untilRemoved === true ? { untilRemoved: true } : {}) };
     this.publish(); return { ok: true };
   }
   publish() {

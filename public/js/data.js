@@ -57,6 +57,7 @@ export const DATA_FILES = Object.freeze({
   config: 'config.json',
   assets: 'assets.json',
   skins: 'skins.json',
+  'seat-art': 'seat-art.json',
   // 补位 stand-ins (DATA.md §18): the bodies the 干员持有 screen, the cards and the detail card compose (shared/standIn.js)
   backups: 'backups.json',
   // Optional art extracted from a local game client (DESIGN §13): { groups: { '<subdir>': { name: { path, w, h } } } }.

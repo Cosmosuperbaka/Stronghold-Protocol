@@ -3,7 +3,7 @@
 // an ELIMINATED player in every phase — the field of the player it follows in each battle (b.start watch: the one it last
 // watched, else the first), any field on g.watch, the 联防 spec, that player's boss field, a prep board on g.watch
 // 'n:<pid>' or of the player it follows — and the settlement; it never receives an m.private
-// (shop, hand, funds …), an m.toast or m.unitStats, is never a field's player or authority, and every intent but g.watch
+// (shop, hand, current funds …), an m.toast or m.unitStats, is never a field's player or authority, and every intent but g.watch
 // is refused (SPECTATOR). The platform half (seats, cap, host removal, reconnect): test/lobby.test.js; over sockets with
 // the real Match: test/match/lobby-integration.test.js.
 import { test } from 'node:test';
@@ -18,6 +18,8 @@ function privateKeys(v, path = '', out = []) {
   if (Array.isArray(v)) v.forEach((x, i) => privateKeys(x, `${path}[${i}]`, out));
   else if (v && typeof v === 'object') {
     for (const [k, x] of Object.entries(v)) {
+      // The host-enabled public chart intentionally shares each already-settled round's closing gold.
+      if (k === 'funds' && /^\.roundHistory\[\d+\]\.players\[\d+\]$/.test(path)) continue;
       if (PRIVATE_KEYS.has(k)) out.push(`${path}.${k}`);
       privateKeys(x, `${path}.${k}`, out);
     }
@@ -57,6 +59,8 @@ test('a spectator seat watches a whole match (各自行动, 联防, 最终攻势
   const got = frames(h, S);
   for (const x of got) assert.ok(['m.public', 'm.field', 'b.start', 'b.end', 'm.result'].includes(x.t), `${x.t} sent to a spectator`);
   assert.equal(h.allTo(S, 'm.private').length, 0, 'no private player view');
+  const history = h.lastBc('m.public').roundHistory;
+  assert.ok(history.length > 0 && history[0].players.length === m.order.length, 'spectators see every player’s settled chart');
   const starts = h.allTo(S, 'b.start');
   assert.ok(starts.length > 0);
   for (const st of starts) {

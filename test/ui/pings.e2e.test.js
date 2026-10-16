@@ -101,6 +101,24 @@ describe('field ping placement in the browser', { skip: !ENABLED && 'set SP_E2E=
       await page.mouse.click(ground.x, ground.y, { button: 'right' });
       await page.waitForFunction(() => globalThis.pingRequests.length === 2);
       assert.deepEqual(await page.evaluate(() => globalThis.pingRequests.at(-1)), { fieldId: 'n:p1', area: 'board', row: 12, col: 9, kind: 'question' });
+      const occupied = await page.evaluate(async () => {
+        const { store } = await import('/js/store.js');
+        for (const piece of store.get().match.private.board) {
+          const point = globalThis.__SP_VIEW__.tileScreen(piece.row, piece.col);
+          if (point && document.elementFromPoint(point.x, point.y)?.closest('.gm__field')) return { ...point, row: piece.row, col: piece.col };
+        }
+        return null;
+      });
+      assert.ok(occupied, 'an occupied operator tile is reachable');
+      await page.mouse.click(occupied.x, occupied.y, { button: 'right' });
+      await page.waitForFunction(() => globalThis.pingRequests.length === 3);
+      assert.deepEqual(await page.evaluate(() => globalThis.pingRequests.at(-1)), {
+        fieldId: 'n:p1', area: 'board', row: occupied.row, col: occupied.col, kind: 'question',
+      }, 'right-clicking an operator sends the selected ping');
+      assert.equal(await page.$('.dpanel'), null, 'right-click does not open operator details');
+      await page.mouse.click(occupied.x, occupied.y);
+      await page.waitForSelector('.dpanel');
+      await page.click('.dpanel__close');
       await page.click('.team__row:nth-child(3) .team__btn', { clickCount: 2 });
       await page.waitForFunction(() => !document.querySelector('.gm__ping'), { timeout: 1500 });
       const heardBefore = await page.evaluate(() => globalThis.pingSounds.length);

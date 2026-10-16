@@ -51,6 +51,15 @@ server/match/
 
 ## 1. Match flow
 
+主机房间消息（`action:chatSend`）复用既有房间聊天，不影响对局。`blockedWords` 主机配置只过滤
+新聊天文本，在历史保存和广播前替换命中词；不修改模拟、收益或既有聊天记录。接口见
+[design/network.md](design/network.md)，本机配置与测试见 [LOCAL-DEV.md](LOCAL-DEV.md)。
+
+本库局内每回合曲线复用 `history.js` 的已结算记录，通过 `m.public.roundHistory` 向所有玩家及观战者
+提供含曲线与每回合干员伤害排行字段的投影；主机 `roundCharts` 默认开启，关闭仅隐藏面板及公开历史，记录继续。
+回档和重启恢复使用既有 `history` 快照，不保留废弃时间线。详见 [LOCAL-DEV.md](LOCAL-DEV.md)
+「局内每回合曲线」。
+
 本分支主机可在终局记录打开整局回放，查看每回合实际阵容、敌人及已采纳结果；回到第 R 回合时回放显式截断 ≥ R 的废弃时间线，不进入回档快照。回放与三类清理的主机接口和限制见 [LOCAL-DEV.md](LOCAL-DEV.md) §5「整局回放与数据清理」，不改变对局流程。
 
 控制台房间计时只调整休整期：`prepOverride = null` 跟随当前主机设置，单独配置替换全局配置而不叠乘，下一次 `enterPrep` 生效，其他阶段时间不变。覆盖随休整期快照回档 / 恢复；内部测试选项 `timerScale` 保留，不由控制台设置。
@@ -1092,6 +1101,10 @@ composition does not), Shift+Enter edits and Esc collapses. Failure preserves th
 queued. The original picture-only emote wheel is retained. No battle rules or golden results change.
 
 ### 预选盟约（2026-10-16）
+
+组队海报（本库 2026-10-16）：room.card 的 charId 与可选 skinId 只保存海报展示选择，
+通过 room.state.seats 的 card/cardSkin 同步队友。组合必须存在于生成目录，清空 charId 恢复自动分配；
+独立于战斗皮肤及 BattleSpec。生成、图片安装和验证见 [LOCAL-DEV.md](LOCAL-DEV.md) §2。
 
 `room.bondPlan {bondId: string | null}` 保存浏览器宣布的核心盟约。服务端仅接受 `data/bonds.json` 中 `isCore` 的八个 ID 或 `null`，会话、房间席位和 `m.public.players[].bondPlan` 同步；重连恢复，回档保留当前偏好。等待室、策略选择和队伍栏可见。它只供沟通，不改卡池、盟约层数、战斗输入或结算；对局内更新经过 `m.guard` / `markPublic`。非核心或未知 ID 拒绝。
 

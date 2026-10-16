@@ -10,13 +10,13 @@ describe('custom alliance key form', { skip: !ENABLED }, () => {
   before(async () => {
     const { startServer } = await import('../../server/index.js');
     const puppeteer = (await import('puppeteer-core')).default;
-    server = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
+    server = await startServer({ port: 0, host: '127.0.0.1', quiet: true, recovery: false });
     base = `http://127.0.0.1:${server.port}`;
     browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox'] });
   });
   after(async () => { await browser?.close(); await server?.close(); });
 
-  for (const viewport of [{ width: 1280, height: 720 }, { width: 844, height: 390, isMobile: true, hasTouch: true, isLandscape: true }]) {
+  for (const viewport of [{ width: 1280, height: 720 }, ...[ [844, 390], [640, 360] ].map(([width, height]) => ({ width, height, isMobile: true, hasTouch: true, isLandscape: true }))]) {
     test(`create, join and reject occupied keys at ${viewport.width}px`, async () => {
       const contexts = [];
       const pageIn = async () => {
@@ -38,19 +38,25 @@ describe('custom alliance key form', { skip: !ENABLED }, () => {
       const create = '[data-testid="create-alliance"]';
       try {
         const host = await pageIn();
+        // Check before focusing/typing: browser auto-scroll must not hide an initially clipped field.
+        assert.ok(await host.$eval(input, (e) => {
+          const r = e.getBoundingClientRect();
+          return r.width > 100 && r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight
+            && document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === e;
+        }), 'key input is fully in view and its centre receives the tap');
         await host.type(input, 'AB-C');
         assert.equal(await host.$eval(input, (e) => e.value), 'AB-C');
         assert.equal(await host.$eval(create, (e) => e.disabled), true);
         await host.$eval(input, (e) => { e.value = ''; e.dispatchEvent(new Event('input', { bubbles: true })); });
-        const key = viewport.width === 1280 ? 'D1i0' : 'M1i0';
+        const key = viewport.width === 1280 ? 'D1i0' : viewport.width === 844 ? 'M1i0' : 'S1i0';
         await host.type(input, key);
         assert.equal(await host.$eval(input, (e) => e.value), key.toUpperCase());
         assert.equal(await host.$eval(create, (e) => e.disabled), false);
         const overflow = await host.evaluate(() => document.documentElement.scrollWidth - innerWidth);
         assert.ok(overflow <= 1, `horizontal overflow ${overflow}`);
         const field = await host.$eval(input, (e) => e.getBoundingClientRect().toJSON());
-        assert.ok(field.width > 100 && field.left >= 0 && field.right <= viewport.width);
-        if (viewport.width === 1280) {
+        assert.ok(field.width > 100 && field.left >= 0 && field.right <= viewport.width && field.top >= 0 && field.bottom <= viewport.height);
+        {
           const button = await host.$eval(create, (e) => e.getBoundingClientRect().toJSON());
           assert.ok(button.bottom <= viewport.height, `create button clipped at ${button.bottom}px`);
         }

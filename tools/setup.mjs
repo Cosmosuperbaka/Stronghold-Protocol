@@ -496,6 +496,14 @@ async function main() {
   }
 
   // 6. local client (optional)
+  if (opts.assets && !opts.check && fs.existsSync(path.join(ROOT, 'data/seat-art.json'))) {
+    const catalogue = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/seat-art.json'), 'utf8'));
+    const missing = Object.values(catalogue.chars || {}).some(c => c.choices.some(s => !fs.existsSync(path.join(ROOT, 'public', s.portrait))));
+    if (missing) {
+      const r = run(process.execPath, [path.join(ROOT, 'tools/install-seat-art.mjs')]);
+      add(r.ok ? 'ok' : 'warn', '组队海报', r.ok ? '已补全' : '部分下载失败，可重跑 node tools/install-seat-art.mjs');
+    }
+  }
   const local = checkLocal();
   const state = loadState();
   if (opts.local === 'no') add(local.manifest ? 'ok' : 'skip', '本地客户端美术（可选）', local.manifest ? `已提取 ${local.count} 项` : '已跳过（--no-local）');

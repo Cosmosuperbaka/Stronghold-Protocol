@@ -657,7 +657,7 @@ test('console settings: the 休整期 timer of every timed match, kept in a file
     const post = (prep) => req(a.port, '/api/settings', { method: 'POST', headers: auth, body: { prep } }).then((r) => r.json);
     assert.match((await post({ mode: 'fixed', seconds: 1 })).error, /5–3600/);
     assert.equal(fs.existsSync(file), false, 'nothing written for a bad setting');
-    assert.deepEqual(await post({ mode: 'perRound', rounds: { 2: 40, 9: '' } }), { ok: true, prep: { mode: 'perRound', rounds: { 2: 40 } }, uniteLayerGains: false });
+    assert.deepEqual(await post({ mode: 'perRound', rounds: { 2: 40, 9: '' } }), { ok: true, prep: { mode: 'perRound', rounds: { 2: 40 } }, uniteLayerGains: false, roundCharts: true });
     assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).prep, { mode: 'perRound', rounds: { 2: 40 } });
     assert.equal((await req(a.port, '/api/settings', { method: 'POST', body: { prep: { mode: 'default' } } })).status, 403, 'token required');
     assert.equal(got.uniteLayerGains, false, 'custom rule defaults off');
@@ -666,19 +666,28 @@ test('console settings: the 休整期 timer of every timed match, kept in a file
     assert.match((await postUnite('true')).error, /开或关/);
     assert.equal(fs.readFileSync(file, 'utf8'), before, 'invalid rule leaves the saved settings intact');
     assert.equal(getUniteLayerGains(), false);
-    assert.deepEqual(await postUnite(true), { ok: true, prep: { mode: 'perRound', rounds: { 2: 40 } }, uniteLayerGains: true });
+    assert.deepEqual(await postUnite(true), { ok: true, prep: { mode: 'perRound', rounds: { 2: 40 } }, uniteLayerGains: true, roundCharts: true });
     assert.equal(getUniteLayerGains(), true);
     assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).uniteLayerGains, true);
     assert.equal((await post({ mode: 'perRound', rounds: { 2: 40 } })).uniteLayerGains, true, 'timer-only saves preserve the rule');
+    assert.equal(got.roundCharts, true, 'charts default on');
+    const postCharts = (roundCharts) => req(a.port, '/api/settings', { method: 'POST', headers: auth, body: { roundCharts } }).then((r) => r.json);
+    const savedBefore = fs.readFileSync(file, 'utf8');
+    assert.match((await postCharts('false')).error, /开或关/);
+    assert.equal(fs.readFileSync(file, 'utf8'), savedBefore, 'invalid chart setting is not persisted');
+    assert.equal((await postCharts(false)).roundCharts, false);
+    assert.equal((await post({ mode: 'perRound', rounds: { 2: 40 } })).roundCharts, false, 'timer-only saves preserve charts');
     await a.close();
     resetHostSettings();
     a = await startAdmin({ lobby, port: 0, log: { info() {}, error() {} }, resultsDir, settingsFile: file });
     assert.deepEqual(getPrep(), { mode: 'perRound', rounds: { 2: 40 } }, 'read back at start');
     assert.equal(getUniteLayerGains(), true, 'custom rule survives restart');
+    assert.equal((await req(a.port, '/api/settings', { headers: { 'x-admin-token': a.token } })).json.roundCharts, false, 'chart setting survives restart');
     await a.close();
     fs.writeFileSync(file, JSON.stringify({ prep: { mode: 'default' } }));
     a = await startAdmin({ lobby, port: 0, log: { info() {}, error() {} }, resultsDir, settingsFile: file });
     assert.equal(getUniteLayerGains(), false, 'old settings files keep the official rule');
+    assert.equal((await req(a.port, '/api/settings', { headers: { 'x-admin-token': a.token } })).json.roundCharts, true, 'old settings files default to showing charts');
     await a.close();
   } finally {
     resetHostSettings();

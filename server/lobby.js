@@ -201,7 +201,7 @@ const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
  * @typedef {{ seat: number, playerId: string, name: string, isBot: boolean, ready: boolean,
  *             connected: boolean, left: boolean, loadout?: Record<string, { skill: number, module: string|null }> | null,
  *             ops?: Readonly<Record<string, { potential: number, cultivate: number }>> | null,
- *             skins?: Readonly<Record<string, string>> | null, bondPlan?: string | null,
+ *             skins?: Readonly<Record<string, string>> | null, bondPlan?: string | null, card?: string | null, cardSkin?: string | null,
  *             notOwned?: readonly string[] | null, diy?: Readonly<Record<string, DiyLoadout>> | null,
  *             content?: 'ready' | 'failed' | null, contentGen?: number, loadoutCs?: string | null, notOwnedCs?: string | null,
  *             diyCs?: string | null }} Seat
@@ -325,6 +325,7 @@ export class Room {
       textChat: true,
       seats: this.seats.map((s) => (s
         ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left, bondPlan: s.bondPlan || null,
+          card: s.card || null, cardSkin: s.cardSkin || null,
           // a room with gameplay plugins (header "Gameplay plugins"): has this player's page loaded and checked its content?
           ...(this.modded && !s.isBot ? { content: s.content || 'loading' } : {}) }
         : null)),
@@ -603,6 +604,7 @@ export class Lobby {
       case 'room.cancelReroll': return this.rerollSetup(session, msg, true);
       case 'room.loadout': return this.loadout(session, msg);
       case 'room.skins': return this.skins(session, msg);
+      case 'room.card': return this.card(session, msg);
       case 'room.bondPlan': return this.bondPlan(session, msg);
       case 'room.ownership': return this.ownership(session, msg);
       case 'room.diy': return this.diy(session, msg);
@@ -1624,6 +1626,19 @@ export class Lobby {
     return OK;
   }
 
+  /** Seat posters are cosmetic and never change battle outfits or loadouts. */
+  card(session, { charId, skinId = '' }) {
+    const all = this.safeData()['seat-art']?.chars || {};
+    const fallback = Object.values(this.safeData().chess || {}).some(c => c.charId === charId);
+    if (charId && (!Object.hasOwn(all, charId) && !fallback || skinId && !all[charId]?.choices?.some(s => s.id === skinId))) return fail(ERR.BAD_MSG);
+    if (!charId && skinId) return fail(ERR.BAD_MSG);
+    session.card = charId; session.cardSkin = skinId;
+    const room = this.roomOf(session), seat = room?.seatOf(session.playerId);
+    if (seat) { seat.card = charId; seat.cardSkin = skinId; }
+    if (room) this.broadcastState(room);
+    return OK;
+  }
+
   /** Cosmetic preferences may change during a match; they never touch its battle specification. */
   skins(session, { skins }) {
     if (!isSkinSelection(skins)) return fail(ERR.BAD_MSG);
@@ -1642,6 +1657,7 @@ export class Lobby {
       seat: idx, playerId: session.playerId, name: session.name, isBot: false, ready: false, connected: session.connected, left: false,
       loadout: session.loadout || null,
       skins: session.skins || null,
+      card: session.card || null, cardSkin: session.cardSkin || null,
       bondPlan: session.bondPlan || null,
       ops: session.ops || null,
       notOwned: session.notOwned || null,

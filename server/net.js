@@ -120,6 +120,10 @@ export class Session {
     this.loadout = null;
     /** @type {Readonly<Record<string, string>> | null} checked cosmetic choices, keyed by operator */
     this.skins = null;
+    /** @type {string | null} Room poster operator and outfit, independent of battle skins. */
+    this.card = null;
+    /** @type {string | null} */
+    this.cardSkin = null;
     /** @type {string | null} Public communication preference; never a battle rule. */
     this.bondPlan = null;
     /** @type {StateSender | null} Negotiated per socket; reconnects always start with full state. */

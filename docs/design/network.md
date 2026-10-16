@@ -2,6 +2,18 @@
 
 Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 
+本库 2026-10-16：仅本机认证控制台 `POST /api/action {room,action:'chatSend',value:text}` 可发送
+本房间主机消息，复用 `chat.message/history` 与单调递增 id，服务端固定 `playerId:'host'`、
+`role:'system'`、发送者和时间，所有房间成员（含观战者）接收；玩家没有此管理 C2S。
+主机 `GET/POST /api/settings` 的 `blockedWords` 保存至既有配置文件；普通文本、忽略大小写、
+长词优先，匹配部分替换为 `***`。新玩家消息及主机房间消息均在写入历史和广播前过滤；
+不修改旧记录、玩家名字或独立全站公告。空列表关闭，最多 100 条、每条 40 码点、JSON 总计 4096 字节。
+
+本库 2026-10-16：`m.public.roundCharts` 为主机控制的局内每回合曲线开关；`roundHistory` 只携带已结算
+回合的统计字段（玩家 id、存活、LP、金币、花费、伤害、等级、收支、可叠层盟约及干员伤害排行），玩家与观战者共享。
+逐干员排行仅含 `defId/name/dmg/kills`；不公开经济来源细目、敌人覆盖或管理日志。关闭时发送空历史数组。它由既有
+`history` 投影，随回档/恢复截断，重新开启可读到保留记录。主机保存开关后立即刷新活动对局公开状态。
+
 本机扩展（2026-10-16）：`room.bondPlan {bondId: id | null}` 仅接受数据中八个 `isCore` 盟约；保存于会话和席位，并公开为房间席位及 `m.public.players[].bondPlan`。更新使用 `m.guard` / `markPublic`，重连恢复，回档保留当前偏好，仅供沟通，不影响 BattleSpec 或任何玩法计算。测试见 `test/bond-plan.test.js`。
 
 ### Hub 传输扩展（2026-10-16）
@@ -26,6 +38,10 @@ session / seat preferences; a running match updates PlayerState and broadcasts n
 `m.public.players[].skins`. Clearing a choice omits it. Reconnect / spectators receive the same public map;
 cosmetics never enter the battle spec or battle hash. There is no remote resource-install message.
 See [SKINS.md](../SKINS.md) for the complete contract.
+
+本库组队海报（2026-10-16）：room.card 的 charId、可选 skinId 保存 session / seat 的展示偏好；
+room.state.seats 的 card/cardSkin 同步队友。charId 为空清除。服务端核对 seat-art 目录中的归属，
+不接受 URL；旧棋盘干员无皮肤选择兼容。不进入 BattleSpec、战斗皮肤或 golden。
 C→S: `hello {name, token?, version}` · `room.create {mode:'solo'|'coop', difficulty}` · `room.join {code}` · `room.leave` · `room.ready {ready}` · `room.setDifficulty {difficulty}` (host) · `room.setPlugins {plugins:[{id, settings?}]}` (host, before the match — the room's cosmetic and gameplay plugins, §8.4; un-readies the other humans like a difficulty change) · `room.setMode {modeId}` (host, before the match: an official mode of the room's type sets the difficulty, a mode the room's content set adds becomes its mode, §8.4) · `room.contentReady {cs, ok?}` (a member's page loaded and checked the room's content set — or not, `ok: false`; §8.4) · `room.setAiPicksLast {on}` (host, co-op, before the match — `ROOM_STARTED` during it, `BAD_TARGET` in a solo room; un-readies the other humans like a difficulty change; the match takes it as `opts.aiPicksLast`: humans draft before AI seats, off by default, no extra random draw) · `room.addBot` / `room.removeBot {seat}` (host) · `room.kick {seat, playerId}` (host, before the match: another human leaves the room and gets `room.closed {reason:'kicked'}`; may join again; `playerId` = the player the host confirmed, a seat that changed hands meanwhile → `BAD_TARGET`) · `room.start` (host) · `room.loadout {entries, ops?}` (§16: any time in the lobby / room and during INFO_CHECK, then `WRONG_PHASE`; heavy rate-limit bucket; the match exposes it as `m.private.loadout`; `ops` — 0.2.2 — the per-operator 潜能 / 练度 `{ [charId]: { potential?: 1–6, cultivate?: 0–3 } }` of the 干员调配 roster and the 自选 owned pool, ≤ 256, checked strictly with the entries, `m.private.ops`; absent = none set: every operator 潜能 6, 精英2 Lv.60) · `room.ownership {notOwned}` (0.2.0 补位, the 干员持有 tab: the base chess ids marked as not owned — ≤ 160 ids, kept leniently: anything but a droppable NORMAL chess is dropped; stored on the session and the seat, a match takes the seat's list when it starts and never changes it — during a match `ROOM_STARTED` 'stored for the next match'; heavy bucket; the match exposes it as `m.private.standIns`) · `room.diy {picks}` (0.2.0 自选编队: `{ [slotBaseId]: { charId, skillIndex?, uniEquipId? } | null }` for the four DIY slots — ≤ 8 entries, kept leniently: shared/protocol.js `checkDiyPicks` drops an illegal pick (an operator without a kit, another tier's prototype, a prototype off its locked skill, a module of another game mode (集成战略 / 生息演算), an owned operator's second slot, the same operator twice in a tier, an unknown slot), only malformed picks are `BAD_MSG`; stored on the session and the seat like the not-owned list, a match takes the seat's picks when it starts — during a match `ROOM_STARTED` 'stored for the next match'; heavy bucket; the match exposes them as `m.private.diy`) · `ping {c}`
 S→C: `welcome {playerId, token, name, serverNow}` · `room.state {code, hostId, mode, difficulty, aiPicksLast, seats:[{seat, playerId, name, isBot, ready, connected}|null ×4]}` · `room.closed {reason}` · `pong {c, s}` · `error {rid?, code, msg}` · `ok {rid}`
 

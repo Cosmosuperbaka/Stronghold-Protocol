@@ -556,6 +556,42 @@
 .gm__gear:hover { color: var(--mint-400); border-color: var(--mint-700); }
 .gm__metrics[aria-expanded="true"] { color: var(--mint-400); border-color: var(--mint-700); background: var(--mint-900); }
 
+/* Shared settled-round history, modeless so the battlefield keeps playing. */
+.round-history { --round-history-top: max(60px, calc(var(--sa-t, 0px) + .9rem), var(--live-bar-height, 0px));
+  position: fixed; left: max(12px, var(--sa-l, 0px)); top: var(--round-history-top);
+  z-index: 12; width: min(760px, calc(100vw - 24px - var(--sa-l, 0px) - var(--sa-r, 0px)));
+  max-height: calc(100dvh - var(--round-history-top) - 24px - var(--sa-b, 0px));
+  display: flex; flex-direction: column; color: var(--text-hi); background: var(--bg-1, #101311);
+  border: 1px solid var(--line-2); box-shadow: 0 8px 24px #0009; font: max(12px, calc(.14 * var(--t)))/1.5 var(--font-cjk); }
+.round-history__head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line-2); }
+.round-history__head h2 { margin: 0; font-size: max(16px, calc(.2 * var(--t))); }
+.round-history button, .round-history select { min-height: 36px; padding: 4px 10px; border: 1px solid var(--line-2); background: var(--bg-2, #202823); color: var(--text-hi); font: inherit; cursor: pointer; }
+.round-history button:hover, .round-history select:hover { border-color: var(--mint-500); }
+.round-history :focus-visible { outline: 2px solid var(--mint-400); outline-offset: 2px; }
+.round-history__head button { display: grid; place-items: center; width: 36px; flex: none; }
+.round-history__head .icon { width: 18px; height: 18px; }
+.round-history__body { padding: 12px 14px; overflow: auto; scrollbar-color: var(--mint-700) var(--bg-1); }
+.round-history__tabs { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 14px 0; flex: none; }
+.round-history__tabs button[aria-pressed="true"] { color: var(--mint-400); border-color: var(--mint-500); }
+.round-history__note { margin: 0; padding: 8px 14px; border-top: 1px solid var(--line-2); color: var(--text-md); flex: none; }
+.round-history .dmg-bar { display: block; height: 8px; min-width: 1px; background: var(--c); }
+.round-history .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.round-history .row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 12px; }
+.round-history label { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; }
+.round-history select { max-width: 100%; }
+.round-history .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 4px 0; }
+.round-history .legend span { overflow-wrap: anywhere; }
+.round-history .legend span::before, .round-history .tip .k { content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 5px; background: var(--c); }
+.round-history .chart-wrap { position: relative; overflow-x: auto; }
+.round-history .chart-wrap svg { display: block; width: 100%; min-width: 560px; height: auto; }
+.round-history .tip { display: none; position: absolute; pointer-events: none; padding: 8px 10px; max-width: min(280px, 100%); background: var(--bg-1, #101311); border: 1px solid var(--line-2); box-shadow: 0 4px 12px #0008; overflow-wrap: anywhere; }
+.round-history .tip b { display: block; margin-bottom: 6px; }
+.round-history .tip .v { font-variant-numeric: tabular-nums; margin-right: 10px; }
+.round-history .xscroll { overflow-x: auto; }
+.round-history table { border-collapse: collapse; min-width: 100%; font-variant-numeric: tabular-nums; }
+.round-history th, .round-history td { padding: 6px 10px; border-bottom: 1px solid var(--line-2); text-align: right; white-space: nowrap; }
+.round-history caption { color: var(--text-md); padding-bottom: 8px; }
+
 /* Local combat meter, docked above the corner's actual height (including mobile wrapped rows). */
 .combat-metrics {
   --bk-c: var(--mint-500);

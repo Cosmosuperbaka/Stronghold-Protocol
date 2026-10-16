@@ -48,8 +48,10 @@ test('console chat buttons reach players, retain drafts, and save automatic upda
   await game.waitForSelector('.chat__toggle'); await game.click('.chat__toggle');
   await consolePage.bringToFront();
   await consolePage.goto(admin.url, { waitUntil: 'domcontentloaded' });
+  await consolePage.waitForSelector('[data-open-room]'); await consolePage.click('[data-open-room]');
   await consolePage.waitForSelector(`[data-chat-panel="${code}"] summary`);
   await consolePage.click(`[data-chat-panel="${code}"] summary`);
+  await consolePage.click('[data-tab="server"]');
   await consolePage.type('#site-notice-text', '<img src=x> 主机测试公告');
   await consolePage.click('[data-site-notice="save"]');
   await game.bringToFront();
@@ -63,6 +65,7 @@ test('console chat buttons reach players, retain drafts, and save automatic upda
   await peer.request({ t: 'room.chat', clientId: 'poll', text: '刷新聊天面板' });
   await consolePage.waitForFunction(() => document.querySelector('.chat-log').textContent.includes('刷新聊天面板'));
   assert.equal(await consolePage.$eval('#site-notice-text', e => e.value), '<img src=x> 主机测试公告未发送草稿');
+  await consolePage.click('[data-tab="rooms"]');
   consolePage.on('dialog', d => d.accept());
   await consolePage.click('[data-click="chatClear"]');
   await game.waitForFunction(() => globalThis.__SP__.store.get().chat.messages.length === 0, { polling: 100 });

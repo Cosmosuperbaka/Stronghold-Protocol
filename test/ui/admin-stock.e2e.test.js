@@ -35,6 +35,8 @@ test('host stock dialog: only Yes forces equipment, No and Escape leave stock un
     page.on('request', req => { if (req.url().endsWith('/api/action')) actions.push(JSON.parse(req.postData())); });
     await page.setViewport({ width: 1280, height: 720 });
     await page.goto(admin.url, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('[data-open-room]'); await page.click('[data-open-room]');
+    await page.click('button[data-toggle]');
     const input = 'input[data-grant="item"]', dialog = 'dialog[data-stock-confirm]';
     const request = async () => {
       await page.waitForSelector(input);
@@ -66,7 +68,6 @@ test('host stock dialog: only Yes forces equipment, No and Escape leave stock un
     const owner = ps.acquireChess(m.gd.visibleChess.find(id => m.gd.tierOf(id) === 1));
     assert.ok(owner);
     await page.setViewport({ width: 1280, height: 720 });
-    await page.click('button[data-toggle]');
     const equipInput = `input[data-candidate-kind="equip"][data-equip="${owner.uid}"]`;
     await page.waitForSelector(equipInput);
     await page.click(equipInput);

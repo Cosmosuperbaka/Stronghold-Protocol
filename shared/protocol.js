@@ -436,6 +436,7 @@ export const C2S = {
   // the per-operator 潜能 / 练度 (absent = none set: every operator at 潜能 6, 精英2 Lv.60)
   'room.loadout': { entries: isLoadoutEntries, ops: isLoadoutOps, $optional: ['ops'] },
   'room.skins': { skins: isSkinSelection },
+  'room.card': { charId: v => v === '' || isId(v), skinId: v => typeof v === 'string' && v.length <= 120 && /^[A-Za-z0-9_@#+.-]*$/.test(v), $optional: ['skinId'] },
   'room.bondPlan': { bondId: (v) => v === null || isId(v) },
   // operator ownership (干员持有, 0.2.0 补位): stored per session / seat; a match takes the list its seat had when it
   // started (an out-of-match setting — during a match it is stored for the next one: ROOM_STARTED)
