@@ -5,15 +5,15 @@ import { t, tName } from '../../../shared/i18n.js';
 import { drawRoundChart, drawUnitRounds } from './roundChart.js';
 import { useLang } from './lang.js';
 
-/** A modeless shared-history panel using the console's settled-round chart and operator ranking. */
-export function RoundHistoryPanel({ history = [], players = [], onClose }) {
+/** One modeless view for live, settled and locally stored round history. */
+export function RoundHistoryPanel({ history = [], players = [], onClose, initialTab = 'chart' }) {
   const ready = useData('bonds');
   const lang = useLang();
   const snapshot = JSON.stringify([history, players.map((p) => [p.playerId, p.name])]);
   const host = useRef(null), close = useRef(null);
   const chartState = useRef({ metric: 'lp', table: false });
-  const rankState = useRef({ round: null, player: '', all: false });
-  const [tab, setTab] = useState('chart');
+  const rankState = useRef({ round: null, player: '', all: false, cumulative: false });
+  const [tab, setTab] = useState(initialTab);
   useEffect(() => {
     const previous = document.activeElement;
     close.current?.focus();
@@ -38,6 +38,7 @@ export function RoundHistoryPanel({ history = [], players = [], onClose }) {
       <button type="button" aria-pressed=${tab === 'chart'} onClick=${() => setTab('chart')}>${t('每回合曲线')}</button>
       <button type="button" aria-pressed=${tab === 'units'} onClick=${() => setTab('units')}>${t('干员伤害排行')}</button>
     </div>
+    ${history.some((h) => h.live) ? html`<p class="round-history__live" role="status">${t('当前回合实时更新，结算前仅供参考。')}</p>` : null}
     <div ref=${host} class="round-history__body"></div>
     ${tab === 'units' ? html`<p class="round-history__note">${t('伤害是实际扣掉的敌人血量（不算溢出），只算各自战场；召唤物不单列。')}</p>` : null}
   </section>`;

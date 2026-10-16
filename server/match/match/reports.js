@@ -8,6 +8,7 @@ import { ERR } from '../../../shared/constants.js';
 import { HeadlessJob, syntheticResult, validateClientResult, HARD_CAP_SECONDS } from '../fields.js';
 import { resultDigest, compactResult as compactForVerify } from '../../sim/spec.js';
 import { OK, fail } from './common.js';
+import { LIVE_DAMAGE_UNITS } from '../../../shared/battleDamage.js';
 
 export class MatchReports {
   _fieldByBattle(battleId) {
@@ -30,6 +31,7 @@ export class MatchReports {
     // (a `Number(null) === 0` here would defeat every `resolved ?? killed` fallback); a lower value is kept (the final
     // report drops never-spawned enemies from `total`, and a takeover may report a different number)
     if (Number.isInteger(msg.resolved)) p.resolved = Math.max(0, Math.min(1e5, msg.resolved));
+    if (Array.isArray(msg.damage)) p.damage = msg.damage.slice(0, 4).map((x) => ({ playerId: x.playerId, damageDealt: x.damageDealt, units: x.units.slice(0, LIVE_DAMAGE_UNITS) }));
     f.lastProgressAt = this.sched.now();
     if (f.kind === 'boss' || f.kind === 'hidden') {
       this._creditBoss(f, msg.bossDmg, msg.by);

@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { getBlockedWords, setBlockedWords, filterChatText, RoomChat } from '../server/chat.js';
+import { getBlockedWords, setBlockedWords, filterChatText, RoomChat, getChatSettings, setChatSettings, DEFAULT_CHAT_SETTINGS } from '../server/chat.js';
 import { startAdmin, loadSettings } from '../server/admin.js';
+import { mergeChat, emptyChat } from '../public/js/ui/chatStore.js';
 
 test('blocked phrases match literal text case-insensitively, longest first, with bounded validated settings', (t) => {
   t.after(() => setBlockedWords([]));
@@ -31,10 +32,16 @@ test('console persists words atomically, rejects invalid settings and preserves 
   const file = path.join(dir, 'settings.json');
   const admin = await startAdmin({ lobby: { rooms: new Map(), onMatchEnd() {}, safeData: () => ({}) },
     port: 0, settingsFile: file, resultsDir: dir, log: { info() {}, error() {} } });
-  t.after(async () => { await admin.close(); setBlockedWords([]); fs.rmSync(dir, { recursive: true, force: true }); });
+  t.after(async () => { await admin.close(); setBlockedWords([]); setChatSettings(DEFAULT_CHAT_SETTINGS); fs.rmSync(dir, { recursive: true, force: true }); });
   const api = async (body) => (await fetch(admin.url + '/api/settings', { method: body ? 'POST' : 'GET',
     headers: { 'x-admin-token': admin.token, 'content-type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) })).json();
   assert.deepEqual((await api()).blockedWords, []);
+  assert.deepEqual((await api()).chat, DEFAULT_CHAT_SETTINGS);
+  const chat = { enabled: false, cooldownMs: 3000, historyLimit: 10 };
+  assert.deepEqual((await api({ chat, liveRoundDamage: false })).chat, chat);
+  assert.equal((await api()).liveRoundDamage, false);
+  assert.ok((await api({ chat: { historyLimit: 51 } })).error);
+  assert.deepEqual(getChatSettings(), chat);
   assert.deepEqual((await api({ blockedWords: ['blocked'] })).blockedWords, ['blocked']);
   const saved = fs.readFileSync(file, 'utf8');
   assert.ok((await api({ blockedWords: 'bad' })).error);
@@ -42,8 +49,24 @@ test('console persists words atomically, rejects invalid settings and preserves 
   await api({ roundCharts: true });
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).blockedWords, ['blocked']);
   setBlockedWords([]); loadSettings(file, { error() {} });
+  assert.deepEqual(getChatSettings(), chat);
   assert.equal(filterChatText('BLOCKED'), '***');
   fs.writeFileSync(file, JSON.stringify({ prep: { mode: 'default' } }));
   loadSettings(file, { error() {} });
   assert.deepEqual(getBlockedWords(), [], 'old settings default to no blocked words');
+  assert.deepEqual(getChatSettings(), DEFAULT_CHAT_SETTINGS);
+});
+
+test('lowering chat retention trims existing history and gives clients a deletion watermark', (t) => {
+  t.after(() => setChatSettings(DEFAULT_CHAT_SETTINGS));
+  const chat = new RoomChat();
+  for (let i = 0; i < 20; i++) chat.message({ code: 'TEST' }, { playerId: 'p', name: 'P' }, String(i), i);
+  assert.deepEqual(setChatSettings({ historyLimit: 10 }), { ok: true });
+  const history = chat.history('TEST');
+  assert.equal(history.messages.length, 10);
+  assert.equal(history.clearedThrough, 10);
+  assert.equal(history.messages[0].id, 11);
+  let client = mergeChat(emptyChat('TEST'), history, true);
+  for (let i = 0; i < 10; i++) client = mergeChat(client, chat.message({ code: 'TEST' }, { playerId: 'p', name: 'P' }, 'new', 30 + i));
+  assert.equal(client.messages.length, 10, 'connected clients follow retention for each new message');
 });

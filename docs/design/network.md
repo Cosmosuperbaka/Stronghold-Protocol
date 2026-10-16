@@ -8,11 +8,19 @@ Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 主机 `GET/POST /api/settings` 的 `blockedWords` 保存至既有配置文件；普通文本、忽略大小写、
 长词优先，匹配部分替换为 `***`。新玩家消息及主机房间消息均在写入历史和广播前过滤；
 不修改旧记录、玩家名字或独立全站公告。空列表关闭，最多 100 条、每条 40 码点、JSON 总计 4096 字节。
+`chat:{enabled,cooldownMs,historyLimit}` 持久化主机交流策略，默认 true / 1000 / 50；服务端校验
+500–10000 ms 和 10–50 条。关闭玩家发言返回 `CHAT_DISABLED`，主机消息可继续发送。减少历史时
+广播已有 `chat.history.clearedThrough`，后续 `chat.message` 也携带该水位，在线客户端同步清理旧消息。
 
-本库 2026-10-16：`m.public.roundCharts` 为主机控制的局内每回合曲线开关；`roundHistory` 只携带已结算
+本库 2026-10-16：`m.public.roundCharts` 为主机控制的局内每回合曲线开关；`roundHistory` 携带已结算
 回合的统计字段（玩家 id、存活、LP、金币、花费、伤害、等级、收支、可叠层盟约及干员伤害排行），玩家与观战者共享。
 逐干员排行仅含 `defId/name/dmg/kills`；不公开经济来源细目、敌人覆盖或管理日志。关闭时发送空历史数组。它由既有
 `history` 投影，随回档/恢复截断，重新开启可读到保留记录。主机保存开关后立即刷新活动对局公开状态。
+战斗阶段追加 `live: true` 的当前回合（不写入 `history`）。现有 `b.progress` 可带 `damage`：最多 4 名
+战场玩家，每人 `{playerId, damageDealt, units:[{uid,dmg,kills}]}`，干员上限 64，数值均有界；
+服务器按 BattleSpec 解析名称并剔除未知 uid。服务器模拟读取同一计数，提前跑完的战斗按战场时钟取样。
+该进度仅展示，不参与结果采纳。终局 `m.result.roundHistory` 附已结算投影，本机统计 v3 有界保存并复用结算面板。
+主机 `liveRoundDamage` 默认 true，关闭时 `m.public.roundHistory` 只投影已结算回合；同设置同步至插件对局进程。
 
 本机扩展（2026-10-16）：`room.bondPlan {bondId: id | null}` 仅接受数据中八个 `isCore` 盟约；保存于会话和席位，并公开为房间席位及 `m.public.players[].bondPlan`。更新使用 `m.guard` / `markPublic`，重连恢复，回档保留当前偏好，仅供沟通，不影响 BattleSpec 或任何玩法计算。测试见 `test/bond-plan.test.js`。
 

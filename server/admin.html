@@ -1100,6 +1100,8 @@ async function showSettings() {
     <p class="meta" id="round-charts-help">默认开启。所有玩家与观战者可在局内查看每回合曲线与干员伤害排行；关闭后隐藏整个统计入口和面板。保存后立即对所有房间生效，重启服务器后保留。</p>
     <form id="round-charts-form" class="stats-body" onsubmit="return false">
       <label><input id="round-charts-enabled" type="checkbox" aria-describedby="round-charts-help" ${d.roundCharts !== false ? 'checked' : ''}> 在局内显示每回合统计</label>
+      <label><input id="live-round-damage" type="checkbox" ${d.liveRoundDamage !== false ? 'checked' : ''}> 显示正在进行的回合伤害</label>
+      <p class="meta">实时伤害默认开启。关闭后仅显示已结算回合，累计与结算记录继续保存；不影响玩家本机的 DPS / HPS 作战统计。</p>
       <div class="row"><button class="primary" data-round-charts-save>保存</button><button data-round-charts-reset>撤销修改</button><span class="meta" id="round-charts-saved" role="status"></span></div>
     </form></section>
     <section class="room" id="unite-settings"><h2>联防叠层</h2>
@@ -1136,6 +1138,15 @@ async function showSettings() {
 
 function arrangeSettings() {
   const host = $('#settings');
+  const chat = document.createElement('section');
+  chat.id = 'chat-policy-settings'; chat.className = 'room';
+  const policy = settingsData.chat || { enabled: true, cooldownMs: 1000, historyLimit: 50 };
+  chat.innerHTML = `<h2>房间聊天</h2><p class="meta">对所有房间立即生效。关闭文字聊天只阻止玩家发言，主机仍可发送通知；表情与标点不受影响。</p>
+    <form id="chat-policy-form" onsubmit="return false"><label><input id="chat-enabled" type="checkbox" ${policy.enabled ? 'checked' : ''}> 允许玩家发送文字消息</label>
+    <div class="row"><label>单人发言间隔 <input id="chat-cooldown" class="small" type="number" min="0.5" max="10" step="0.5" value="${policy.cooldownMs / 1000}"> 秒</label>
+    <label>聊天历史保留 <input id="chat-history-limit" class="small" type="number" min="10" max="50" step="1" value="${policy.historyLimit}"> 条</label></div>
+    <p class="meta">默认间隔 1 秒、保留 50 条。间隔可设 0.5–10 秒，历史可设 10–50 条；降低条数会立即移除更早消息，之后提高不会补回。</p>
+    <div class="row"><button type="button" class="primary" data-chat-policy-save>保存聊天设置</button><button type="button" data-chat-policy-reset>撤销修改</button><span id="chat-policy-saved" role="status"></span></div></form>`;
   const blocked = document.createElement('section');
   blocked.id = 'chat-settings'; blocked.className = 'room';
   blocked.innerHTML = `<h2>聊天屏蔽词</h2><p class="meta" id="blocked-help">每行一个词，最多 100 条，每条最多 40 字。按普通文本匹配，忽略英文大小写；命中部分替换为 ***。留空并保存可关闭过滤。对所有房间的新消息立即生效，包括主机消息；已有记录不变。</p>
@@ -1144,9 +1155,10 @@ function arrangeSettings() {
     <div class="row"><button type="button" class="primary" data-blocked-save>保存屏蔽词</button><button type="button" data-blocked-reset>撤销修改</button><span id="blocked-saved" role="status"></span></div></form>`;
   const sections = new Map([...host.children].map((el) => [el.id, el]));
   sections.set(blocked.id, blocked);
+  sections.set(chat.id, chat);
   const groups = [
     ['game', '对局设置', ['prep-settings', 'unite-settings', 'round-charts-settings']],
-    ['chat', '交流管理', ['chat-settings']],
+    ['chat', '交流管理', ['chat-policy-settings', 'chat-settings']],
     ['history', '记录与恢复', ['replay-settings', 'recovery-settings']],
     ['system', '维护与扩展', ['release-update', 'plugin-settings']],
     ['cleanup', '数据清理', ['storage-settings']],
@@ -1435,6 +1447,22 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('[data-blocked-reset]')) {
     $('#blocked-words').value = (settingsData.blockedWords || []).join('\n'); $('#blocked-saved').textContent = ''; return;
   }
+  if (e.target.closest('[data-chat-policy-reset]')) {
+    const chat = settingsData.chat;
+    $('#chat-enabled').checked = chat.enabled; $('#chat-cooldown').value = chat.cooldownMs / 1000;
+    $('#chat-history-limit').value = chat.historyLimit; $('#chat-policy-saved').textContent = ''; return;
+  }
+  const chatPolicySave = e.target.closest('[data-chat-policy-save]');
+  if (chatPolicySave) {
+    const form = $('#chat-policy-form'), controls = [...form.querySelectorAll('input,button')], status = $('#chat-policy-saved');
+    const chat = { enabled: $('#chat-enabled').checked, cooldownMs: Number($('#chat-cooldown').value) * 1000, historyLimit: Number($('#chat-history-limit').value) };
+    controls.forEach((el) => { el.disabled = true; }); status.textContent = '保存中…';
+    api('/api/settings', { chat }).catch(() => ({ error: '连接服务器失败' })).then((r) => {
+      if (r.ok) { settingsData.chat = r.chat; status.textContent = '已保存，所有房间立即生效'; }
+      else { status.textContent = '保存失败：' + r.error; say(status.textContent, true); }
+    }).finally(() => controls.forEach((el) => { el.disabled = false; }));
+    return;
+  }
   const blockedSave = e.target.closest('[data-blocked-save]');
   if (blockedSave) {
     const input = $('#blocked-words'), status = $('#blocked-saved'), reset = $('[data-blocked-reset]');
@@ -1448,6 +1476,7 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('button[data-round-charts-reset]')) {
     $('#round-charts-enabled').checked = settingsData.roundCharts !== false;
+    $('#live-round-damage').checked = settingsData.liveRoundDamage !== false;
     $('#round-charts-saved').textContent = '';
     return;
   }
@@ -1456,15 +1485,18 @@ document.addEventListener('click', (e) => {
     const input = $('#round-charts-enabled'), saved = $('#round-charts-saved');
     const reset = $('#round-charts-form [data-round-charts-reset]');
     const roundCharts = input.checked;
+    const live = $('#live-round-damage'), liveRoundDamage = live.checked;
     chartSave.disabled = input.disabled = reset.disabled = true;
+    live.disabled = true;
     saved.textContent = '保存中…';
-    api('/api/settings', { roundCharts }).catch(() => ({ error: '连接服务器失败' })).then((r) => {
+    api('/api/settings', { roundCharts, liveRoundDamage }).catch(() => ({ error: '连接服务器失败' })).then((r) => {
       if (r.ok) {
         settingsData.roundCharts = r.roundCharts;
         input.checked = r.roundCharts;
+        settingsData.liveRoundDamage = r.liveRoundDamage; live.checked = r.liveRoundDamage;
         saved.textContent = '已保存，所有房间立即生效';
       } else { saved.textContent = `保存失败：${r.error}`; say(saved.textContent, true); }
-    }).finally(() => { chartSave.disabled = input.disabled = reset.disabled = false; });
+    }).finally(() => { chartSave.disabled = input.disabled = reset.disabled = live.disabled = false; });
     return;
   }
   if (e.target.closest('button[data-unite-layers-reset]')) {

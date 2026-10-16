@@ -3,7 +3,7 @@
 import { matchView, catalogView, handleAction, resultRecord } from '../../admin.js';
 import { liveState, liveIntent } from '../../admin-live.js';
 import { wallView } from '../../admin-wall.js';
-import { setPrep, setUniteLayerGains, setRoundCharts } from '../hostSettings.js';
+import { setPrep, setUniteLayerGains, setRoundCharts, setLiveRoundDamage } from '../hostSettings.js';
 import { setReplayConfig, replayRecord } from '../replay.js';
 
 const rooms = new WeakMap();
@@ -22,6 +22,7 @@ export function syncExtensionSettings(config) {
   setPrep(config.prep);
   setUniteLayerGains(config.uniteLayerGains);
   setRoundCharts(config.roundCharts ?? true);
+  setLiveRoundDamage(config.liveRoundDamage ?? true);
   setReplayConfig(config.replay);
 }
 export function extensionAdmin(match, kind, value, config) {

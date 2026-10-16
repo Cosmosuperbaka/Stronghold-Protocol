@@ -5,7 +5,7 @@ import { StubMatch } from '../server/match/StubMatch.js';
 import { Lobby } from '../server/lobby.js';
 import { SessionRegistry } from '../server/net.js';
 import { TestClient } from './helpers/wsClient.js';
-import { cleanChatText } from '../server/chat.js';
+import { cleanChatText, setChatSettings, DEFAULT_CHAT_SETTINGS } from '../server/chat.js';
 import { validateC2S, S2C } from '../shared/protocol.js';
 
 function fixture(t) {
@@ -75,6 +75,18 @@ test('history is bounded, sent only to the joining/resyncing member and survives
   f.room.match = { phase: 'COMBAT' };
   assert.deepEqual(f.send(peer, 'battle'), { ok: true });
   f.room.match = null;
+});
+
+test('host chat policy disables player sends and applies the configured per-person cooldown', (t) => {
+  const f = fixture(t);
+  t.after(() => setChatSettings(DEFAULT_CHAT_SETTINGS));
+  setChatSettings({ enabled: false });
+  assert.equal(f.send(f.host, 'disabled').error, 'CHAT_DISABLED');
+  assert.equal(f.room.chat.messages.length, 0);
+  setChatSettings({ enabled: true, cooldownMs: 3000 });
+  assert.deepEqual(f.send(f.host, 'one'), { ok: true });
+  f.tick(); assert.equal(f.send(f.host, 'two').error, 'RATE');
+  f.tick(); f.tick(); assert.deepEqual(f.send(f.host, 'two'), { ok: true });
 });
 
 test('real WebSocket transport broadcasts chat and restores history after reconnect', async (t) => {

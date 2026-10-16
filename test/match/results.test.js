@@ -61,6 +61,7 @@ test('m.result rows: lineup, bonds, stats, roundsPassed per player, trophies (co
   assert.equal(rows.p_0.reward, Math.round(20 * 1.7 * 1.25), 'reward = base[rounds] × difficulty × mode');
   assert.equal(r.modeId, 'mode_multi_hard');
   assert.ok(Number.isFinite(r.durationMs));
+  assert.ok(Array.isArray(r.roundHistory), 'settlement carries round history for the result viewer');
   m.dispose();
 });
 

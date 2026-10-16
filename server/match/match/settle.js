@@ -89,7 +89,7 @@ export class MatchSettle {
       }
     }
     // local console: the round's LP / funds / battle record (history.js)
-    try { recordRound(this); } catch (e) { this.reportError('recordRound', e); }
+    try { recordRound(this, { uniteResult }); } catch (e) { this.reportError('recordRound', e); }
     this.fields = [];
     this.watchers.clear();
     this.markPublic();

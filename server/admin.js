@@ -34,7 +34,7 @@ import { buildNormalWave, buildBossWave } from './match/waves.js';
 import { planView, setPick, waveSource } from './match/enemyPicks.js';
 import { syntheticResult } from './match/fields.js';
 import { GameData } from './match/gamedata.js';
-import { getPrep, setPrep, normalizePrep, getUniteLayerGains, setUniteLayerGains, getRoundCharts, setRoundCharts } from './match/hostSettings.js';
+import { getPrep, setPrep, normalizePrep, getUniteLayerGains, setUniteLayerGains, getRoundCharts, setRoundCharts, getLiveRoundDamage, setLiveRoundDamage } from './match/hostSettings.js';
 import { diyCatalog, grantDiy } from './match/adminDiy.js';
 import { createReleaseUpdater } from './release-update.js';
 import { gzipSync } from 'node:zlib';
@@ -43,7 +43,7 @@ import { getReplayConfig, setReplayConfig, replayRecord, recordReplayAdmin } fro
 import { replayIdentity, saveReplay, readReplay, replayFiles, recordFiles, deleteRecordFiles, replayAdminLogs, REPLAY_ID } from './replay-store.js';
 import { liveState, liveIntent } from './admin-live.js';
 import { sendSession } from './net.js';
-import { cleanChatText, getBlockedWords, normalizeBlockedWords, setBlockedWords } from './chat.js';
+import { cleanChatText, getBlockedWords, normalizeBlockedWords, setBlockedWords, getChatSettings, normalizeChatSettings, setChatSettings, DEFAULT_CHAT_SETTINGS } from './chat.js';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const OK = { ok: true };
@@ -611,6 +611,10 @@ export function loadSettings(file, log) {
     if (u.error) log.error(`[admin] ${file}: uniteLayerGains ignored (${u.error})`);
     const c = setRoundCharts(saved.roundCharts ?? true);
     if (c.error) log.error(`[admin] ${file}: roundCharts ignored (${c.error})`);
+    const live = setLiveRoundDamage(saved.liveRoundDamage ?? true);
+    if (live.error) log.error(`[admin] ${file}: liveRoundDamage ignored (${live.error})`);
+    const chat = setChatSettings(saved.chat ?? DEFAULT_CHAT_SETTINGS);
+    if (chat.error) log.error(`[admin] ${file}: chat ignored (${chat.error})`);
     const b = setBlockedWords(saved.blockedWords ?? []);
     if (b.error) log.error(`[admin] ${file}: blockedWords ignored (${b.error})`);
   } catch (e) { log.error(`[admin] ${file} is not valid JSON, ignored`, e); }
@@ -624,6 +628,10 @@ function saveSettings(file, body) {
   if (typeof uniteLayerGains !== 'boolean') return { error: '联防叠层设置必须为开或关' };
   const roundCharts = Object.hasOwn(body, 'roundCharts') ? body.roundCharts : getRoundCharts();
   if (typeof roundCharts !== 'boolean') return { error: '局内曲线设置必须为开或关' };
+  const liveRoundDamage = Object.hasOwn(body, 'liveRoundDamage') ? body.liveRoundDamage : getLiveRoundDamage();
+  if (typeof liveRoundDamage !== 'boolean') return { error: '实时伤害设置必须为开或关' };
+  const chat = normalizeChatSettings(Object.hasOwn(body, 'chat') ? body.chat : getChatSettings());
+  if (chat.error) return chat;
   const blocked = normalizeBlockedWords(Object.hasOwn(body, 'blockedWords') ? body.blockedWords : getBlockedWords());
   if (blocked.error) return blocked;
   if (Object.hasOwn(body, 'replay') && (!body.replay || typeof body.replay !== 'object' || Array.isArray(body.replay))) return { error: '回放设置无效' };
@@ -631,14 +639,18 @@ function saveSettings(file, body) {
   if (typeof replay.enabled !== 'boolean' || replay.keep !== 50) return { error: '回放设置无效（最多保留 50 局）' };
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify({ prep: r.prep, uniteLayerGains, roundCharts, blockedWords: blocked.words, replay }, null, 2));
+  fs.writeFileSync(tmp, JSON.stringify({ prep: r.prep, uniteLayerGains, roundCharts, liveRoundDamage, chat: chat.settings, blockedWords: blocked.words, replay }, null, 2));
   fs.renameSync(tmp, file);
   setPrep(r.prep);
   setUniteLayerGains(uniteLayerGains);
   setRoundCharts(roundCharts);
+  setLiveRoundDamage(liveRoundDamage);
+  setChatSettings(chat.settings);
   setBlockedWords(blocked.words);
   setReplayConfig({ enabled: process.env.SP_REPLAY === '0' ? false : replay.enabled });
   const out = { ok: true, prep: getPrep(), uniteLayerGains: getUniteLayerGains(), roundCharts: getRoundCharts() };
+  if (Object.hasOwn(body, 'liveRoundDamage')) out.liveRoundDamage = getLiveRoundDamage();
+  if (Object.hasOwn(body, 'chat')) out.chat = getChatSettings();
   if (Object.hasOwn(body, 'blockedWords')) out.blockedWords = getBlockedWords();
   if (Object.hasOwn(body, 'replay')) out.replay = { enabled: getReplayConfig().enabled, keep: 50, forcedOff: process.env.SP_REPLAY === '0' };
   return out;
@@ -863,7 +875,7 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
       if (req.method === 'GET' && url.pathname === '/api/catalog') return send(200, await catalogView(lobby, url.searchParams.get('room')));
       if (req.method === 'GET' && url.pathname === '/api/results-summary') return send(200, summarizeResults(Object.fromEntries(url.searchParams)));
       if (req.method === 'GET' && url.pathname === '/api/results') return send(200, { records: listRecords(resultsDir) });
-      if (req.method === 'GET' && url.pathname === '/api/settings') return send(200, { prep: getPrep(), uniteLayerGains: getUniteLayerGains(), roundCharts: getRoundCharts(), blockedWords: getBlockedWords(), replay: { enabled: getReplayConfig().enabled, keep: 50, forcedOff: process.env.SP_REPLAY === '0' }, file: settingsFile, defaults: prepDefaults(lobby.safeData()) });
+      if (req.method === 'GET' && url.pathname === '/api/settings') return send(200, { prep: getPrep(), uniteLayerGains: getUniteLayerGains(), roundCharts: getRoundCharts(), liveRoundDamage: getLiveRoundDamage(), chat: getChatSettings(), blockedWords: getBlockedWords(), replay: { enabled: getReplayConfig().enabled, keep: 50, forcedOff: process.env.SP_REPLAY === '0' }, file: settingsFile, defaults: prepDefaults(lobby.safeData()) });
       if (req.method === 'POST' && url.pathname === '/api/settings') {
         const body = await readJson(req);
         if (!body) return send(400, { error: '请求格式错误' });
@@ -873,7 +885,10 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
           if (room.match) { room.match.replayDisabled = true; delete room.match.replay; }
         }
         if (r.ok) for (const room of lobby.rooms.values()) room.match?.syncExtensions?.();
-        if (r.ok && Object.hasOwn(body, 'roundCharts')) for (const room of lobby.rooms.values()) {
+        if (r.ok && Object.hasOwn(body, 'chat')) for (const room of lobby.rooms.values()) {
+          if (room.chat) lobby.broadcastRoom?.(room, room.chat.history(room.code));
+        }
+        if (r.ok && (Object.hasOwn(body, 'roundCharts') || Object.hasOwn(body, 'liveRoundDamage'))) for (const room of lobby.rooms.values()) {
           room.match?.markPublic?.();
           room.match?.flush?.(true);
         }

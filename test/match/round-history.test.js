@@ -1,10 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeMatch } from './harness.js';
-import { recordRound } from '../../server/match/history.js';
-import { resetHostSettings, setRoundCharts } from '../../server/match/hostSettings.js';
+import { recordRound, roundChartHistory } from '../../server/match/history.js';
+import { resetHostSettings, setRoundCharts, setLiveRoundDamage } from '../../server/match/hostSettings.js';
 import { capturePrep, rewindToPrep } from '../../server/match/rewind.js';
 import { pointsOf } from '../../public/js/ui/roundChart.js';
+import { battleDamage, LIVE_DAMAGE_UNITS } from '../../shared/battleDamage.js';
+import { validateC2S } from '../../shared/protocol.js';
 
 test('public round charts use settled records, exclude noStack bonds and host-only details, follow rewind and the host gate', (t) => {
   const h = makeMatch({ humans: 2, fake: true }).start().toPrep();
@@ -50,4 +52,71 @@ test('chart points stop after elimination and distinguish missing legacy economy
     { round: 3, players: [{ playerId: 'a', alive: false, income: 7 }] },
   ];
   assert.deepEqual(pointsOf(history, 'a', 'income'), [{ round: 2, v: 0 }]);
+});
+
+test('public round history appends bounded live damage for the current combat round', () => {
+  const h = makeMatch({ humans: 1, fake: true }).start().toPrep();
+  const m = h.m;
+  try {
+    recordRound(m);
+    const chessId = Object.keys(m.data.chess)[0];
+    m.round = 2; m.phase = 'COMBAT';
+    m.fields = [{ mode: 'client', players: ['p_0'], progress: { damage: [{ playerId: 'p_0', units: [{ uid: 7, dmg: 123, kills: 2 }] }] },
+      spec: { players: [{ playerId: 'p_0', units: [{ uid: 7, chessId }] }] } }];
+    const history = roundChartHistory(m, { live: true });
+    assert.equal(history.at(-1).round, 2);
+    assert.equal(history.at(-1).live, true);
+    assert.equal(history.at(-1).players[0].roundDmg, 123);
+    assert.equal(history.at(-1).players[0].units[0].kills, 2);
+    setLiveRoundDamage(false);
+    assert.equal(m.publicView().roundHistory.length, 1, 'live toggle preserves settled history');
+    setLiveRoundDamage(true);
+    assert.equal(m.publicView().roundHistory.length, 2);
+    assert.equal(m.history.length, 1, 'provisional data never enters settled history');
+    m.fields[0].progress.damage[0].units[0].dmg = 246;
+    assert.equal(roundChartHistory(m, { live: true }).at(-1).players[0].roundDmg, 246);
+    m.phase = 'PREP';
+    assert.equal(roundChartHistory(m, { live: true }).length, 1, 'a rewind/prep drops the provisional round');
+  } finally { m.dispose(); resetHostSettings(); }
+});
+
+test('live counters include summon damage in totals and bound protocol operator rows', () => {
+  const units = Array.from({ length: LIVE_DAMAGE_UNITS + 1 }, (_, i) => ({ uid: i + 1, kind: 'op', stats: { dmg: 10, kills: 1 } }));
+  units.push({ kind: 'token', uid: 999, stats: { dmg: 500, kills: 1 } });
+  const damage = battleDamage({ players: [{ playerId: 'p_0', units }], _perPlayer: { p_0: { damageDealt: 1150 } } });
+  assert.equal(damage[0].damageDealt, 1150);
+  assert.equal(damage[0].units.length, LIVE_DAMAGE_UNITS);
+  assert.ok(damage[0].units.every((u) => u.uid !== 999));
+  const frame = { t: 'b.progress', battleId: 'test', gt: 1, killed: 0, total: 1, damage };
+  assert.equal(validateC2S(frame), null);
+  assert.ok(validateC2S({ ...frame, damage: [{ ...damage[0], damageDealt: -1 }] }));
+  assert.ok(validateC2S({ ...frame, damage: [{ ...damage[0], units: [...damage[0].units, damage[0].units[0]] }] }));
+});
+
+test('headless live history follows field time and unite merges both phases exactly once', () => {
+  const h = makeMatch({ humans: 1, fake: true }).start().toPrep(), m = h.m;
+  try {
+    const chessId = Object.keys(m.data.chess)[0], name = m.gd.chess(chessId).name;
+    m.phase = 'COMBAT';
+    const sample = (dmg) => [{ playerId: 'p_0', damageDealt: dmg + 20, units: [{ uid: 7, dmg, kills: 1 }] }];
+    const field = { cc: true, mode: 'server', players: ['p_0'], startAt: m._clockNow(),
+      damageTimeline: [[0, sample(10)], [10, sample(100)]],
+      spec: { timeLimit: 60, players: [{ playerId: 'p_0', units: [{ uid: 7, chessId }] }] } };
+    m.fields = [field];
+    assert.equal(roundChartHistory(m, { live: true }).at(-1).players[0].roundDmg, 30, 'never expose precomputed final damage');
+    field.startAt -= 10000 / m.gameSpeed;
+    assert.equal(roundChartHistory(m, { live: true }).at(-1).players[0].roundDmg, 120);
+    const own = { damageDealt: 120, unitStats: [{ defId: chessId, name, dmg: 100, kills: 1 }] };
+    const unite = { perPlayer: { p_0: { damageDealt: 70, unitStats: [{ defId: chessId, name, dmg: 50, kills: 2 }] } } };
+    m.lastResults.set('p_0', own); m.phase = 'UNITE';
+    m.fields = [{ done: true, result: unite }];
+    const live = roundChartHistory(m, { live: true }).at(-1).players[0];
+    assert.equal(live.roundDmg, 190);
+    assert.equal(live.units[0].dmg, 150);
+    assert.equal(live.units[0].kills, 3);
+    m.order[0].stats.dmgDealt = 190;
+    recordRound(m, { uniteResult: unite });
+    assert.deepEqual(roundChartHistory(m).at(-1).players[0].units, live.units);
+    assert.equal(roundChartHistory(m, { live: true }).length, 1, 'settlement replaces the live round');
+  } finally { m.dispose(); }
 });

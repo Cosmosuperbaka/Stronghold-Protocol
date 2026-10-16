@@ -155,11 +155,11 @@
 //     a player seat (the seat is kept and given back on resume).
 
 import { randomBytes, randomInt } from 'node:crypto';
-import { DIFFICULTIES, ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor, CHAT_COOLDOWN_MS } from '../shared/constants.js';
+import { DIFFICULTIES, ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor } from '../shared/constants.js';
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges } from '../shared/protocol.js';
 import { encode, isDroppable, isErrCode, sendRaw, sendSession, sendSessionFrame } from './net.js';
 import { isStateKind } from '../shared/stateDelta.js';
-import { RoomChat, cleanChatText } from './chat.js';
+import { RoomChat, cleanChatText, getChatSettings } from './chat.js';
 import { getData as defaultGetData, lookup } from './data.js';
 import { Match as DefaultMatch } from './match/Match.js';
 import { KITTED_CHARS } from './sim/content/kits/index.js';
@@ -756,8 +756,10 @@ export class Lobby {
     const clean = cleanChatText(text);
     if (clean === null || typeof clientId !== 'string' || !/^[A-Za-z0-9_\-.:]{1,64}$/.test(clientId)) return fail(ERR.BAD_MSG);
     if (room.chat.seen(session, clientId)) return OK;
+    const chatSettings = getChatSettings();
+    if (!chatSettings.enabled) return fail(ERR.CHAT_DISABLED);
     const now = this.now();
-    if (now - (this.chatTimes.get(session) ?? -Infinity) < CHAT_COOLDOWN_MS || !room.chat.admit(now)) return fail(ERR.RATE);
+    if (now - (this.chatTimes.get(session) ?? -Infinity) < chatSettings.cooldownMs || !room.chat.admit(now)) return fail(ERR.RATE);
     this.chatTimes.set(session, now);
     room.chat.remember(session, clientId);
     this.broadcastRoom(room, room.chat.message(room, seat, clean, now));

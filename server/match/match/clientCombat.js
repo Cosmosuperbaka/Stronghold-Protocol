@@ -170,10 +170,11 @@ export class MatchClientCombat {
     // the former authority (still online after a timeout / an invalid result) stops reporting and keeps its view
     if (prev) this.sendTo(prev, { t: 'b.end', battleId: f.battleId, fieldId: f.fieldId, reason: 'takeover' });
     if (f.kind === 'boss' || f.kind === 'hidden') { this._bossServerRun(f); return; }
-    const job = new HeadlessJob(this._specBattle(f.spec), { onError: (e) => this.reportError(`field ${f.fieldId} step`, e), players: f.players });
+    const job = new HeadlessJob(this._specBattle(f.spec), { onError: (e) => this.reportError(`field ${f.fieldId} step`, e), players: f.players, captureDamage: true });
     f.job = job;
     f.battle = job.battle;
     f.timeline = job.timeline; // grows while the job runs (the teammates' progress UI reads it on the field clock)
+    f.damageTimeline = job.damageTimeline;
     if (f.sliceTimer) { this.cancel(f.sliceTimer); f.sliceTimer = null; }
     const complete = () => {
       if (f.job !== job || f.done) return;

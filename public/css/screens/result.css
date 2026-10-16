@@ -75,8 +75,11 @@
 .rstat { display: flex; align-items: baseline; justify-content: space-between; gap: .06rem; padding: .05rem .1rem; background: #0e1210; box-shadow: 0 0 0 1px var(--line); font-size: calc(.13 * var(--settle-text)); color: var(--text-lo); white-space: nowrap; min-width: 0; }
 .rstat b { font-size: calc(.18 * var(--settle-text)); color: #fff; }
 .rstat.is-best b { color: var(--gold); }
-.result__foot { flex: 0 0 auto; margin-top: auto; padding-top: .2rem; display: flex; }
+.result__foot { flex: 0 0 auto; margin-top: auto; padding-top: .2rem; display: flex; flex-wrap: wrap; justify-content: center; gap: .12rem; }
 .result__foot .btn { min-width: 3.4rem; }
+.settle .settle__history { position: absolute; top: max(12px, var(--sa-t, 0px)); right: max(14px, var(--sa-r, 0px)); left: auto;
+  width: auto; height: auto; min-height: 44px; max-width: calc(100% - 28px); z-index: 7; padding: 10px 14px; gap: 8px; font-size: 14px; white-space: normal; }
+.settle .settle__history .icon { width: 18px; height: 18px; flex: none; }
 
 /* (stronghold-ui package: 对局动画与结算 — appended by tools/install.mjs) */
 

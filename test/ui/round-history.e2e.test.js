@@ -76,6 +76,12 @@ test('shared round chart: live game, console, noStack filtering, settings persis
     await page.select(`${panel} select[data-k="player"]`, 'p_0');
     assert.equal(await page.$$eval(`${panel} tbody tr`, (es) => es.length), 6);
     assert.equal(await page.$eval(`${panel} tbody tr td:nth-child(4)`, (e) => e.textContent), '600');
+    await page.select(`${panel} select[data-k="round"]`, '2');
+    await page.click(`${panel} button[data-k="cumulative"]`);
+    assert.equal(await page.$eval(`${panel} tbody tr td:nth-child(4)`, (e) => e.textContent), '1,800');
+    assert.match(await page.$eval(`${panel} caption`, (e) => e.textContent), /累计至第 2 回合/);
+    await page.click(`${panel} button[data-k="cumulative"]`);
+    await page.select(`${panel} select[data-k="round"]`, '1');
     await page.click(`${panel} .round-history__tabs button:first-child`);
     await page.waitForSelector(`${panel} .chart-wrap`);
     assert.equal(await page.$eval(`${panel} select`, (e) => e.value), 'income', 'curve selection survives switching tabs');
@@ -88,6 +94,29 @@ test('shared round chart: live game, console, noStack filtering, settings persis
       assert.ok(await page.$eval(panel, (e) => { const r = e.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight; }));
       await page.screenshot({ path: path.join(OUT, `round-ranking-${name}.png`) });
     }
+    const chessId = Object.keys(m.data.chess)[0];
+    m.phase = 'COMBAT'; m.round = 3;
+    m.fields = [{ cc: true, mode: 'client', kind: 'normal', players: ['p_0'],
+      progress: { killed: 0, total: 1, damage: [{ playerId: 'p_0', damageDealt: 4321, units: [{ uid: 7, dmg: 4321, kills: 1 }] }] },
+      spec: { players: [{ playerId: 'p_0', units: [{ uid: 7, chessId }] }] } }];
+    await page.waitForFunction(() => !!document.querySelector('#round-history-panel option[value="3"]'));
+    await page.select(`${panel} select[data-k="round"]`, '3');
+    await page.waitForFunction(() => document.querySelector('#round-history-panel tbody tr td:nth-child(4)')?.textContent === '4,321');
+    assert.match(await page.$eval(`${panel} .round-history__live`, (e) => e.textContent), /实时更新/);
+    await page.focus(`${panel} button[data-k="cumulative"]`);
+    m.fields[0].progress.damage[0].units[0].dmg = 5432;
+    m.fields[0].progress.damage[0].damageDealt = 5432;
+    await page.waitForFunction(() => document.querySelector('#round-history-panel tbody tr td:nth-child(4)')?.textContent === '5,432');
+    assert.equal(await page.$eval(`${panel} button[data-k="cumulative"]`, (e) => e === document.activeElement), true, 'live updates preserve the focused toggle');
+    await page.focus(`${panel} select[data-k="round"]`);
+    const roundControl = await page.$(`${panel} select[data-k="round"]`);
+    m.fields[0].progress.damage[0].units[0].dmg = 6543;
+    await page.waitForFunction(() => document.querySelector('#round-history-panel tbody tr td:nth-child(4)')?.textContent === '6,543');
+    assert.equal(await roundControl.evaluate((el) => el.isConnected && el === document.activeElement), true, 'live updates retain the same native select node');
+    await page.select(`${panel} select[data-k="round"]`, '1');
+    assert.equal(await page.$eval(`${panel} tbody tr td:nth-child(4)`, (e) => e.textContent), '600');
+    await roundControl.dispose();
+    m.fields = []; m.phase = 'PREP'; m.round = 2;
     const settings = page;
     settings.setDefaultTimeout(10000);
     settings.on('pageerror', (e) => errors.push(e.message));
@@ -102,6 +131,11 @@ test('shared round chart: live game, console, noStack filtering, settings persis
     assert.deepEqual(await settings.$$eval('[data-part="chart"] tbody td', (es) => es.map((e) => e.textContent)), ['10', '10', '20', '20']);
     await settings.click('[data-tab="settings"]');
     await settings.waitForSelector('#round-charts-enabled');
+    await settings.click('#live-round-damage');
+    await settings.click('[data-round-charts-save]');
+    await settings.waitForFunction(() => document.querySelector('#round-charts-saved').textContent.includes('已保存'));
+    assert.equal(JSON.parse(fs.readFileSync(settingsFile, 'utf8')).liveRoundDamage, false);
+    await settings.click('#live-round-damage');
     assert.equal(await settings.$eval('#round-charts-enabled', (e) => e.checked), true);
     await settings.click('#round-charts-enabled');
     await settings.click('[data-round-charts-reset]');

@@ -12,7 +12,7 @@ import { bountySpawns, previewOf } from '../waves.js';
 import { timelineAt } from '../fields.js';
 import { bossFieldPlacement } from '../finalAssault.js';
 import { battleProgress } from '../../sim/spec.js';
-import { getRoundCharts } from '../hostSettings.js';
+import { getRoundCharts, getLiveRoundDamage } from '../hostSettings.js';
 import { roundChartHistory } from '../history.js';
 
 /** A reported capsule numerator clamped to its denominator, else null (unknown — never a fabricated 0). */
@@ -67,7 +67,7 @@ export class MatchViews {
       t: 'm.public',
       phase: this.phase,
       roundCharts: getRoundCharts(),
-      roundHistory: getRoundCharts() ? roundChartHistory(this) : [],
+      roundHistory: getRoundCharts() ? roundChartHistory(this, { live: getLiveRoundDamage() }) : [],
       round: this.round,
       lastRound: this.gd.lastRound,
       deadline: this.deadline,

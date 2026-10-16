@@ -1,6 +1,7 @@
 // C4 simulation hosts (DESIGN §32.11). The clock belongs to runner.js. Only the vanilla host has a Battle on the page.
 import { loadBrowserSim } from './simLoader.js';
 import { unitStatsEntry } from '../../../shared/protocol.js';
+import { battleDamage } from '../../../shared/battleDamage.js';
 
 /** [ASSUMED] 2 s per RPC, including construction and forceEnd (both can execute plugin hooks). */
 export const WORKER_TIMEOUT_MS = 2000;
@@ -34,7 +35,7 @@ export class InPageSimHost {
     // Lazy reads keep the vanilla runner's snapshot/event timing unchanged.
     return { get snap() { return b.snapshot(); }, get ev() { return b.drainEvents() || []; }, state: b, ticks, slices };
   }
-  progress() { return this.sim.spec.battleProgress(this.battle); }
+  progress() { return { ...this.sim.spec.battleProgress(this.battle), damage: battleDamage(this.battle) }; }
   uniteLeft() { return this.sim.spec.uniteLeft(this.battle); }
   compactResult(options) {
     const s = this.sim.spec;

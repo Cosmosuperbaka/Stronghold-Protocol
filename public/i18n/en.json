@@ -2373,5 +2373,12 @@
   "这回合没有干员伤害记录（比如没有干员上场）。": "No operator damage recorded this round (for example, no operators were deployed).",
   "统计内容": "Statistics view",
   "伤害是实际扣掉的敌人血量（不算溢出），只算各自战场；召唤物不单列。": "Damage is actual enemy HP lost (excluding overkill), in each player’s own battlefield. Summons are not listed separately.",
-  "主机消息": "Host message"
+  "主机消息": "Host message",
+  "查看每回合伤害": "View round damage",
+  "看累计": "Show cumulative",
+  "看本回合": "Show round",
+  "累计至第 {r} 回合": "Cumulative through round {r}",
+  "当前回合实时更新，结算前仅供参考。": "This round updates live. Values are provisional until settlement.",
+  "（进行中）": " (in progress)",
+  "主机已暂时关闭房间文字聊天": "The host has temporarily disabled room text chat."
 }

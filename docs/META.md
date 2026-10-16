@@ -57,6 +57,9 @@ server/match/
 
 本库局内每回合曲线复用 `history.js` 的已结算记录，通过 `m.public.roundHistory` 向所有玩家及观战者
 提供含曲线与每回合干员伤害排行字段的投影；主机 `roundCharts` 默认开启，关闭仅隐藏面板及公开历史，记录继续。
+战斗期间追加只读 `live` 回合，复用 `b.progress.damage` 和服务器战场计数，联防合并本回合两阶段伤害；
+累计排行计算到所选回合。终局通过 `m.result.roundHistory` 保存全部已结算回合，供结算页及本机对局记录复用。
+主机可单独关闭 `liveRoundDamage`（默认开启），不影响已结算记录、本机 DPS/HPS 或战斗结果。
 回档和重启恢复使用既有 `history` 快照，不保留废弃时间线。详见 [LOCAL-DEV.md](LOCAL-DEV.md)
 「局内每回合曲线」。
 

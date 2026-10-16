@@ -573,6 +573,7 @@
 .round-history__body { padding: 12px 14px; overflow: auto; scrollbar-color: var(--mint-700) var(--bg-1); }
 .round-history__tabs { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 14px 0; flex: none; }
 .round-history__tabs button[aria-pressed="true"] { color: var(--mint-400); border-color: var(--mint-500); }
+.round-history__live { flex: none; margin: 10px 14px 0; padding: 8px 10px; border: 1px solid var(--mint-800); color: var(--mint-300); background: rgba(34, 121, 98, .12); }
 .round-history__note { margin: 0; padding: 8px 14px; border-top: 1px solid var(--line-2); color: var(--text-md); flex: none; }
 .round-history .dmg-bar { display: block; height: 8px; min-width: 1px; background: var(--c); }
 .round-history .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

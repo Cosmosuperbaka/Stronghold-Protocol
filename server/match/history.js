@@ -7,8 +7,27 @@
 // finish() for an interrupted round. m.history is a MATCH_KEYS field (rewind.js): a rewind to round R's
 // prep restores the record as it was then, rounds ≥ R gone.
 
+import { battleDamage } from '../../shared/battleDamage.js';
+import { diyRecordOf } from '../../shared/diy.js';
+import { timelineAt } from './fields.js';
+import { PHASE } from '../../shared/constants.js';
+
+function mergeUnits(units) {
+  const rows = new Map();
+  for (const u of units) {
+    if (!u || u.kind === 'token' || !(u.dmg > 0 || u.kills > 0)) continue;
+    const key = u.name || u.defId;
+    if (!key) continue;
+    const row = rows.get(key) || { defId: u.defId, name: u.name || u.defId, dmg: 0, kills: 0 };
+    row.dmg += Math.max(0, Math.round(Number(u.dmg) || 0));
+    row.kills += Math.max(0, Math.trunc(Number(u.kills) || 0));
+    rows.set(key, row);
+  }
+  return [...rows.values()].sort((a, b) => b.dmg - a.dmg || b.kills - a.kills);
+}
+
 /** Append m.round's entry to m.history (a no-op when the round is already recorded). */
-export function recordRound(m, { includeBattleResults = true } = {}) {
+export function recordRound(m, { includeBattleResults = true, uniteResult = null } = {}) {
   if (!Array.isArray(m.history)) m.history = [];
   if (m.history.some((h) => h.round === m.round)) return;
   const prev = m.history[m.history.length - 1];
@@ -17,11 +36,7 @@ export function recordRound(m, { includeBattleResults = true } = {}) {
     const s = ps.stats;
     const b = before.get(ps.playerId);
     const r = includeBattleResults && m.lastResults && m.lastResults.get(ps.playerId);
-    // the own battle's units (a 联防's damage counts in the totals below, its units are not reported per unit)
-    const units = (r && Array.isArray(r.unitStats) ? r.unitStats : [])
-      .filter((u) => u && u.kind !== 'token' && u.dmg > 0)
-      .sort((x, y) => y.dmg - x.dmg)
-      .map((u) => ({ defId: u.defId, name: u.name, dmg: Math.round(u.dmg), kills: u.kills || 0 }));
+    const units = mergeUnits([...(r?.unitStats || []), ...(includeBattleResults ? uniteResult?.perPlayer?.[ps.playerId]?.unitStats || [] : [])]);
     const dmg = Math.round(s.dmgDealt);
     return {
       playerId: ps.playerId,
@@ -51,10 +66,10 @@ export function recordRound(m, { includeBattleResults = true } = {}) {
   m.history.push({ round: m.round, enemy: enemyOf(m), players });
 }
 
-/** Settled chart/ranking values only: omit economic sources, enemy overrides and host logs. */
-export function roundChartHistory(m) {
+/** Public chart/ranking projection: omit economic sources, enemy overrides and host logs. */
+export function roundChartHistory(m, { live = false } = {}) {
   const keys = ['playerId', 'alive', 'lp', 'funds', 'spent', 'dmg', 'roundDmg', 'level', 'income', 'expense'];
-  return (m.history || []).map((h) => ({
+  const out = (m.history || []).map((h) => ({
     round: h.round,
     players: h.players.map((p) => ({
       ...Object.fromEntries(keys.map((key) => [key, p[key]])),
@@ -63,6 +78,55 @@ export function roundChartHistory(m) {
         .map(({ id, name, active, layers }) => ({ id, name, active, layers })),
     })),
   }));
+  if (!live || ![PHASE.COMBAT, PHASE.UNITE, PHASE.FINAL_ASSAULT, PHASE.HIDDEN_CORE].includes(m.phase) || out.some((h) => h.round === m.round)) return out;
+  const prev = out[out.length - 1];
+  const base = new Map((prev?.players || []).map((p) => [p.playerId, p]));
+  const ownResult = (pid) => m.phase === PHASE.UNITE ? m.lastResults?.get(pid) : null;
+  const liveUnits = new Map(m.order.map((ps) => [ps.playerId, [...(ownResult(ps.playerId)?.unitStats || [])]]));
+  const liveDamage = new Map(m.order.map((ps) => [ps.playerId, Number(ownResult(ps.playerId)?.damageDealt) || 0]));
+  const addDamage = (pid, dmg, units) => {
+    const amount = Number.isFinite(dmg) ? dmg : (units || []).reduce((n, u) => n + (Number(u.dmg) || 0), 0);
+    liveDamage.set(pid, liveDamage.get(pid) + Math.min(1e13, Math.max(0, amount)));
+  };
+  for (const f of m.fields || []) {
+    if (f.done && f.result?.perPlayer) {
+      for (const [pid, p] of Object.entries(f.result.perPlayer)) if (liveUnits.has(pid)) {
+        liveUnits.get(pid).push(...(p.unitStats || []));
+        addDamage(pid, p.damageDealt, p.unitStats);
+      }
+      continue;
+    }
+    // Headless bots may already have computed their whole fight: publish only the sample at the field clock.
+    const damage = f.mode === 'server' && f.damageTimeline
+      ? timelineAt(f.damageTimeline, m._fieldElapsed(f))[1]
+      : (!f.cc || f.mode === 'server') && f.battle ? battleDamage(f.battle) : f.progress?.damage;
+    for (const p of damage || []) {
+      const rows = liveUnits.get(p.playerId);
+      if (!rows || !f.players?.includes(p.playerId)) continue;
+      addDamage(p.playerId, p.damageDealt, p.units);
+      const specPlayer = (f.spec?.players || []).find((x) => x.playerId === p.playerId);
+      const defs = new Map((specPlayer?.units || []).filter((u) => u.kind !== 'token').map((u) => {
+        const base = m.gd.chess(u.chessId);
+        const rec = u.standIn ? m.gd.standIn?.(u.chessId) : u.diy && base?.isDiy ? diyRecordOf(base, u.diy, m.gd.raw) : base;
+        return [u.uid, { defId: u.chessId, name: rec?.name || u.chessId }];
+      }));
+      if (!f.spec) for (const owner of f.battle?.players || []) if (owner.playerId === p.playerId) {
+        for (const u of owner.units || []) if (u.kind === 'op') defs.set(u.uid, { defId: u.defId, name: u.name });
+      }
+      for (const u of p.units || []) {
+        const rec = defs.get(u.uid);
+        if (rec) rows.push({ ...rec, dmg: Math.min(1e13, Math.max(0, Number(u.dmg) || 0)), kills: Math.min(1e9, Math.max(0, Number(u.kills) || 0)) });
+      }
+    }
+  }
+  out.push({ round: m.round, live: true, players: m.order.map((ps) => {
+    const old = base.get(ps.playerId);
+    const units = mergeUnits(liveUnits.get(ps.playerId) || []);
+    const roundDmg = Math.round(liveDamage.get(ps.playerId) || 0);
+    return { playerId: ps.playerId, alive: ps.alive, lp: old?.lp ?? null, funds: old?.funds ?? null, spent: old?.spent ?? null, dmg: (old?.dmg || 0) + roundDmg,
+      roundDmg, level: old?.level ?? null, income: null, expense: null, units, bonds: old?.bonds || [] };
+  }) });
+  return out;
 }
 
 /** The round's composition (the shared pick of its wave; a leader round's escorts follow it), with names. */

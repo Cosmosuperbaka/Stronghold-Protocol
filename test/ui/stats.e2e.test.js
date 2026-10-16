@@ -39,6 +39,10 @@ function seed(n = 24) {
     const win = i % 5 < 2;
     Object.assign(res, { seed: 1000 + i, difficulty: diff, modeId: `mode_${solo ? 'single' : 'multi'}_${diff.toLowerCase()}`, victory: win, reason: win ? 'victory' : 'defeat', roundsPassed: win ? 14 : 4 + (i % 8), durationMs: (8 + (i % 13)) * 60000 });
     const me = res.players.find((p) => p.playerId === 'p_0');
+    res.roundHistory = [1, 15].map((round) => ({ round, players: res.players.map((p) => ({
+      playerId: p.playerId, alive: true, dmg: round * 100, roundDmg: round * 100,
+      units: [{ defId: 'history-op', name: '历史测试干员', dmg: round * 100, kills: round }],
+    })) }));
     Object.assign(me, { bandId: BANDS[i % 7], victory: win, alive: win, roundsPassed: res.roundsPassed, title: i % 3 ? { id: `comment_${1 + (i % 6)}` } : null });
     recs.unshift(buildRecord(res, { myId: 'p_0', roomMode: solo ? 'solo' : 'coop', now: NOW - i * 0.6 * DAY }));
   }
@@ -179,6 +183,14 @@ describe('统计数据 page (real server, headless Chrome)', { skip: !ENABLED &&
     await sleep(900);
     await c.page.screenshot({ path: path.join(OUT, 'stats-replay-desktop.png') });
     assert.ok(await c.page.$('.st--replay .rcard.is-self'), 'the player\'s own card is marked 你 (the record\'s own id)');
+    await c.click('.st--replay .result__foot .btn--secondary', '查看每回合伤害');
+    await c.page.waitForSelector('#round-history-panel select[data-k="round"]');
+    assert.equal(await c.page.$eval('#round-history-panel select[data-k="round"]', (e) => e.value), '15');
+    assert.equal(await c.page.$eval('#round-history-panel tbody tr td:nth-child(4)', (e) => e.textContent), '1,500');
+    await c.page.screenshot({ path: path.join(OUT, 'stats-round-history-desktop.png') });
+    await c.page.keyboard.press('Escape');
+    await c.page.waitForFunction(() => !document.querySelector('#round-history-panel'));
+    assert.ok(await c.exists('.st--replay'), 'Escape closes only the damage panel');
     await c.page.keyboard.press('Escape');
     await c.page.waitForSelector('.st .st-tab', { timeout: 5000 });
     assert.ok(!(await c.exists('.st--replay')), 'Esc in the re-view goes back to the list');
@@ -218,6 +230,12 @@ describe('统计数据 page (real server, headless Chrome)', { skip: !ENABLED &&
     await c.page.waitForSelector('.st--replay .result', { visible: true, timeout: 20000 });
     await sleep(900);
     await c.page.screenshot({ path: path.join(OUT, 'stats-replay-phone.png') });
+    await c.click('.st--replay .result__foot .btn--secondary', '查看每回合伤害');
+    await c.page.waitForSelector('#round-history-panel select[data-k="round"]');
+    assert.equal(await c.page.$eval('#round-history-panel select[data-k="round"]', (e) => e.value), '15');
+    assert.ok(await c.page.$eval('#round-history-panel', (e) => { const r = e.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight; }));
+    await c.page.keyboard.press('Escape');
+    await c.page.waitForFunction(() => !document.querySelector('#round-history-panel'));
     await c.click('.st--replay .btn--primary', '返回统计');
     await c.page.waitForSelector('.st .st-tab', { timeout: 5000 });
     noProblems(c);
@@ -378,6 +396,7 @@ describe('统计数据: the real flows (a fast real server, headless Chrome)', {
     const c = new Client(puppeteer, srv.base, 'stats', { prefix: 'stats', w: 1600, h: 900 });
     try {
       await c.open();
+      await c.page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
       await c.enter('Doc');
       await toSoloMatch(c);
       await toPrep(c);
@@ -389,6 +408,14 @@ describe('统计数据: the real flows (a fast real server, headless Chrome)', {
       assert.equal(env.records[0].end, 'settled');
       assert.equal(env.records[0].roomMode, 'solo');
       assert.equal(env.records[0].selfId, (await c.st()).me);
+      await c.page.waitForSelector('.settle__history', { visible: true });
+      assert.ok(await c.page.$eval('.settle__history', (e) => { const r = e.getBoundingClientRect();
+        return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.top < 80 && r.height >= 44;
+      }), 'live settlement entry stays visible in the top corner');
+      await c.click('.settle__history');
+      await c.page.waitForSelector('#round-history-panel select[data-k="round"]');
+      assert.equal(await c.page.$eval('#round-history-panel select[data-k="round"]', (e) => e.value), '1');
+      await c.page.keyboard.press('Escape');
       await c.page.reload({ waitUntil: 'domcontentloaded' });
       await c.page.waitForFunction(() => !!globalThis.__SP__ && !!document.querySelector('.screen'), { timeout: 30000 });
       await c.waitFor((s) => s.result, 'the replayed settlement after a reload', 30000);

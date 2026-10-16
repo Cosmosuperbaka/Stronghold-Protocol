@@ -9,6 +9,7 @@ import { startAdmin } from '../../server/admin.js';
 import { getUniteLayerGains, resetHostSettings, setPrep } from '../../server/match/hostSettings.js';
 import { makeMatch } from '../match/harness.js';
 import { CHROME, OUT, hasChrome } from '../e2e/client.mjs';
+import { getChatSettings, setChatSettings, DEFAULT_CHAT_SETTINGS } from '../../server/chat.js';
 
 test('console room prep: follows settings, room-only modes, errors, reset and responsive controls', {
   skip: process.env.SP_E2E !== '1' || !hasChrome(), timeout: 60000,
@@ -107,6 +108,21 @@ test('console 联防 layers: save, undo, reload, failure recovery and desktop/mo
     await page.reload({ waitUntil: 'domcontentloaded' });
     await open();
     assert.equal(await checked(), true, 'reload reads the saved state');
+    assert.equal(await page.$eval('#chat-enabled', (e) => e.checked), true);
+    await page.click('#chat-enabled');
+    await page.$eval('#chat-cooldown', (e) => { e.value = '3'; });
+    await page.$eval('#chat-history-limit', (e) => { e.value = '20'; });
+    await page.click('[data-chat-policy-save]');
+    await page.waitForFunction(() => document.querySelector('#chat-policy-saved').textContent.includes('已保存'));
+    assert.deepEqual(getChatSettings(), { enabled: false, cooldownMs: 3000, historyLimit: 20 });
+    await page.reload({ waitUntil: 'domcontentloaded' }); await open();
+    assert.equal(await page.$eval('#chat-enabled', (e) => e.checked), false);
+    await page.$eval('#chat-history-limit', (e) => { e.value = '51'; });
+    await page.click('[data-chat-policy-save]');
+    await page.waitForFunction(() => document.querySelector('#chat-policy-saved').textContent.includes('保存失败'));
+    assert.equal(getChatSettings().historyLimit, 20);
+    await page.click('[data-chat-policy-reset]');
+    assert.equal(await page.$eval('#chat-history-limit', (e) => e.value), '20');
 
     await page.setRequestInterception(true);
     page.on('request', (req) => {
@@ -138,6 +154,7 @@ test('console 联防 layers: save, undo, reload, failure recovery and desktop/mo
     if (admin) await admin.close();
     if (srv) await srv.close();
     resetHostSettings();
+    setChatSettings(DEFAULT_CHAT_SETTINGS);
     rmSync(dir, { recursive: true, force: true });
   }
 });

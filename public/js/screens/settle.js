@@ -32,6 +32,7 @@ import { friendsStore, requestFriend, Glyph, THUMB, ADD_FRIEND } from '../ui/fri
 import { NameCardLayer } from '../ui/namecards.js';
 import { toast } from '../ui/toasts.js';
 import { ResultView, resultBonds } from './result.js';
+import { RoundHistoryPanel } from '../ui/roundHistory.js';
 import { t } from '../../../shared/i18n.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
@@ -583,6 +584,7 @@ export function SettleFlow({ res, pub = null, myId = null, backLabel, onBack }) 
   const rawSelf = self && Array.isArray(res?.players) ? res.players.find((x) => x && x.playerId === myId) || null : null;
   const [page, setPage] = useState(() => (!self ? 'team' : reducedMotion() ? 'self' : 'intro'));
   const [detail, setDetail] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const ctx = useMemo(() => {
     // the account's list when logged in (this match is in its outbox already), else this device's
     const { records } = currentRecords();
@@ -599,9 +601,11 @@ export function SettleFlow({ res, pub = null, myId = null, backLabel, onBack }) 
   return html`<div ref=${rootRef} class=${cx('screen', 'result', 'settle', `settle--${page}`)} data-testid="settle">
     ${page === 'intro' ? html`<${SettleIntro} players=${r.players} myId=${myId} lose=${lose} onDone=${() => setPage('self')} />` : null}
     ${page === 'self' ? html`<${SelfPage} r=${r} raw=${rawSelf} self=${self} gd=${gd} prog=${ctx.prog} seed=${res?.seed} onNext=${() => setPage('team')} />` : null}
-    ${page === 'team' ? html`<${TeamPage} r=${r} res=${res} gd=${gd} myId=${myId} at=${ctx.at} rid=${ctx.rid} backLabel=${backLabel} onBack=${onBack} onDetail=${() => setDetail(true)} />` : null}
+    ${page === 'team' ? html`<${TeamPage} r=${r} res=${res} gd=${gd} myId=${myId} at=${ctx.at} rid=${ctx.rid} backLabel=${backLabel} onBack=${onBack} onDetail=${() => { setHistoryOpen(false); setDetail(true); }} />` : null}
     ${detail ? html`<div class="settle__detail" data-testid="settle-detail">
       <${ResultView} res=${res} pub=${pub} myId=${myId} quiet=${true} backLabel=${t('返回')} onBack=${() => setDetail(false)} /></div>` : null}
+    ${page !== 'intro' && !detail && r.roundHistory.length ? html`<button type="button" class="sbtn sbtn--ghost settle__history" aria-controls="round-history-panel" aria-expanded=${historyOpen} onClick=${() => setHistoryOpen(!historyOpen)}><${Icon} name="chart" />${t('查看每回合伤害')}</button>` : null}
+    ${historyOpen ? html`<${RoundHistoryPanel} history=${r.roundHistory} players=${r.players} initialTab="units" onClose=${() => setHistoryOpen(false)} />` : null}
   </div>`;
 }
 

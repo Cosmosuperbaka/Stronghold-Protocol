@@ -134,46 +134,77 @@ export function drawRoundChart(host, history, nameOf, state, { bondRecord = () =
 
 /** Shared console ranking: one settled round, all players or one, top ten or all. */
 const pct = (x) => `${(x * 100).toFixed(x >= 0.1 ? 0 : 1)}%`;
+const unitViews = new WeakMap();
+function syncRankOptions(select, options, value) {
+  // A native select's popup belongs to this exact DOM node. Do not replace it or its options while choosing.
+  const signature = JSON.stringify(options);
+  const sync = () => {
+    if (select.dataset.options !== signature) {
+      select.innerHTML = options.map(([id, label]) => `<option value="${esc(id)}">${esc(label)}</option>`).join('');
+      select.dataset.options = signature;
+    }
+    select.value = String(value);
+  };
+  select.onblur = sync;
+  if (document.activeElement !== select) sync();
+}
 export function drawUnitRounds(host, history, nameOf, state, { name = (s) => s } = {}) {
-  const focused = host.contains(document.activeElement) ? document.activeElement : null;
-  const focusKey = focused?.dataset.k;
-  const focusButton = focused?.tagName === 'BUTTON';
-  host.textContent = '';
-  if (!history.length) { host.innerHTML = `<p class="meta">${esc(t('第一回合结算后开始记录。'))}</p>`; return; }
+  if (!history.length) { host.innerHTML = `<p class="meta">${esc(t('第一回合结算后开始记录。'))}</p>`; unitViews.delete(host); return; }
   const latest = history[history.length - 1].round;
   const h = history.find((x) => x.round === state.round) || history[history.length - 1];
   const colorOf = new Map(h.players.map((p, i) => [p.playerId, SERIES[i] || INK.label]));
   const rows = [];
-  for (const p of h.players) {
+  const source = state.cumulative ? history.filter((x) => x.round <= h.round) : [h];
+  const aggregate = new Map();
+  for (const entry of source) for (const p of entry.players) {
     if (state.player && p.playerId !== state.player) continue;
-    const units = p.units || [];
-    const sum = units.reduce((n, u) => n + u.dmg, 0);
-    for (const u of units) rows.push({ ...u, playerId: p.playerId, share: sum > 0 ? u.dmg / sum : 0 });
+    for (const u of p.units || []) {
+      const key = JSON.stringify([p.playerId, u.name || u.defId]);
+      const row = aggregate.get(key) || { ...u, playerId: p.playerId, dmg: 0, kills: 0 };
+      row.dmg += Number(u.dmg) || 0;
+      row.kills += Number(u.kills) || 0;
+      aggregate.set(key, row);
+    }
   }
+  const sums = new Map();
+  for (const row of aggregate.values()) sums.set(row.playerId, (sums.get(row.playerId) || 0) + row.dmg);
+  for (const row of aggregate.values()) rows.push({ ...row, share: sums.get(row.playerId) > 0 ? row.dmg / sums.get(row.playerId) : 0 });
   rows.sort((a, b) => b.dmg - a.dmg || b.kills - a.kills);
   const shown = state.all ? rows : rows.slice(0, 10);
   const max = rows.length ? rows[0].dmg : 0;
-  const bar = document.createElement('div');
-  bar.className = 'row';
-  bar.innerHTML = `<label>${esc(t('查看'))} <select data-k="round" aria-label="${esc(t('查看第几回合'))}">${history.map((x) => `<option value="${x.round}" ${x.round === h.round ? 'selected' : ''}>${esc(t('第 {r} 回合', { r: x.round }))}${x.round === latest ? esc(t('（最新）')) : ''}</option>`).join('')}</select></label>
-    <label>${esc(t('玩家'))} <select data-k="player" aria-label="${esc(t('只看哪个玩家'))}"><option value="">${esc(t('全部'))}</option>${h.players.map((p) => `<option value="${esc(p.playerId)}" ${p.playerId === state.player ? 'selected' : ''}>${esc(nameOf(p.playerId))}</option>`).join('')}</select></label>
-    ${rows.length > 10 ? `<button aria-pressed="${!!state.all}">${state.all ? esc(t('只看前 10')) : esc(t('看全部 {n} 个', { n: rows.length }))}</button>` : ''}
-    ${h.enemy ? `<span class="meta">${esc(t('敌人：'))}${esc(h.enemy.typeName)} · ${esc(h.enemy.special)}</span>` : ''}`;
-  bar.querySelector('[data-k="round"]').addEventListener('change', (e) => {
+  let view = unitViews.get(host);
+  if (!view || view.bar.parentNode !== host || view.labels !== t('查看第几回合')) {
+    const bar = document.createElement('div'), table = document.createElement('div');
+    bar.className = 'row'; table.className = 'xscroll';
+    bar.innerHTML = `<label>${esc(t('查看'))} <select data-k="round" aria-label="${esc(t('查看第几回合'))}"></select></label>
+      <label>${esc(t('玩家'))} <select data-k="player" aria-label="${esc(t('只看哪个玩家'))}"></select></label>
+      <button type="button" data-k="all"></button><button type="button" data-k="cumulative"></button><span class="meta" data-k="enemy"></span>`;
+    host.replaceChildren(bar, table);
+    view = { bar, table, name, labels: t('查看第几回合') }; unitViews.set(host, view);
+  }
+  const { bar, table } = view;
+  const roundSelect = bar.querySelector('[data-k="round"]'), playerSelect = bar.querySelector('[data-k="player"]');
+  const redraw = () => drawUnitRounds(host, history, nameOf, state, { name });
+  syncRankOptions(roundSelect, history.map((x) => [x.round, t('第 {r} 回合', { r: x.round }) + (x.live ? t('（进行中）') : x.round === latest ? t('（最新）') : '')]), h.round);
+  syncRankOptions(playerSelect, [['', t('全部')], ...h.players.map((p) => [p.playerId, nameOf(p.playerId)])], state.player || '');
+  roundSelect.onblur = redraw;
+  roundSelect.onchange = (e) => {
     const r = Number(e.target.value);
     state.round = r === latest ? null : r;
-    drawUnitRounds(host, history, nameOf, state, { name });
-  });
-  bar.querySelector('[data-k="player"]').addEventListener('change', (e) => { state.player = e.target.value; drawUnitRounds(host, history, nameOf, state, { name }); });
-  bar.querySelector('button')?.addEventListener('click', () => { state.all = !state.all; drawUnitRounds(host, history, nameOf, state, { name }); });
-  const table = document.createElement('div');
-  table.className = 'xscroll';
-  table.innerHTML = rows.length ? `<table><thead><tr><th scope="col" class="n">#</th><th scope="col">${esc(t('干员'))}</th><th scope="col">${esc(t('玩家'))}</th><th scope="col" class="n">${esc(t('伤害'))}</th><th scope="col" style="min-width:160px"><span class="sr-only">${esc(t('伤害条'))}</span></th><th scope="col" class="n">${esc(t('击杀'))}</th><th scope="col" class="n">${esc(t('占本人'))}</th></tr></thead>
+    redraw();
+  };
+  playerSelect.onchange = (e) => { state.player = e.target.value; redraw(); };
+  const cumulative = bar.querySelector('[data-k="cumulative"]'), allButton = bar.querySelector('[data-k="all"]');
+  cumulative.textContent = state.cumulative ? t('看本回合') : t('看累计'); cumulative.setAttribute('aria-pressed', String(!!state.cumulative));
+  cumulative.onclick = () => { state.cumulative = !state.cumulative; redraw(); };
+  allButton.hidden = rows.length <= 10;
+  allButton.textContent = state.all ? t('只看前 10') : t('看全部 {n} 个', { n: rows.length }); allButton.setAttribute('aria-pressed', String(!!state.all));
+  allButton.onclick = () => { state.all = !state.all; redraw(); };
+  const enemy = bar.querySelector('[data-k="enemy"]');
+  enemy.textContent = h.enemy ? `${t('敌人：')}${h.enemy.typeName} · ${h.enemy.special}` : '';
+  table.innerHTML = rows.length ? `<table><caption class="meta" style="text-align:left">${esc(state.cumulative ? t('累计至第 {r} 回合', { r: h.round }) : t('第 {r} 回合', { r: h.round }))}</caption><thead><tr><th scope="col" class="n">#</th><th scope="col">${esc(t('干员'))}</th><th scope="col">${esc(t('玩家'))}</th><th scope="col" class="n">${esc(t('伤害'))}</th><th scope="col" style="min-width:160px"><span class="sr-only">${esc(t('伤害条'))}</span></th><th scope="col" class="n">${esc(t('击杀'))}</th><th scope="col" class="n">${esc(t('占本人'))}</th></tr></thead>
     <tbody>${shown.map((u, i) => `<tr><td class="n">${i + 1}</td><th scope="row">${esc(name(u.name))}</th><td>${esc(nameOf(u.playerId))}</td><td class="n">${full.format(u.dmg)}</td>
       <td><span class="dmg-bar" style="--c:${colorOf.get(u.playerId)};width:${max > 0 ? Math.max(1, (u.dmg / max) * 100) : 0}%"></span></td>
       <td class="n">${u.kills}</td><td class="n">${pct(u.share)}</td></tr>`).join('')}</tbody></table>`
     : `<p class="meta">${esc(t('这回合没有干员伤害记录（比如没有干员上场）。'))}</p>`;
-  host.append(bar, table);
-  if (focusKey) bar.querySelector('[data-k="' + focusKey + '"]')?.focus();
-  else if (focusButton) bar.querySelector('button')?.focus();
 }
