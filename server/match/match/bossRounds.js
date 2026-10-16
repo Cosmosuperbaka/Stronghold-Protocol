@@ -8,6 +8,7 @@ import { groupLeaks } from '../leak-history.js';
 
 import { PHASE, GEO } from '../../../shared/constants.js';
 import { createRng, deriveSeed } from '../../sim/rng.js';
+import { creditedKillsOf } from '../../sim/spec.js';
 import { buildBossWave, bountySpawns } from '../waves.js';
 import { waveSource } from '../enemyPicks.js';
 import { pairPlayers, bossPoolHp, SharedBossPool, CreditPool, hiddenEligible, BOSS_HIT_STEPS } from '../finalAssault.js';
@@ -529,6 +530,7 @@ export class MatchBoss {
           ps.leakHistory = [{ kind: hidden ? 'hidden' : 'boss', enemies: groupLeaks(this.gd, pp.leaked), loss: null, teamLoss: Math.max(0, this.bossRoundOpeningLp - this.teamLp), teamLp: this.teamLp }];
           ps.stats.dmgDealt += Number(pp.damageDealt) || 0;
           ps.stats.kills += Number(pp.killed) || 0;
+          ps.creditedKills += creditedKillsOf(pp);
           ps.dirty(); // m.private.stats
           this._charDamageTickers(ps, pp);
         }

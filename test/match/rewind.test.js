@@ -142,14 +142,15 @@ test('自选编队 (0.2.0): the DIY stock is rewound in place, the picks stay', 
   const ps = h.m.players.get('p_0');
   const stock = ps.diyStock;
   const { diy, gd } = ps;
-  assert.deepEqual(stock.snapshot(), { chess_char_5_diy1_a: 8 });
+  // coop: tier 5 doubles the single-player 8 with the shared pool (0.3.0 #650, config.economy.coopPoolMultiplier 2)
+  assert.deepEqual(stock.snapshot(), { chess_char_5_diy1_a: 16 });
   h.drive(() => h.m.phase === PHASE.PREP && h.m.round === 3);
   const atPrep = fingerprint(h.m);
   assert.equal(stock.take('chess_char_5_diy1_a', 3), 3);
   h.drive(() => h.m.phase === PHASE.SETTLE && h.m.round === 3);
   assert.deepEqual(rewindToPrep(h.m), { ok: true, round: 3 });
   assert.equal(ps.diyStock, stock, 'the same DiyStock instance');
-  assert.deepEqual(stock.snapshot(), { chess_char_5_diy1_a: 8 });
+  assert.deepEqual(stock.snapshot(), { chess_char_5_diy1_a: 16 });
   assert.ok(ps.diy === diy && ps.gd === gd, 'picks and the player data view kept');
   assert.equal(fingerprint(h.m), atPrep);
   checkInvariants(h.m);

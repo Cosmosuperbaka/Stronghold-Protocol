@@ -2,6 +2,16 @@
 
 只记录本分支在上游之上的改动。上游自己的更新见 [CHANGELOG.md](../CHANGELOG.md)，实现细节见 [LOCAL-DEV.md](LOCAL-DEV.md)。
 
+## 2026-10-16 — v0.3.0-extended.1：合并上游 0.3.0（插件工作台、官方特效与三语配音）
+
+- 合并上游 `0.3.0`（`c24e17ee`），基础版本更新为 `0.3.0`：新增插件工作台（`/studio/`，沙箱执行与审核流程）、官方战斗特效、英 / 韩 / 本土三套配音、作战统计面板与秘术师能量条；装备库存改为可借记（#624）、合作局共享池与自选池翻倍（#650）、临时整备区改为可溢出窗口（#630），房间协议增加内容集与插件开关。
+- 保留本地扩展：主机控制台与房间 / 玩家管理、四席完整只读监控墙、重启恢复、房间聊天与拖动记忆、带名战场标点、DPS 面板、素材预载系统、战斗倍速与四项玩法扩展开关；本地 `setExtensions` 与上游 `setPlugins` / `setMode` / 内容集确认在同一房间协议中共存，恢复、回放与记录沿用原格式并兼容新字段。
+- 素材与数据：`data/assets.json` 按 0.3.0 重新生成（217 名干员含 7 名联动、174 套皮肤、132 个模组、59 件装备与英 / 韩 / 本土语音条目），`public/i18n/en.json` 补齐本地界面文案；官方 0.3.0 的配音与战斗特效素材需按 [DEPLOY §6](DEPLOY.md) 补齐后再出整合包。
+- 自选池仍为 79 名；恢复文件绑定版本与规则指纹，`v0.2.6-extended.4` 及更早的跨版本恢复不兼容，升级前请结束活动对局。
+- 与上游 0.3.0 的适配（本地侧）：DPS 面板并入上游的 `.gm__effects` 顶右列（就绪原因下移沿用），本地面板字号改读文字大小根 `--t`（DPS / 预载 / 房间玩法扩展共 29 处）；皮肤选择器与资源商店解耦（`ui/assetUrls.js` 新增纯函数 `skinAvatarUrl`，`assets.js` 的 `validSpine` 移入 `shared/skins.js`，预载面板懒加载资源商店），保持 `main.js` 静态图不含 `assets.js`；`tools/plugin.mjs test` 的 `--import` 改传 `file://` URL；`.gitattributes` 为无扩展名文本（`.dockerignore` / `Dockerfile` / `LICENSE` / `.gitignore`）补 `eol=lf`，避免 Windows 检出（`core.autocrlf=true`）逐行断言失败。
+- 本版验证：全量 `node --test --test-concurrency=4` 共 TOTALS 项（PASSED 通过、SKIPPED 跳过、FAILED 失败）；golden 六个家族一致，且关闭本地「升本补卡」时与上游 0.3.0 的 matches digest 逐字节相同（合并留痕的模拟代码与上游行为一致）；lint、imports、typecheck、真实打包预检见发布日志。
+- 本地环境说明（本机 Windows，非合并缺陷，已逐条对照）：WorkBuddy 注入的托管 Node 22 在本机 `fs.cpSync` 上原生崩溃（最小复现：任意目录递归复制即退出码 0xC0000409，Node 22.20 / 22.22 均如此，系统 Node 26 正常），故本地全量改用 Node 26 并加 `--test-reporter=tap`；`test/studio/trial.test.js` 的 `child.killed` 断言在 Windows 上不成立（先 `taskkill /F` 再 `child.kill()`，Node 不置该标志；探针确认子进程确已结束、并发槽已释放）；`test/plugins/script-review.test.js` 与 `test/studio/review.test.js` 的 1 秒探针预算少于本机加载 SES 的耗时（预算提到 3 秒即通过）；`test/ui/plugins-content.test.js` 存在上游自身的 `setImmediate` / `setTimeout` 竞态（三次一败，单跑通过）。
+
 ## 2026-10-15 — v0.2.6-extended.4：主机管理、统计、恢复与聊天拖动
 
 - 主机可向本房间或全部房间发公告、清空聊天、禁言 / 解除禁言和踢出成员；玩家端公告有独立标签和样式，清空同步到在线窗口，禁言时有明确反馈。

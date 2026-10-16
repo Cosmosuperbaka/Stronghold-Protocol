@@ -11,16 +11,18 @@
 //
 // Pure: no I/O, no browser API — unit tested in Node.
 
+import { N_ } from '../../../shared/i18n.js';
+
 /** The categories, in display order. `required` decides whether 同时预载 must be on. */
 export const CATEGORIES = Object.freeze([
-  { id: 'ui', required: true, key: '界面、图标与字体' },
-  { id: 'icon', required: true, key: '干员与敌人图片' },
-  { id: 'bgm', required: true, key: '背景音乐' },
-  { id: 'sfx', required: true, key: '音效' },
-  { id: 'voice', required: true, key: '角色语音' },
-  { id: 'spine', required: false, key: 'Spine 模型与特效' },
-  { id: 'map', required: false, key: '地图与棋盘' },
-  { id: 'guide', required: false, key: '玩法说明与其他资源' },
+  { id: 'ui', required: true, key: N_('界面、图标与字体') },
+  { id: 'icon', required: true, key: N_('干员与敌人图片') },
+  { id: 'bgm', required: true, key: N_('背景音乐') },
+  { id: 'sfx', required: true, key: N_('音效') },
+  { id: 'voice', required: true, key: N_('角色语音') },
+  { id: 'spine', required: false, key: N_('Spine 模型与特效') },
+  { id: 'map', required: false, key: N_('地图与棋盘') },
+  { id: 'guide', required: false, key: N_('玩法说明与其他资源') },
 ]);
 
 const CATEGORY_IDS = new Set(CATEGORIES.map((c) => c.id));

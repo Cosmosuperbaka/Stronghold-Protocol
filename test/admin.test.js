@@ -207,11 +207,13 @@ test('console item stock: confirmation, forced merge, occupancy, removal and rew
   assert.equal(m.itemPool.held(id), 4);
   assert.ok(ps.hand.some(p => p?.adminStockCopies === 2), 'an equipped forced twin merges with its incoming copy');
   checkInvariants(m);
-  // A forced grant still cannot exceed hand + temporary capacity.
+  // 0.3.0 (#630): the temp area is a window — overflow queues behind the visible five instead of being
+  // refused, so a forced grant never hits a capacity wall (the console's stock audit still applies).
   while (ps.hand.some(p => !p) || ps.temp.some(p => !p)) {
     if (!ps.acquireItem('chess_item_6_09_e_a', { requirePool: false })) break;
   }
-  assert.match(act({ id, force: true }).error, /都满了/);
+  assert.deepEqual(act({ id, force: true }), { ok: true });
+  checkInvariants(m);
 });
 
 test('console: bond layers (add / set) and count bonus', () => {
@@ -378,7 +380,8 @@ test('console (0.2.0): a 自选编队 piece is listed under its picked operator'
   assert.equal(h.view().pieces.find((p) => p.uid === piece.uid).name, ps.gd.chess('chess_char_5_diy1_a').name);
   assert.notEqual(ps.gd.chess('chess_char_5_diy1_a').name, m.gd.chess('chess_char_5_diy1_a').name);
   assert.deepEqual(h.act('pieceRemove', piece.uid), { ok: true });
-  assert.deepEqual(ps.diyStock.snapshot(), { chess_char_5_diy1_a: 8 }, 'its copy went back to the player\'s own stock');
+  // 0.3.0 (#650): a co-op room's 自选 stock doubles with the shared pool (a 6★ slot: 8 single-player → 16 here)
+  assert.deepEqual(ps.diyStock.snapshot(), { chess_char_5_diy1_a: 16 }, 'its copy went back to the player\'s own stock');
   checkInvariants(m);
   m.dispose();
 });

@@ -15,6 +15,15 @@
 *.json text eol=lf
 *.md   text eol=lf
 *.yml  text eol=lf
+# The extension-less configuration and legal text the tests also read line by line (.dockerignore rules, the
+# Dockerfile, LICENSE, .gitignore): LF for the same reason — a Windows checkout with core.autocrlf=true would
+# otherwise hand them CRLF and .dockerignore's per-line rules stop matching.
+.dockerignore text eol=lf
+Dockerfile    text eol=lf
+.gitignore    text eol=lf
+.gitattributes text eol=lf
+LICENSE       text eol=lf
+tools/local-extract/*.txt text eol=lf
 # binary assets
 *.png binary
 *.jpg binary

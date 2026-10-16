@@ -1,8 +1,7 @@
 import { createStore, loadPref, savePref, store } from '../store.js';
 import { data } from '../data.js';
-import { cleanSkins } from '../../../shared/skins.js';
+import { cleanSkins, validSpine } from '../../../shared/skins.js';
 import { installPrefSync } from './loadoutSync.js';
-import { validSpine } from '../assets.js';
 
 export function availableSkins(catalogue, manifest, charId) {
   return (catalogue?.chars?.[charId] || []).filter((skin) => {

@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 const read = (p) => JSON.parse(readFileSync(new URL(p, import.meta.url), 'utf8'));
 const MATCHES = read('./golden/matches.json');
 const BACKUPS = read('../data/backups.json');
+const ECONOMY = read('../data/config.json').economy;
 
 test('matches: the 自选 match\'s human seat draws its 自选 pieces in its shop and fields 推进之王 in battle', () => {
   const [id, dg] = Object.entries(MATCHES.scenarios).find(([k]) => /-coverage-diy$/.test(k)) || [];
@@ -21,12 +22,28 @@ test('matches: the 自选 match\'s human seat draws its 自选 pieces in its sho
   for (const d of draws) assert.ok(Object.hasOwn(BACKUPS.diy.slots, `chess_char_${d}`), d);
   const fielded = dg.diy.rounds.filter(([, , f]) => f).flatMap(([r, , f]) => f.split(' ').map((x) => `${r}:${x}`));
   assert.ok(fielded.some((x) => x.endsWith('5_diy1_a→char_112_siege')), `fielded: ${fielded.join(', ')}`);
+  // This fork's 玩法扩展 (升本补卡, on by default) can promote a slot piece in place — it then fields as the slot's
+  // goldenId (the elite 形态) and still fights as the slot's pick: resolve either form back to the slotted slot.
+  const slotOf = (slot) => {
+    const id = `chess_char_${slot}`;
+    if (Object.hasOwn(BACKUPS.diy.slots, id)) return id;
+    const hit = Object.entries(BACKUPS.diy.slots).find(([, s]) => s.goldenId === id);
+    return hit ? hit[0] : id;
+  };
   for (const [r, , f] of dg.diy.rounds) {
     for (const x of f ? f.split(' ') : []) {
       const [slot, charId] = x.split('→');
-      assert.equal(dg.diy.picks[`chess_char_${slot}`].charId, charId, `round ${r}: ${x} fights as its pick`);
+      const key = slotOf(slot);
+      assert.ok(Object.hasOwn(dg.diy.picks, key), `round ${r}: ${x} is a slotted slot`);
+      assert.equal(dg.diy.picks[key].charId, charId, `round ${r}: ${x} fights as its pick`);
     }
   }
-  // the stock: never above its cap (8 at tier 5, 5 at tier 6)
-  for (const [slot, left] of Object.entries(dg.diy.stock)) assert.ok(left >= 0 && left <= (BACKUPS.diy.slots[slot].tier === 5 ? 8 : 5), slot);
+  // the stock: never above its cap (8 at tier 5, 5 at tier 6 — doubled in co-op like the shared pool, GitHub #650)
+  const factor = dg.mode === 'coop' ? ECONOMY.coopPoolMultiplier : 1;
+  for (const [slot, left] of Object.entries(dg.diy.stock)) {
+    const cap = ECONOMY.poolCopies[BACKUPS.diy.slots[slot].tier] * factor;
+    assert.ok(left >= 0 && left <= cap, `${slot}: ${left} left, cap ${cap}`);
+  }
+  assert.equal(factor, 2, 'the coverage match is co-op');
+  assert.ok(Object.values(dg.diy.stock).some((left) => left > 8), 'a co-op stock above the single-player 8 (#650)');
 });

@@ -18,7 +18,6 @@ import { useState, useEffect, useMemo } from '../../vendor/hooks.module.js';
 import { html, Button, Icon, MicroLabel, Modal } from './components.js';
 import { createStore, useStore, loadPref, savePref } from '../store.js';
 import { data } from '../data.js';
-import { assets } from '../assets.js';
 import { createStore as createIdbStore } from '../preload/store.js';
 import { createPreloader, setPreloader, CONCURRENCY_OPTIONS, DEFAULT_CONCURRENCY } from '../preload/service.js';
 import { assetMirrors } from '../assetMirrors.js';
@@ -169,6 +168,9 @@ export async function installPreload() {
   preloadStore.set({ installed: true });
   service.subscribe((state) => preloadStore.set({ state, installed: true }));
 
+  // the asset store (public/js/assets.js) is a lazy import: it must stay out of main.js's static graph, so a vanilla
+  // page never downloads /data/assets.json (test/ui/plugins-client.test.js) — the preload panel needs it, and only it
+  const { assets } = await import('../assets.js');
   const plan = async () => {
     let manifest = data.get('assets') || assets.manifest || null;
     if (!manifest) {

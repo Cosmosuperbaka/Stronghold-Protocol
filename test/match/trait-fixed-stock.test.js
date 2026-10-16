@@ -46,9 +46,14 @@ for (const repeat of [1, 2, 3]) {
     assert.equal(ps.acquireItem(ISO), null, 'ordinary acquisition still requires stock');
     ps.shop.slots[1] = { kind: 'item', id: ISO, basePrice: 1, sold: false, frozen: false };
     const funds = ps.funds;
-    assert.equal(ps.buy(1).error, 'SOLD_OUT');
-    assert.equal(ps.funds, funds);
-    assert.equal(ps.shop.slots[1].sold, false);
+    // 0.3.0 (#624): a displayed card stays purchasable at zero stock — the copy is granted and the shortfall
+    // recorded as pool debt; only a slot already sold refuses with SOLD_OUT.
+    assert.deepEqual(ps.buy(1), { ok: true });
+    assert.equal(ps.funds, funds - 1);
+    assert.equal(ps.shop.slots[1].sold, true);
+    assert.equal(m.itemPool.debtOf(ISO), 1);
+    assert.equal(ps.buy(1).error, 'SOLD_OUT', 'an already-sold slot still refuses');
+    checkInvariants(m);
     assert.equal(h.logs.error.length, 0);
   });
 }

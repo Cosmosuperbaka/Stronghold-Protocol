@@ -1,4 +1,4 @@
-// DPS 面板 — a compact, COLLAPSIBLE card in the TOP-RIGHT HUD column (.gm__right,
+// DPS 面板 — a compact, COLLAPSIBLE card leading the TOP-RIGHT HUD column (.gm__effects,
 // public/css/screens/game.css) listing the operators on the viewer's OWN board with the damage each dealt THIS round
 // and its 每秒伤害 (DPS).
 //

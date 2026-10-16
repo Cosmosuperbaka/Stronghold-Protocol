@@ -2,7 +2,7 @@ import { useStore } from '../store.js';
 import { useData, data } from '../data.js';
 import { html, Icon } from './components.js';
 import { Img } from './gameComponents.js';
-import { avatarUrl } from '../assets.js';
+import { chessAvatarUrl, skinAvatarUrl } from './assetUrls.js';
 import { skinsStore, setSkin, availableSkins } from './skins.js';
 import { t } from '../../../shared/i18n.js';
 const cx = (...parts) => parts.filter(Boolean).join(' ');
@@ -25,7 +25,7 @@ export function SkinSection({ charId }) {
         return html`<button type="button" role="radio" aria-checked=${chosen === s.id ? 'true' : 'false'}
           class=${cx('lo-skin', chosen === s.id && 'is-on')} data-skin=${s.id} disabled=${!available}
           onClick=${() => setSkin(charId, s.id)}>
-          <${Img} src=${avatarUrl(m, charId, { skin: available ? s.id : null })} class="lo-skin__art" />
+          <${Img} src=${(available && s.id ? skinAvatarUrl(m, charId, s.id) : null) || chessAvatarUrl(m, { charId })} class="lo-skin__art" />
           <span class="lo-skin__text"><b>${s.name}</b><small>${available ? s.group : t('未安装')}</small></span>
           ${chosen === s.id ? html`<${Icon} name="check" />` : null}
         </button>`;

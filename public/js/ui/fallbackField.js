@@ -22,10 +22,9 @@
 import { render } from '../../vendor/preact.module.js';
 import { html, TierChip } from './components.js';
 import { GEO } from '../../../shared/constants.js';
-import { chessAvatarUrl, itemIconUrl, tokenAvatarUrl, enemyIconUrl } from './assetUrls.js';
+import { chessAvatarUrl, itemIconUrl, tokenAvatarUrl, enemyIconUrl, skinAvatarUrl } from './assetUrls.js';
 import { tileKey, hasFlag, UF, penPlacement, PEN, fieldTile, ownStandIn, ownDiyRecord } from './gameLogic.js';
 import { t } from '../../../shared/i18n.js';
-import { avatarUrl } from '../assets.js';
 import { skinForUnit, skinsStore } from './skins.js';
 import { store } from '../store.js';
 
@@ -40,7 +39,10 @@ function unitArt(m, info) {
   if (info.side === 'enemy' || String(id).startsWith('enemy_')) return enemyIconUrl(m, id);
   if (String(id).startsWith('token_')) return tokenAvatarUrl(m, id);
   const skin = skinForUnit(info);
-  if (skin) return avatarUrl(m, id, { skin });
+  if (skin) {
+    const art = skinAvatarUrl(m, id, skin);
+    if (art) return art;
+  }
   const chars = m.chars || {};
   if (chars[id]?.avatar) return chars[id].avatar;
   if (String(id).endsWith('_2') && chars[id.slice(0, -2)]) return chars[id.slice(0, -2)].avatarE2 || chars[id.slice(0, -2)].avatar;
@@ -158,7 +160,7 @@ export function createFallbackView(host, opts = {}) {
     const chess = lookup('chess', p.id);
     const si = ownSi(chess), rec = si || ownDiy(chess) || chess;
     const skin = !si && rec ? skinForUnit({ avatar: rec.assets?.avatar || rec.charId, side: 'ally' }) : null;
-    return skin ? avatarUrl(mm, rec.assets?.avatar || rec.charId, { skin }) : chessAvatarUrl(mm, rec);
+    return (skin ? skinAvatarUrl(mm, rec.assets?.avatar || rec.charId, skin) : null) || chessAvatarUrl(mm, rec);
   }
   /** 0.2.0 补位: the player's own piece of a chess it does not own is its stand-in, bench and board alike (render/app.js pieceInfo) */
   function ownSi(chess) {
@@ -526,6 +528,15 @@ export function createFallbackView(host, opts = {}) {
       return () => listeners.get(type)?.delete(fn);
     },
     off(type, fn) { listeners.get(type)?.delete(fn); },
+    /** Resolve the live DOM target, never a remembered hover or selected piece. */
+    pieceAtClientPoint(clientX, clientY) {
+      if (st.destroyed || st.mode !== 'prep' || st.camera === 'pen' || st.drag
+        || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
+      const el = document.elementFromPoint(clientX, clientY)?.closest('.ff-piece[data-uid]');
+      if (!el || !root.contains(el)) return null;
+      const uid = Number(el.dataset.uid);
+      return Number.isInteger(uid) ? uid : null;
+    },
     pieceScreenRect(uid) {
       const el = root.querySelector(`[data-uid="${Number(uid)}"]`);
       return el ? el.getBoundingClientRect() : null;

@@ -28,6 +28,25 @@ export function chessAvatarUrl(m, chess) {
 }
 
 /**
+ * The skin's own avatar for an operator (chars.<id>.skins.<skinId>.avatar), or null — callers fall back to
+ * chessAvatarUrl. Kept here, and pure, so the skin picker and the fallback board never import the asset store: a page
+ * that only offers skins stays out of public/js/assets.js's graph (test/ui/plugins-client.test.js).
+ * @param {any} m manifest
+ * @param {string} charId a charId or an asset id with the E2 suffix (`char_002_amiya_2`)
+ * @param {string} skinId a catalogue skin id (shared/skins.js isSkinId)
+ */
+export function skinAvatarUrl(m, charId, skinId) {
+  const id = str(charId);
+  const skin = str(skinId);
+  if (!id || !skin) return null;
+  // the skin catalogue is keyed by the base char (assets.js baseCharId)
+  const base = id.replace(/_(1|2)$/, '');
+  const entry = obj(obj(obj(m)?.chars)?.[base])?.skins?.[skin];
+  const avatar = str(obj(entry)?.avatar);
+  return avatar && avatar.startsWith('/assets/') ? avatar : null;
+}
+
+/**
  * Half-body portrait (180×360) for a chess record (golden → E2 portrait when present).
  * @param {any} m
  * @param {any} chess
