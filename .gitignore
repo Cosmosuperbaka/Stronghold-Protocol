@@ -114,3 +114,31 @@ desktop.ini
 .claude/
 # tools/sim-check.mjs: the corpus and its Node traces for /dev/sim-check.html
 public/dev/simcheck/data/
+
+# --- generated test, build & release output ------------------------------------------------------
+# Test coverage and compiler caches are local diagnostics, never source files.
+coverage/
+.nyc_output/
+*.tsbuildinfo
+.eslintcache
+
+# Keep release archives and checksums outside the tracked source tree. The package tool accepts
+# an external --out directory, but these guards prevent an accidental in-tree build from being
+# staged or included in a source snapshot.
+/release/
+/dist/
+/artifacts/
+/out/
+/SHA256SUMS.txt
+/SHA256SUMS.txt.sig
+*.zip
+
+# Temporary handoff notes written during local UI work; durable documentation lives under
+# docs/LOCAL-DEV.md and the release candidate notes.
+/docs/MOBILE-HUD-FIX.md
+
+# Common package-manager and crash diagnostics.
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
