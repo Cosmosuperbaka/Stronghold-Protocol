@@ -385,6 +385,12 @@ Explicit false and unmarked raw displacements face the travel direction. Normal 
 
 ### Local preferences and recovery (§28.14, §28.18–20)
 
+Settings「部署时保持视角」 (`keepDeployView`, default false, stored in `sp.pref.settings`) opts out of the temporary
+shop fold and camera zoom of deploy / reposition / equip interactions (§32.14.30). When enabled, pickup, the direction
+wheel, cancellation and equipping keep the player's current shop state and prep camera, on normal and boss boards.
+Manual shop folding / unfolding and 准备就绪 still adjust the camera. This is a local UI preference requested by the
+maintainer (2026-10-17), with no simulation or match-rule change.
+
 Settings persist `textSize` (sm/md/lg/xl; default sm), `voiceLang` (cn/jp/en/kr; default cn), `voiceNative` (the
 本土语言 switch; default false) and `voiceOverrides` (charId → cn/jp/en/kr/native; default empty). CSS text uses `--t`;
 the layout rem, camera and board geometry stay unchanged. Larger text and translated controls wrap within the settings

@@ -176,4 +176,72 @@ describe('the shop folds while deploying a piece and restores afterwards (#602)'
     assert.deepEqual(h.problems, []);
     await h.page.close();
   });
+
+  test('the keep-view setting persists and holds the engine camera through moving, facing and equipping on desktop and phone', async () => {
+    for (const viewport of [{ width: 1600, height: 900 }, { width: 844, height: 390, hasTouch: true }]) {
+      const context = await browser.createBrowserContext();
+      try {
+        const page = await context.newPage();
+        await page.setViewport(viewport);
+        const problems = [];
+        page.on('pageerror', (e) => problems.push(e.message));
+        await page.goto(`${base}/dev/game-mock.html?shot=1&phase=PREP`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await page.waitForFunction(() => globalThis.__SP_VIEW__?.raw?.stats?.().mode === 'prep', { timeout: 60000 });
+        await page.click('[data-testid="settings-btn"]');
+        const toggle = '[role="switch"][aria-label="部署时保持视角"]';
+        await page.waitForSelector(toggle);
+        assert.equal(await page.$eval(toggle, (el) => el.getAttribute('aria-checked')), 'false');
+        await page.click(toggle);
+        await page.waitForFunction(() => JSON.parse(localStorage.getItem('sp.pref.settings')).keepDeployView === true);
+        await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
+        await page.waitForFunction(() => globalThis.__SP_VIEW__?.raw?.stats?.().mode === 'prep', { timeout: 60000 });
+        await sleep(1500);
+        const cam = () => page.evaluate(() => JSON.stringify(globalThis.__SP_VIEW__.raw.debug.cam.params()));
+        const before = await cam();
+        const pieces = await page.evaluate(() => {
+          const p = globalThis.__MOCK__.S().priv;
+          return { operator: p.board.find((x) => x.kind === 'chess' && (x.items || []).length < 2), item: p.hand.find((x) => x?.kind === 'item') };
+        });
+        assert.ok(pieces.operator && pieces.item);
+        const pickup = async (piece) => {
+          const from = await page.evaluate((uid) => {
+            const r = globalThis.__SP_VIEW__.pieceScreenRect(uid);
+            return { x: r.left + r.width / 2, y: r.top + r.height * 0.7 };
+          }, piece.uid);
+          await page.mouse.move(from.x, from.y);
+          await page.mouse.down();
+          await page.mouse.move(from.x + 20, from.y, { steps: 4 });
+          await page.waitForFunction(() => globalThis.__SP_VIEW__.raw.debug.drag.dragging);
+          await sleep(400);
+          assert.equal(await cam(), before, 'pickup keeps the exact camera');
+          assert.equal(await page.$('.shopbar-tab'), null, 'the shop stays open');
+        };
+        const drop = async () => {
+          const to = await page.evaluate(({ row, col }) => globalThis.__SP_VIEW__.tileScreen(row, col), pieces.operator);
+          await page.mouse.move(to.x, to.y, { steps: 10 });
+          await page.mouse.up();
+        };
+        await pickup(pieces.operator);
+        await drop();
+        await page.waitForSelector('.fwheel__dia');
+        await sleep(400);
+        assert.equal(await cam(), before, 'the direction wheel keeps the exact camera');
+        await page.keyboard.press('Escape');
+        await page.waitForFunction(() => !document.querySelector('.fwheel'));
+        await pickup(pieces.item);
+        await drop();
+        await page.waitForFunction((uid) => globalThis.__MOCK__.S().priv.board.some((p) => p.items?.some((i) => i.uid === uid)), {}, pieces.item.uid);
+        await sleep(400);
+        assert.equal(await cam(), before, 'successful equipment installation keeps the exact camera');
+        assert.deepEqual(problems, []);
+        // The option only suppresses the automatic interaction; explicit shop folds still use their own camera.
+        await page.click('.funds__collapse');
+        await page.waitForSelector('.shopbar-tab');
+        await sleep(600);
+        assert.notEqual(await cam(), before, 'manual folding still adjusts the camera');
+      } finally {
+        await context.close();
+      }
+    }
+  });
 });

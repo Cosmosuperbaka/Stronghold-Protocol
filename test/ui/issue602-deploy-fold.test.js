@@ -16,7 +16,7 @@ import { GEO } from '../../shared/constants.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const read = (p) => readFileSync(path.join(ROOT, p), 'utf8');
 
-const { deployFoldsShop, prepCameraFor } = await import('../../public/js/ui/gameLogic.js');
+const { deployFoldsShop, prepCameraFor, sanitizeSettings, DEFAULT_SETTINGS } = await import('../../public/js/ui/gameLogic.js');
 const { hudBands } = await import('../../public/js/ui/fieldHost.js');
 const { presetCamera } = await import('../../public/js/render/projection.js');
 const { FOLD_CAMERA_MS, CAMERA_MS } = await import('../../public/js/render/app/tune.js');
@@ -46,6 +46,22 @@ describe('deployFoldsShop: the deploy interaction temporarily folds the shop', (
     assert.equal(deployFoldsShop(null), false);
   });
 
+  test('keeping the deploy view skips the temporary fold through pickup and facing; old profiles keep the zoom', () => {
+    assert.equal(DEFAULT_SETTINGS.keepDeployView, false);
+    for (const raw of [null, {}, { keepDeployView: 'true' }, { keepDeployView: 1 }]) {
+      const settings = sanitizeSettings(raw);
+      assert.equal(settings.keepDeployView, false);
+      assert.equal(deployFoldsShop({ ...own, ...settings, drag: true }), true);
+    }
+    const saved = JSON.parse(JSON.stringify(sanitizeSettings({ keepDeployView: true })));
+    const settings = sanitizeSettings(saved);
+    assert.equal(settings.keepDeployView, true, 'the choice survives a save / reload');
+    for (const interaction of [{ drag: true }, { facing: true }, { drag: true, facing: true }]) {
+      assert.equal(deployFoldsShop({ ...own, ...settings, ...interaction }), false);
+    }
+    assert.equal(deployFoldsShop({ ...own, ...sanitizeSettings({ keepDeployView: false }), drag: true }), true);
+  });
+
   test('the zoom it causes is exactly issue #5\'s folded-shop camera, on the boss prep half too', () => {
     const pl = (id, seat) => ({ playerId: id, seat, alive: true });
     const pub = { round: 6, bossRound: 14, hiddenRound: 15, players: [pl('a', 0), pl('b', 1)] };
@@ -61,7 +77,7 @@ describe('game.js wiring', () => {
   const game = read('public/js/screens/game.js');
 
   test('deployFold is derived from the interaction state on the own editable prep board, never written into `collapsed`', () => {
-    assert.match(game, /const deployFold = deployFoldsShop\(\{\n\s+ownPrep: !!view && viewModeRef\.current === 'prep' && showPrep, editable, pen, drag: !!drag, facing: !!facing,\n\s+\}\);/);
+    assert.match(game, /const deployFold = deployFoldsShop\(\{\n\s+ownPrep: !!view && viewModeRef\.current === 'prep' && showPrep, editable, pen, drag: !!drag, facing: !!facing,\n\s+keepDeployView: settings\.keepDeployView,\n\s+\}\);/);
     // the player's own state feeds the camera state only ORed with the temporary fold (pen behavior untouched)
     assert.match(game, /const shopFolded = showShop && \(pen \? penRef\.current\.collapsed : \(collapsed \|\| deployFold\)\);/);
     assert.match(game, /const barCollapsed = collapsed \|\| deployFold;/);
