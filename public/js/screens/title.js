@@ -10,9 +10,12 @@
 // entry/loading illustration names) it is layered under the CSS art; otherwise the screen is
 // pure CSS/SVG (radar, ridgelines, glow), so it never issues a request that can 404.
 //
-// The full art, under the login box: 下载完整素材 (ui/assetDownload.js — its dialog downloads from this server) and
-// 导入素材包 (ui/assetImport.js — the player's own folder or zip, no server download) side by side, so an import never
-// opens the download (docs/history/0.3.0.md §32.14.39).
+// The full art, under the login box: 下载完整素材 and 导入素材包 used to sit here side by side
+// (docs/history/0.3.0.md §32.14.39). our-extended removed the row (v0.3.0-extended.4): the preload system
+// (ui/preload.js PreloadWidget) supersedes it — it downloads through the asset mirrors into a persistent
+// IndexedDB store, keeps running in the background and resumes across reloads, while the official row only
+// warmed the browser's HTTP cache and paused the moment its dialog closed. The service modules
+// (js/assetDownload.js, js/assetPack.js) stay: their unit tests still cover them and a future restore is cheap.
 //
 // Plugins (DESIGN §32 P1a, the design study's §7.4): when the server has unofficial plugins (content.plugins of /healthz or
 // welcome — content.js installedCount), the footer says 「本服务器安装了 N 个插件」 — a button that loads the list
@@ -20,8 +23,6 @@
 // the page never asks for its catalogue — and the title page loads none of the panel's code.
 
 import { ResumeMatchButton } from '../ui/resumeMatch.js';
-import { AssetDownloadButton } from '../ui/assetDownload.js';
-import { AssetImportButton } from '../ui/assetImport.js';
 import { useEffect, useMemo, useState } from '../../vendor/hooks.module.js';
 import { NAME_MAX_LEN, APP_VERSION, DEV_BUILD } from '../../../shared/constants.js';
 import { html, Button, Icon, MicroLabel, TextField, PingPill } from '../ui/components.js';
@@ -266,10 +267,6 @@ export function TitleScreen() {
             onClick=${() => setSettingsOpen(true)}><${GIcon} name="gear" /></button>
           <${FullscreenButton} class="title-fs" />
         </div>
-      </div>
-      <div class="title-assets">
-        <${AssetDownloadButton} />
-        <${AssetImportButton} />
       </div>
     </main>
 

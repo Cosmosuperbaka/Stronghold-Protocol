@@ -2,6 +2,12 @@
 
 只记录本分支在上游之上的改动。上游自己的更新见 [CHANGELOG.md](../CHANGELOG.md)，实现细节见 [LOCAL-DEV.md](LOCAL-DEV.md)。
 
+## 2026-10-16 — v0.3.0-extended.4：标题页移除官方素材下载行，由预载系统替代
+
+- 上游 0.3.0 在标题页登录框下方并排新增「下载完整素材 / 导入素材包」两个按钮（docs/history/0.3.0.md §32.14.39）。与本扩展移植的**素材预载系统**（右下角预载 Widget + 资源管理）功能重叠：官方下载只写浏览器 HTTP 缓存——关闭对话框即暂停、缓存可被浏览器清理、无断点续传、不走素材镜像；预载系统则是 IndexedDB 持久化（续传 / 增量 / 30 天过期）+ weishucdn / R2 双镜像 + 并发可调 + 后台持续下载，全面占优。导入素材包虽是独立功能（读玩家本地素材包），但预载走镜像下载不占服务器流量，其价值已基本被覆盖。
+- 改动：`public/js/screens/title.js` 移除 `.title-assets` 行与两个按钮引用；`public/css/screens/title.css` 移除对应布局块（对话框样式保留，跟随组件）；删除依赖这两个按钮的 E2E 用例 `test/ui/asset-download.browser.test.js`、`test/ui/asset-import.browser.test.js`；服务层模块（`js/assetDownload.js`、`js/assetPack.js`、`ui/assetDownload.js`、`ui/assetImport.js`）保留，单元测试照常覆盖，日后需要恢复时成本很低。
+- 验证：`test/ui/asset-download.test.js` 与 `test/ui/asset-import.test.js`（服务层）全过；`test/local-docs-version.test.js` 全过；线上 Playwright 复核标题页不再渲染素材行、预载 Widget 正常。
+
 ## 2026-10-16 — v0.3.0-extended.3：站点 CSP 放行素材镜像，修复预载新增资源全部下载失败
 
 - 问题：上游 0.3.0 给站点加了 CSP（`server/http/csp.js`，DESIGN §32.11），`connect-src` / `img-src` / `style-src` / `font-src` 全部只含 `'self'`，而扩展版的素材镜像体系依赖跨域镜像主机——`public/js/assetMirrors.js` 的预载取数、严格 fetch 与 `<img>` 回退直接请求镜像，侧车还会把 `/assets/**` 与 `/fonts/fonts.css` 302 到镜像 CDN。0.2.6 时代没有 CSP 所以一直可用；0.3.0 切换后浏览器把这些请求连同 302 重定向目标一并拦截：镜像加速整体失效，预载的新增资源（0.3.0 的英 / 韩配音、战斗特效等）回落主站后 302 目标同样被拦，等于 100% 下载失败；统计页官方字体样式（同源 302 到 CDN）也被静默拦截。
