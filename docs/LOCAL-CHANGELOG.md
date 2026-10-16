@@ -2,6 +2,13 @@
 
 只记录本分支在上游之上的改动。上游自己的更新见 [CHANGELOG.md](../CHANGELOG.md)，实现细节见 [LOCAL-DEV.md](LOCAL-DEV.md)。
 
+## 2026-10-16 — v0.3.0-extended.3：站点 CSP 放行素材镜像，修复预载新增资源全部下载失败
+
+- 问题：上游 0.3.0 给站点加了 CSP（`server/http/csp.js`，DESIGN §32.11），`connect-src` / `img-src` / `style-src` / `font-src` 全部只含 `'self'`，而扩展版的素材镜像体系依赖跨域镜像主机——`public/js/assetMirrors.js` 的预载取数、严格 fetch 与 `<img>` 回退直接请求镜像，侧车还会把 `/assets/**` 与 `/fonts/fonts.css` 302 到镜像 CDN。0.2.6 时代没有 CSP 所以一直可用；0.3.0 切换后浏览器把这些请求连同 302 重定向目标一并拦截：镜像加速整体失效，预载的新增资源（0.3.0 的英 / 韩配音、战斗特效等）回落主站后 302 目标同样被拦，等于 100% 下载失败；统计页官方字体样式（同源 302 到 CDN）也被静默拦截。
+- 修复：`server/http/csp.js` 新增 `mirrorOrigins()`——systemd 单元以 `SP_ASSET_MIRROR_ORIGINS` 配置镜像源（空格 / 逗号分隔，与 `/data/asset-mirrors.json` 的镜像列表保持一致），站点 CSP 的 style-src、font-src、img-src、connect-src 追加这些源；不设置该环境变量时策略与上游逐字节一致，`script-src` 永不加入镜像源。
+- 验证：新增 `test/plugins/csp-mirrors.test.js` 2 项（未设置环境变量时与上游策略逐字节一致；设置后四个资源指令各含镜像源、尾部斜杠与非法项被过滤、script-src 保持 `'self'`）；上游 `test/plugins/csp.test.js` 与 `test/local-docs-version.test.js` 全过。线上以真实 Chromium 复现修复前的 CSP 拦截（console 大量 `connect-src 'self'` 违规、预载 0%），修复后复测无违规、预载正常推进。
+- 部署：线上 unit 配置 `Environment="SP_ASSET_MIRROR_ORIGINS=https://weishucdn.jiangjiangze.icu https://cdn.baka.website"`（与侧车 `/data/asset-mirrors.json` 当前列表一致）；镜像列表今后变化时需同步该环境变量。
+
 ## 2026-10-16 — v0.3.0-extended.2：玩法扩展补齐复活队友与共享血条
 
 - 玩法扩展补齐社区服的完整开关集，新增两项（房间「玩法扩展」面板中勾选，默认关闭）：

@@ -13,7 +13,7 @@
 - 合并上游新版本时从 `main` 开功能分支，完成适配与测试后再合并回 `main`。
 - 同步上游：`git fetch upstream` → `git merge upstream/master` → `npm install` → `npm run setup`（上游常会加素材）→ `node --test`。
 - 素材 `public/assets/`、`.cache/`、`.claude/` 都在 `.gitignore` 里，不进仓库。新机器 clone 后要先 `npm install && npm run setup`。
-- 当前版本为 `v0.3.0-extended.2`，基于上游 `v0.3.0`（`c24e17ee`），合入插件工作台、官方战斗特效、英 / 韩 / 本土配音与作战统计，玩法扩展补齐复活队友与共享血条（社区服完整开关集），同时保留主机控制台、四席完整监控墙、资源与详细统计、重启恢复、空闲更新和更新记录、聊天与带名标点、代操作、回放与 Release 发布签名。完整素材包沿用 `v0.2.5-extended.1` 导入的上游完整包中的 `public/assets/local/` 和 `data/local-assets.json`，包括 11 个官方战场场景；来源和固定 SHA-256 见 DEPLOY §6。0.3.0 的官方配音（英 / 韩 / 本土）与战斗特效素材需按 DEPLOY §6 重新补齐。发布预检与构建都加 `--require-local-art`，同时核对场景清单为 11 个、所有文件哈希与源包一致；该参数只保证存在有效本地素材清单，不替代场景完整性验证。lite 不含官方本地素材。素材不随 Git 分支移动，切换旧代码版本时也要注意素材版本匹配。
+- 当前版本为 `v0.3.0-extended.3`，基于上游 `v0.3.0`（`c24e17ee`），合入插件工作台、官方战斗特效、英 / 韩 / 本土配音与作战统计，玩法扩展补齐复活队友与共享血条（社区服完整开关集），同时保留主机控制台、四席完整监控墙、资源与详细统计、重启恢复、空闲更新和更新记录、聊天与带名标点、代操作、回放与 Release 发布签名。完整素材包沿用 `v0.2.5-extended.1` 导入的上游完整包中的 `public/assets/local/` 和 `data/local-assets.json`，包括 11 个官方战场场景；来源和固定 SHA-256 见 DEPLOY §6。0.3.0 的官方配音（英 / 韩 / 本土）与战斗特效素材需按 DEPLOY §6 重新补齐。发布预检与构建都加 `--require-local-art`，同时核对场景清单为 11 个、所有文件哈希与源包一致；该参数只保证存在有效本地素材清单，不替代场景完整性验证。lite 不含官方本地素材。素材不随 Git 分支移动，切换旧代码版本时也要注意素材版本匹配。站点 CSP（`server/http/csp.js`）通过 `SP_ASSET_MIRROR_ORIGINS` 把镜像源追加进 style-src / font-src / img-src / connect-src（与 `/data/asset-mirrors.json` 的镜像列表保持一致；不设置该环境变量时策略与上游逐字节一致，`script-src` 永不加入镜像源）。
 
 各版上游合并、主机扩展与发布验证见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md)。
 
