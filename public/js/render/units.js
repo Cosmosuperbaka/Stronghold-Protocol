@@ -789,7 +789,7 @@ export class UnitView {
    *  owner's face — assets.js tokenAvatarUrl). */
   _pictureUrl() {
     const a = this.ctx.assets;
-    // (an ICE_TOKENS unit takes no picture: the token fallback would be its owner's face — assets.js tokenAvatarUrl)    const o = { skin: this._skinId };
+    const o = { skin: this._skinId };
     return ICE_TOKENS.has(this.info.defId) ? null : a && (a.picture ? a.picture(this.info.avatar, o) || a.picture(this.info.defId, o) || a.picture(this.info.spine, o) : null) || null;
   }
 
