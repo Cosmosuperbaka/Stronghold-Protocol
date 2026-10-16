@@ -565,10 +565,10 @@ normalized values from the room, read-only for non-hosts and during a match. Van
 
 Authoring checks (DESIGN §32.9.1): numeric fields display the shared official bounds and positive step floor; invalid saves are refused. DSL validation network failures are explicit, and saving revalidates the current spec before writing. Unkeyed studio state reads omit script source. Trial replay remains a data-only renderer feed; sandbox simulation runs in the same SES executor as a formal match. Forge and catalogue entry points remain available beside the authoring templates.
 
-### Combat metrics (作战统计) — ported from the xinhai-ai fork, opt-in
+### Combat metrics (作战统计) — ported from the xinhai-ai fork
 
-设置 →「作战统计」 (`combatMetrics`, PR #618 by @robll-v1) defaults off, the same kind of decision as 弹药数量: the
-official HUD has no such panel. Off, the corner button is not rendered and `trackCombat` is not called (no `damaged`
+设置 →「作战统计」 (`combatMetrics`, PR #618 by @robll-v1) defaults on in this extension (owner request, 2026-10-16);
+an explicitly saved false preference is preserved. Off, the corner button is not rendered and `trackCombat` is not called (no `damaged`
 hook, `battle.heal` is not wrapped). On, the corner's 作战统计 button (`gm__metrics`, `ui/combatMetrics.js`) opens a
 modeless panel over the running battle: the fight keeps playing behind it, ✕ / Esc closes it, and the next frame's
 prep keeps it usable.
@@ -594,4 +594,8 @@ enters b.progress / b.result, and a tracked battle's result and rendered events 
 (test/match/combat-metrics.test.js, test/match/runner.test.js). Ported from [xinhai-ai/Stronghold-Protocol](https://github.com/xinhai-ai/Stronghold-Protocol)
 (其公开部署分支，作者 @临夏俨然) with thanks.
 
-本库兼容补充（v0.3.0）：上游素材导入与扩展预载共用 classic `/sw.js`、各自保留缓存。停止预载不注销共享 worker；资源哈希、同源隔离与音频 Range 校验继续生效。作战统计默认关闭，快捷键随上游扩为含购买的七项。
+本库兼容补充（v0.3.0）：上游素材导入与扩展预载共用 classic `/sw.js`、各自保留缓存。停止预载不注销共享 worker；资源哈希、同源隔离与音频 Range 校验继续生效。作战统计默认开启（保留已保存的关闭偏好），快捷键随上游扩为含购买的七项。
+
+帧率上限（本库回归核对，2026-10-16）：不限 / 30 / 60 / 120 通过玩家设置即时应用于 Pixi ticker，
+影响同一 ticker 驱动的单位、特效与棋盘绘制；持久化并在重载后重新应用，不改变战斗 runner 的独立时钟。
+浏览器回归同时检查选中状态、实际 ticker 上限与回调频率，实际 FPS 可因设备性能低于上限。

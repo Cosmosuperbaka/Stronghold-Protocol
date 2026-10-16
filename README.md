@@ -65,7 +65,7 @@ A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance
 
 ![局内每回合统计：按回合与玩家查看干员伤害排行](docs/img/features/round-ranking.webp)
 
-原来的 **DPS / HPS「作战统计」仍然保留**，在玩家设置中单独开启，默认关闭；它与按已结算回合汇总的面板各自独立。
+原来的 **DPS / HPS「作战统计」默认开启**，可在玩家设置中单独关闭；已经保存的关闭偏好会保留。它与按已结算回合汇总的面板各自独立。
 
 控制台另提供 LP / 金币曲线、漏怪明细、收入 / 支出来源与次数、累计伤害排行，以及跨局胜率、干员和盟约使用汇总。记录支持时间、模式和难度筛选，旧记录缺失字段不推算。结束后的对局保存在 `logs/results/`；玩家浏览器里的「统计（本机）」独立保存，可导入 / 导出。
 

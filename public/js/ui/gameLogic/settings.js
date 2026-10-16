@@ -30,13 +30,13 @@ export const TEXT_SIZES = Object.freeze(['sm', 'md', 'lg', 'xl']);
  *  voiceNative: the 本土语言 switch (default off). textSize: TEXT_SIZES (css/theme.css `--t`, applied by ui/settings.js
  *  applyTextSize). ammoCount: 设置「弹药数量」 — the rounds left / the magazine under an ammo skill's bar (render/units.js;
  *  PR #552), off by default: the official HUD has no such number (the maintainer's decision of 2026-10-13).
- *  combatMetrics: 设置「作战统计」 (PR #618), off by default: the official HUD has no such panel.
+ *  combatMetrics: 设置「作战统计」 (PR #618), on by default in this extension (owner request, 2026-10-16).
  *  mysticEnergy: 设置「秘术师能量」 (PR #636) — a 秘术师's stored attack energies as stored/cap under the bars
  *  (render/units.js), off by default: the official HUD shows them as an effect on the operator, not a number (the
  *  maintainer's decision of 2026-10-15).
  *  officialFx: 设置「官方特效」 (0.3.0, render/vfx): 'auto' (完整 on a desktop, 精简 on a touch device — render/vfx/tier.js),
  *  'off', 'lite' (精简), 'full' (完整); only shown when effects were extracted from the local client. */
-export const DEFAULT_SETTINGS = Object.freeze({ bgm: 0.6, sfx: 0.8, voice: 0.8, voiceLang: 'cn', voiceNative: false, voiceOverrides: Object.freeze({}), muted: false, damageNumbers: true, officialDamageNumbers: false, ammoCount: false, combatMetrics: false, mysticEnergy: false, quality: 'high', officialFx: 'auto', textSize: 'sm', fpsLimit: 0, preload: false, preloadOptional: false, preloadVoiceLang: 'all', keys: DEFAULT_HOTKEYS });
+export const DEFAULT_SETTINGS = Object.freeze({ bgm: 0.6, sfx: 0.8, voice: 0.8, voiceLang: 'cn', voiceNative: false, voiceOverrides: Object.freeze({}), muted: false, damageNumbers: true, officialDamageNumbers: false, ammoCount: false, combatMetrics: true, mysticEnergy: false, quality: 'high', officialFx: 'auto', textSize: 'sm', fpsLimit: 0, preload: false, preloadOptional: false, preloadVoiceLang: 'all', keys: DEFAULT_HOTKEYS });
 const QUALITIES = ['high', 'medium', 'low'];
 /** The values of 设置「官方特效」 (render/vfx/tier.js OFFICIAL_FX). */
 export const OFFICIAL_FX_MODES = Object.freeze(['auto', 'off', 'lite', 'full']);

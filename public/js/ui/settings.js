@@ -1,5 +1,5 @@
 // Player settings (BGM/SFX/voice volume, the voice dub 语音语言, mute, damage numbers, the optional 弹药数量 under an ammo
-// skill's bar — not in the official HUD, off by default, PR #552 —, the optional 作战统计 panel — off by default,
+// skill's bar — not in the official HUD, off by default, PR #552 —, the optional 作战统计 panel — on by default here,
 // PR #618 —, render quality, 文字大小, the
 // shortcut keys): a tiny observable store persisted in localStorage (`sp.pref.settings`), applied to the audio manager
 // and to the document on every change, plus the settings modal — which also holds the language switch (ui/lang.js; kept
@@ -105,7 +105,7 @@ function Slider({ label, micro, value, onInput, icon }) {
 function Toggle({ label, micro, value, onChange }) {
   return html`<div class="set-row">
     <span class="set-row__label">${label}<${MicroLabel}>${micro}<//></span>
-    <button type="button" class=${`set-toggle${value ? ' is-on' : ''}`} role="switch" aria-checked=${value ? 'true' : 'false'}
+    <button type="button" class=${`set-toggle${value ? ' is-on' : ''}`} role="switch" aria-label=${label} aria-checked=${value ? 'true' : 'false'}
       onClick=${() => onChange(!value)}><i></i><span>${value ? tc('toggle', '开启') : tc('toggle', '关闭')}</span></button>
   </div>`;
 }
