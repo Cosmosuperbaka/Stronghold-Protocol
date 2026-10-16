@@ -1,4 +1,4 @@
-# v0.3.0-extended.1 发布说明
+# v0.3.0-extended.2 发布说明
 
 状态：**正式版**。基础版本为 0.3.0，上一正式扩展版为 v0.2.6-extended.5。完整素材包与轻量包附 SHA-256 清单和 Ed25519 签名。
 
@@ -20,8 +20,8 @@
 
 | 发布附件 | 内容 |
 | --- | --- |
-| `Stronghold-Protocol-v0.3.0-extended.1-assets.zip` | 完整游戏程序、运行依赖、官方本地素材、可选皮肤与海报素材 |
-| `Stronghold-Protocol-v0.3.0-extended.1-lite.zip` | 同版程序与运行依赖，首次启动需联网补齐默认素材，官方本地素材和可选皮肤按部署文档导入 |
+| `Stronghold-Protocol-v0.3.0-extended.2-assets.zip` | 完整游戏程序、运行依赖、官方本地素材、可选皮肤与海报素材 |
+| `Stronghold-Protocol-v0.3.0-extended.2-lite.zip` | 同版程序与运行依赖，首次启动需联网补齐默认素材，官方本地素材和可选皮肤按部署文档导入 |
 | `SHA256SUMS.txt` / `SHA256SUMS.txt.sig` | 两个安装包的 SHA-256 清单及 Ed25519 签名 |
 
 1. 完成当前对局后停止服务器，把新包解压到新目录，先保留旧目录作为备份。
