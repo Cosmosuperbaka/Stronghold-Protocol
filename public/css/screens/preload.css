@@ -1,14 +1,14 @@
-/* 预载资源 (ui/preload.js): the bottom-right preload panel on the title / lobby screen and its manager dialog.
+/* 预载资源 (ui/preload.js): the bottom-LEFT preload panel on the lobby screen and its manager dialog.
    The panel is a compact strip that expands into a small card; the dialog reuses .modal (components.css) and only adds
    the two category cards inside it. */
 
-/* ---- the bottom-right widget -------------------------------------------------------------------------------- */
+/* ---- the bottom-left widget --------------------------------------------------------------------------------- */
 .preload {
-  position: absolute; right: .3rem; bottom: .86rem; z-index: 5;
+  position: absolute; left: .3rem; bottom: .86rem; z-index: 5;
   width: 4.3rem; max-width: calc(100vw - .6rem);
   display: flex; flex-direction: column; align-items: stretch;
   background: rgba(8, 11, 10, .92);
-  border: 1px solid var(--line-2); border-right: 3px solid var(--mint-500);
+  border: 1px solid var(--line-2); border-left: 3px solid var(--mint-500);
   box-shadow: 0 .1rem .3rem rgba(0, 0, 0, .5);
   -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
