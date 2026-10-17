@@ -1,5 +1,11 @@
 import { unhashedUrl } from './assetPaths.js';
 
+/** Route a code-built asset URL exactly like a manifest entry; CDN mirrors use the unhashed disk path. */
+export function assetUrl(url, base) {
+  return base && typeof url === 'string' && url.startsWith('/assets/')
+    ? base.replace(/\/+$/, '') + unhashedUrl(url) : url;
+}
+
 /**
  * Rewrite only root-relative asset URLs. Absolute URLs stay intact, including manifests already rewritten by a server.
  *
@@ -11,7 +17,7 @@ import { unhashedUrl } from './assetPaths.js';
 export function rewriteAssetPaths(value, base) {
   if (!base || value === null || typeof value !== 'object') return value;
   for (const [key, entry] of Object.entries(value)) {
-    if (typeof entry === 'string' && entry.startsWith('/assets/')) value[key] = base + unhashedUrl(entry);
+    if (typeof entry === 'string') value[key] = assetUrl(entry, base);
     else if (entry !== null && typeof entry === 'object') rewriteAssetPaths(entry, base);
   }
   return value;

@@ -30,11 +30,11 @@
    ```
    装完**关闭并重新打开**终端，`node -v` 应显示 v22 或更高（winget 的 LTS 目前是 v24.x，同样可用）。没有 winget 时从 <https://nodejs.org/zh-cn/download> 和 <https://git-scm.com/download/win> 下载安装。
 2. 下载，三选一。建议放在一个固定、短、**不在 OneDrive 同步范围内**的目录，例如 `C:\Stronghold-Protocol`：
-   - **完整包（推荐）**：在仓库的 [Releases](https://github.com/sganggs/Stronghold-Protocol/releases) 页面下载最新版本的 `Stronghold-Protocol-v<版本>.zip`（约 800 MB，解压后约 1.16 GB；已含运行依赖、前端库和全部素材，包括中文、日文、英文、韩文和本土语言的干员语音和官方 3D 棋盘、各战场官方场景、官方战斗特效等本地客户端素材），解压后把里面的 `Stronghold-Protocol` 文件夹放到上述位置。不需要 Git，首次启动也不用再下载素材。素材版权归上海鹰角网络 / Yostar，仅限非商业使用，见 [NOTICE.md](../NOTICE.md)。
-   - **精简包**：同一页面的 `Stronghold-Protocol-v<版本>-lite.zip`（约 25 MB）。代码、运行依赖和前端库与完整包相同，但不带素材：美术、Spine 模型、音频（含全部干员语音）、字体、表情和「玩法说明」教程图在首次启动时由 setup 从公开镜像下载（约 720 MB，显示进度，可中断续传；镜像设置见下面的「国内镜像下载」）。官方 3D 棋盘等本地客户端素材需要用本机客户端提取，或从同一版本的完整包复制（第 6 节）。适合下载大文件不方便、或想先下一个小包的情况；放置方式同完整包。
+   - **完整包（推荐）**：在仓库的 [Releases](https://github.com/zhewang448/Stronghold-Protocol/releases) 页面下载最新扩展版本的 `Stronghold-Protocol-<扩展标签>-assets.zip`（约 1.12 GB，解压后约 1.53 GB；已含运行依赖、前端库和全部素材，包括中文、日文、英文、韩文和本土语言的干员语音和官方 3D 棋盘、各战场官方场景、官方战斗特效等本地客户端素材），解压后把里面的 `Stronghold-Protocol` 文件夹放到上述位置。不需要 Git，首次启动也不用再下载素材。素材版权归上海鹰角网络 / Yostar，仅限非商业使用，见 [NOTICE.md](../NOTICE.md)。
+   - **精简包**：同一页面的 `Stronghold-Protocol-<扩展标签>-lite.zip`（约 30 MB）。代码、运行依赖和前端库与完整包相同，但不带素材：美术、Spine 模型、音频（含全部干员语音）、字体、表情和「玩法说明」教程图在首次启动时由 setup 从公开镜像下载（约 720 MB，显示进度，可中断续传；镜像设置见下面的「国内镜像下载」）。官方 3D 棋盘等本地客户端素材需要用本机客户端提取，或从同一版本的完整包复制（第 6 节）。适合下载大文件不方便、或想先下一个小包的情况；放置方式同完整包。
    - **源码**：
      ```powershell
-     git clone https://github.com/sganggs/Stronghold-Protocol.git C:\Stronghold-Protocol
+     git clone https://github.com/zhewang448/Stronghold-Protocol.git C:\Stronghold-Protocol
      ```
 3. 双击 `C:\Stronghold-Protocol\scripts\start-windows.bat`。首次会：安装依赖（`npm ci`；整合包已含，跳过）→ 复制前端库（整合包已含，跳过）→ 下载约 550 MB 素材（完整包已含，跳过；精简包和源码在这一步下载，显示进度，中断后再次启动会续传）→ 若检测到本机的明日方舟客户端，询问是否提取官方贴图（可跳过）→ 启动服务器并打开浏览器。
 4. 窗口里会打印朋友可用的地址，例如 `http://192.168.1.23:3000`。用另一台设备打开它确认能进入。关闭窗口即停止服务器。
@@ -150,13 +150,13 @@ powershell -ExecutionPolicy Bypass -File scripts\install-service-windows.ps1 -Re
 
 `v0.2.6-extended.2` 新增玩家行「实时查看 / 代操作」，重启到新版本后刷新控制台即可使用。实时页默认仅查看，主动开启后按普通规则购买、刷新、布阵、装备、选卡和准备；主机和玩家共享状态，操作会正常扣金币并记日志。页面还原游戏状态，战斗使用显示副本，不接管玩家结算。最终攻势与隐秘核心的已保存回放也可确认后尝试，无须重新录制；缺少共享血池和全队生命同步，结果可能不同。详细操作见 [LOCAL-DEV.md](LOCAL-DEV.md) §5。
 
-每次服务器启动后，第一次打开本机控制台（默认 `http://127.0.0.1:3100`）会自动检查正式 Release；发现新版本会弹窗提醒，可打开设置或稍后处理，同次启动刷新或多开页面不会重复自动检查。也可在「设置 → 版本更新」手动检查。固定使用 `zhewang448/Stronghold-Protocol`，版本列表标明新版本、当前版本、旧版本，并可加载更早版本；选择版本后点「下载并安装」，选择旧版本时须确认回退。没有完整 / 轻量包或 SHA-256 校验值的版本显示不可安装，当前版本不重复安装。安装包信息里标明「已签名 / 未签名」：已签名的版本由维护者的发布密钥签过校验值，经镜像下载也能确认没被改过；`v0.2.5-extended.2` 及更早的版本未签名，只在直连或经代理访问 GitHub 取得版本列表和校验值时可安装，走了镜像会显示不可安装，配置代理后重新检查即可。
+每次服务器启动后，第一次打开本机控制台（默认 `http://127.0.0.1:3100`）会自动检查正式 Release；发现新版本会弹窗提醒，可打开设置或稍后处理，同次启动刷新或多开页面不会重复自动检查。也可在「设置 → 版本更新」手动检查。固定使用 `zhewang448/Stronghold-Protocol`，版本列表标明新版本、当前版本、旧版本，并可加载更早版本；选择版本后点「下载并安装」，选择旧版本时须确认回退。没有完整素材包或 SHA-256 校验值的版本显示不可安装。选择当前版本可点「修复素材并重启」，用于补齐曾经由旧版控制台更新遗漏的素材；这会重新校验并安装同版程序，仍受活动对局保护。安装包信息里标明「已签名 / 未签名」：已签名的版本由维护者的发布密钥签过校验值，经镜像下载也能确认没被改过；`v0.2.5-extended.2` 及更早的版本未签名，只在直连或经代理访问 GitHub 取得版本列表和校验值时可安装，走了镜像会显示不可安装，配置代理后重新检查即可。
 
 「更新网络配置」可保存 HTTP / HTTPS 代理（如 `http://127.0.0.1:7890`，不支持 SOCKS 或带账号密码的地址）；留空则直连 GitHub。正常访问失败后直接走备用镜像，默认 `https://gh-proxy.com/`，自定义镜像须支持完整 GitHub API 和附件 URL 的前缀转发，留空关闭回退。列表查询、SHA256SUMS、签名和 ZIP 下载都适用，错误响应、下载中断或校验失败也会尝试镜像；镜像仍失败则报告错误，绝不跳过校验。镜像只负责传输，信任来自签名，签名不符时不会退回未签名的校验方式。配置保存在 `logs/release-network.json`，保存后立即生效且重启后保留。更新正在检查 / 下载 / 安装时不能修改配置。
 
-优先轻量包更新程序与运行依赖；本机素材、字体、设置、对局记录、缓存和自装内容包保留。程序同名文件会被所选 Release 替换，安装前自动备份至 `logs/update-backups/`；只删除旧清单中内容未被本机改过、且所选版本已不再提供的文件。新增素材仍需通过 setup 或完整包补齐。回退旧版可能不兼容新版功能、设置或记录，也可能没有此更新入口，程序备份不等同于数据格式迁移。
+控制台更新下载该版本完整包（包括素材，下载量会大于 lite），验证签名与 ZIP SHA-256 后同步程序、字体、美术和三份素材清单。按大小与 SHA-256 比较本机素材，只暂存及替换缺失或变化的文件；内容相同的素材不重复写入。本机额外素材、设置、对局记录、缓存和自装内容包保留。程序与变化的素材安装前一起备份至 `logs/update-backups/`，安装失败一起恢复；只删除旧程序清单中内容未被本机改过、且所选版本已不再提供的程序文件，不清理额外素材。回退旧版可能不兼容新版功能、设置或记录，也可能没有此更新入口，程序备份不等同于数据格式迁移。
 
-下载期间可继续使用服务器。安装包和程序文件校验通过才停服；有进行中的对局时会要求确认结束全部对局。安装成功后自动重启，控制台恢复连接后自动刷新以获取新 token。失败会显示原因；程序替换失败会恢复旧文件。错误详情在 `logs/release-update-status.json`，直接重启的输出在 `logs/release-restart.log`。备份保留供恢复，可在确认新版本正常后自行清理。
+下载期间可继续使用服务器。安装包、程序及素材文件校验通过才停服；有进行中的对局时会要求确认结束全部对局。安装成功后自动重启，控制台恢复连接后自动刷新以获取新 token。失败会显示原因；程序替换失败会恢复旧文件。错误详情在 `logs/release-update-status.json`，直接重启的输出在 `logs/release-restart.log`。备份保留供恢复，可在确认新版本正常后自行清理。
 
 双击启动、`npm start` 和本项目 Windows 开机自启脚本支持此流程。使用 NSSM / systemd 等外部守护程序时，请给服务设置环境变量 `SP_UPDATE_RESTART=supervisor`，并允许进程退出后自动重启，由守护程序接管重启，避免两份服务器同时启动。复制期间启动的新进程会等待安装锁释放后退出，再由守护程序读取新文件启动。若文件恢复失败或安装器被终止，安装锁会阻止启动：根据状态文件和备份恢复程序，确认完成后再删除 `logs/release-update.lock`。
 
@@ -412,13 +412,15 @@ npm run package -- --update --from <旧版本的完整包>[,<…>] --out <目录
 node tools/package.mjs --assets --out <目录>   # 素材包 Stronghold-Protocol-v<版本>-assets.zip（给「导入素材包」用，不放进 Releases）
 ```
 
+打包机用户名若为纯数字，账号名子串检查可能误报素材坐标或颜色值；核实命中内容后可设置 `SP_PACKAGE_SCAN_USER=0`，仍保留目录路径扫描和其他打包检查。不要因此修改官方素材数值。
+
 本库后续完整素材包使用 `--require-local-art`（预检也加此参数）：缺少、损坏或为空的 `data/local-assets.json` 会拒绝打包，清单引用的文件缺失同样拒绝。它可用于完整包或更新包，不能与 `--lite` 同用。完整包会自动收录 `public/assets/local/` 和清单；精简包仍不含它们。
 
 完整包在打包机已经提取战场场景时带上 `public/assets/local/scene/`（`--dry-run` 摘要里的 `battlefield scenes` 一行）。还没有提取时完整包仍能打，棋盘用金属地块。要带上 11 个官方场景，先运行 `python3 tools/local-extract/fetch_scenes.py`，再用提取环境的 Python 运行 `tools/local-extract/extract.py --only scene`（或 `node tools/setup.mjs --scenes`），然后再 `npm run package`。精简包不带场景。`.cache/official-scenes/` 在拒绝名单里，不会打进任何包。`tools/local-extract/scenes.py` 和 `fetch_scenes.py` 必须先提交：打包读的是 `git ls-files`，未提交的脚本不会进玩家包。
 
 - **打进去的**：`git ls-files` 里的 `server/`、`shared/`、`data/`、`public/`（不含 `public/dev/`）、`packs/`（随仓库提交的内容包；只在本机安装、没提交的不打进去）、`plugins/`（只允许 `README.md`、`AGENTS.md` 与 `_template/`，即使误跟踪服主插件也不打进去；服务器自己放进去的插件不会提交，也不打进去，见 [PLUGINS.md](PLUGINS.md)）、启动脚本、玩家会运行的工具（setup、vendor、fetch-assets 与 `tools/assets/`、doctor，以及 setup 调用的 `tools/local-extract/` 和 `crop-board-atlas.mjs`）、`tools/plugin.mjs`、`schemas/`、插件作者文档（`docs/PLUGINS.md`、`docs/PLUGIN-GUIDE.md`、`docs/PLUGIN-DSL.md`、`docs/PLUGIN-API.md` 与目录示例）、`test/helpers/battleHarness.js`（作者测试使用，只依赖包内的 server/shared）、服务器和 fetch-assets 读取的 4 张研究数据表（`docs/research/` 的 `03-operators`、`05-enemies`、`05-maps`、`07-assets` 四个 JSON）、`package.json` / `package-lock.json`、许可证与说明（`LICENSE`、`NOTICE.md`、`THIRD-PARTY-NOTICES.md`、`README.md`、`CHANGELOG.md`）、`docs/PLAYING.md` 和本文；然后在临时目录里生成 `packs/index.json`（打进去的语言包和内容包的列表，供纯静态托管使用；服务器自己会实时列出，见 [PACKS.md](PACKS.md)），再 `npm ci --omit=dev` 装上运行依赖和 `public/vendor`（含沙箱必需的 SES / Acorn 及其浏览器文件，玩家无需另装）。完整包再加上 `data/assets.json` 列出的素材、`public/fonts`，以及本地提取的 `public/assets/local/` 和 `data/local-assets.json`。磁盘上有、清单却没列出的文件不打进去（例如 0.2.0 移出自选的焰狐龙梓兰的旧素材）。日文干员语音（`audio.voiceJp`，`public/assets/audio/voice/jp/` 的 2674 个文件，约 85 MB，zip 后约 76 MB）默认也打进完整包；`tools/package.mjs` 里的开关 `FULL_ZIP_JP_VOICE` 改成 `false` 时，完整包（以及由它比较出的更新包）不带这些文件：玩家首次启动时 setup 会像精简包那样下载它们，下载完成前选「日本語」会播中文语音，更新包也不会删除玩家已有的日文语音。英语、韩语和本土语言配音（`audio.voiceEn` / `audio.voiceKr` / `audio.voiceNative`）同样默认打进完整包（5712 个文件，约 169 MB，zip 后约 157 MB）；开关是 `FULL_ZIP_OPTIONAL_VOICE`（`tools/package.mjs`，默认 `true`）。改成 `false` 时完整包不带这些文件，玩家首次启动时 setup 再下载，下载完成前缺的那一句播中文，更新包也不会删除玩家已有的这些配音。
 - **打包前的检查**（`--dry-run` 也全部做一遍）：拒绝名单（`pv`、`review`、`.cache`、`.claude`、`.git`、`logs`、`.env`、`scripts/service.env.cmd`、`handoff`、`test` 除精确允许的作者助手外、服主自己的插件、`plugins/_dist/` / `_moved/` 等）；每个打进去的模块的相对导入、玩家用的 npm 脚本（start / setup / doctor / launch / postinstall / vendor / assets）都指向包里的文件；完整包里 `data/assets.json` 和 `data/local-assets.json` 列出的文件都在（缺了先运行 `node tools/fetch-assets.mjs`）；没有只差大小写的两个路径；包里的文件（二进制素材也查）不含个人目录路径（`/Users/…`、`C:\Users\…`、`/home/…`）或本机的账户名（运行时从系统读取；`SP_PACKAGE_SCAN_NAMES=a,b` 可以再加名字）；打进去的已跟踪文件没有未提交的改动（重新生成的 `data/assets.json` 要先提交）。有任何问题都会列出原因、以非零状态结束，不写 zip；正式打包时还会核对临时目录里的文件和计划完全一致。
-- **玩家包里的脚本和文档链接**：临时目录里的 `package.json` 只留下每条 `node <文件>` 都指向包内文件、并且至少指出一个文件的脚本（`start`、`dev`、`setup`、`doctor`、`launch`、`postinstall`、`vendor`、`assets`）。`test`、`golden`、数据构建、lint、本工具等不留，避免玩家运行 `npm test` 时在没有测试文件的情况下得到「0 个测试、成功退出」。`README.md`、`CHANGELOG.md`、`NOTICE.md`、`THIRD-PARTY-NOTICES.md`、`docs/PLAYING.md`、本文、插件参考和作者指南里，指向包内没有的文件的相对链接改成该版本 GitHub 标签上的同一路径（版本号去掉末尾的 `-dev` 后加 `v`；图片用 `raw`，其余用 `blob`）；`../../releases/latest` 改为仓库的 Releases 地址。源码仓库里的这些文件仍是相对链接。
+- **玩家包里的脚本和文档链接**：临时目录里的 `package.json` 只留下每条 `node <文件>` 都指向包内文件、并且至少指出一个文件的脚本（`start`、`dev`、`setup`、`doctor`、`launch`、`postinstall`、`vendor`、`assets`）。`test`、`golden`、数据构建、lint、本工具等不留，避免玩家运行 `npm test` 时在没有测试文件的情况下得到「0 个测试、成功退出」。`README.md`、`CHANGELOG.md`、`NOTICE.md`、`THIRD-PARTY-NOTICES.md`、`docs/PLAYING.md`、本文、插件参考和作者指南里，指向包内没有的文件的相对链接改成该版本 GitHub 标签上的同一路径（链接仓库为 `zhewang448/Stronghold-Protocol`，当前基础版本使用 `server/release-version.js` 的扩展标签，其他版本去掉末尾的 `-dev` 后加 `v`；图片用 `raw`，其余用 `blob`）；`../../releases/latest` 改为仓库的 Releases 地址。源码仓库里的这些文件仍是相对链接。
 
 - **本库扩展整合包**还包含 `docs/SKINS.md`、`docs/LOCAL-CHANGELOG.md`、`docs/LOCAL-DEV.md`、`docs/PRIVACY.md`、`scripts/README.md`、README 引用的 `docs/img/features/` 界面截图，以及 `scripts/start-tunnel.bat` / `.mjs`、`scripts/stop-server.bat`、`scripts/free-port.mjs`。两种包都带这些文件；开发指南从 README 的在线链接访问。皮肤目录 `docs/research/operator-skins.json` 与安装器 `tools/install-skins.mjs` 也随包提供。扩展附件命名为 `Stronghold-Protocol-<扩展标签>-assets.zip` 和 `Stronghold-Protocol-<扩展标签>-lite.zip`（如 `v0.2.5-extended.2`），附 `SHA256SUMS.txt`，签名后的版本另附 `SHA256SUMS.txt.sig`；包内游戏基础版本为标签的前三段。本次不提供覆盖式增量包，升级时解压到新目录并停服迁移 `logs/`。
 - **不打进去的**：`test/`、维护用的工具（数据构建、golden、botbench、i18n、导入检查、本工具等）、`scripts/make-windows-bundle.mjs`（Windows 便携包，见 [WINDOWS.md](WINDOWS.md)）、其他文档、研究笔记和 `docs/img/` 中非特色展示图片、`handoff/`、`.github/`、`types/`、lint / 编辑器 / Docker 配置。和 0.1.x 的整树打包（全部跟踪文件加上 `public/assets` 的全部内容）相比，0.2.0 的完整包少了约 640 个文件、解压后小约 26 MB，zip 小约 8 MB。

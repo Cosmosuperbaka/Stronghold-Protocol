@@ -180,7 +180,7 @@ export function forceDeleteVerdict(dir) {
  * @returns {string[]}
  */
 function trackedFiles() {
-  const r = spawnSync('git', ['-C', ROOT, 'ls-files', '-z'], { maxBuffer: 256 * 1024 * 1024 });
+  const r = spawnSync('git', ['-C', ROOT, 'ls-files', '-z'], { maxBuffer: 256 * 1024 * 1024, windowsHide: true });
   if (r.error || r.status !== 0) {
     throw new Error('git ls-files 失败：打包只收版本库里跟踪的文件，请在完整的 git 仓库里运行');
   }
@@ -280,8 +280,8 @@ async function installProductionDeps(appDir) {
   const args = ['ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'];
   // Windows 上 npm 是 npm.cmd（批处理），不能直接 spawn；显式走 cmd.exe，避免 shell:true 的参数转义告警。
   const r = IS_WIN
-    ? spawnSync('cmd.exe', ['/d', '/s', '/c', 'npm', ...args], { cwd: stage, stdio: 'inherit' })
-    : spawnSync('npm', args, { cwd: stage, stdio: 'inherit' });
+    ? spawnSync('cmd.exe', ['/d', '/s', '/c', 'npm', ...args], { cwd: stage, stdio: 'inherit', windowsHide: true })
+    : spawnSync('npm', args, { cwd: stage, stdio: 'inherit', windowsHide: true });
   if (r.error || r.status !== 0) throw new Error('npm ci --omit=dev 失败（便携包需要生产依赖，请先联网）');
   await fsp.rm(path.join(appDir, 'node_modules'), { recursive: true, force: true });
   await fsp.rename(path.join(stage, 'node_modules'), path.join(appDir, 'node_modules'));
@@ -314,7 +314,7 @@ function extractZip(zipPath, dir) {
   if (IS_WIN) attempts.push(['powershell', ['-NoProfile', '-Command', `Expand-Archive -LiteralPath ${psSingleQuote(zipPath)} -DestinationPath ${psSingleQuote(dir)} -Force`]]);
   let last = '';
   for (const [cmd, args] of attempts) {
-    const r = spawnSync(cmd, args, { stdio: 'ignore' });
+    const r = spawnSync(cmd, args, { stdio: 'ignore', windowsHide: true });
     if (!r.error && r.status === 0) return cmd;
     last = `${cmd}: ${r.error ? r.error.message : `退出码 ${r.status}`}`;
   }

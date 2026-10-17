@@ -110,8 +110,8 @@ test('MANIFEST.json and UPDATE.json pass the personal-info scan: paths are scann
 // ---------------------------------------------------------------------------------------------------------------------
 // Bases and a whole round trip on a temporary checkout (tools/package.mjs, --no-install)
 
-const hasZipTool = !spawnSync('zip', ['-v'], { encoding: 'utf8' }).error
-  || /bsdtar/.test(spawnSync('tar', ['--version'], { encoding: 'utf8' }).stdout || '');
+const hasZipTool = !spawnSync('zip', ['-v'], { encoding: 'utf8', windowsHide: true }).error
+  || /bsdtar/.test(spawnSync('tar', ['--version'], { encoding: 'utf8', windowsHide: true }).stdout || '');
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]);
 
 function fakeCheckout(version) {
@@ -132,7 +132,7 @@ function fakeCheckout(version) {
   put(dir, '.gitignore', 'public/assets/\npublic/fonts/\ndata/local-assets.json\n');
   put(dir, 'public/assets/char/a.png', PNG);
   put(dir, 'public/fonts/fonts.css', '@font-face{}\n');
-  const git = (...args) => spawnSync('git', ['-C', dir, ...args], { encoding: 'utf8' });
+  const git = (...args) => spawnSync('git', ['-C', dir, ...args], { encoding: 'utf8', windowsHide: true });
   assert.equal(git('init', '-q').status, 0);
   assert.equal(git('add', '-A').status, 0);
   return { dir, git };
@@ -143,7 +143,7 @@ function bump({ dir }, version) {
   put(dir, 'shared/constants.js', `export const APP_VERSION = '${version}';\n`);
 }
 
-const runTool = (args, env = ENV) => spawnSync(process.execPath, [TOOL, ...args], { encoding: 'utf8', env: { ...process.env, ...env }, maxBuffer: 16 * 1024 * 1024 });
+const runTool = (args, env = ENV) => spawnSync(process.execPath, [TOOL, ...args], { encoding: 'utf8', env: { ...process.env, ...env }, maxBuffer: 16 * 1024 * 1024, windowsHide: true });
 
 /** Extract a release zip into `dir` (over what is there), as a player would: readZip writes every file. */
 function extract(zipPath, dir) {
@@ -304,7 +304,7 @@ test('the zip reader: stored and deflated entries, zip64, UTF-8 names; damaged a
     put(dir, `${FOLDER}/server/empty.js`, '');
     const zipped = [];
     const make = (name, args) => {
-      const z = spawnSync('zip', ['-q', '-r', ...args, name, FOLDER], { cwd: dir });
+      const z = spawnSync('zip', ['-q', '-r', ...args, name, FOLDER], { cwd: dir, windowsHide: true });
       if (!z.error && z.status === 0) zipped.push(name);
     };
     // plain.zip is what tools/package.mjs writes (zip, else bsdtar); the other two need Info-ZIP
@@ -332,7 +332,7 @@ test('the zip reader: stored and deflated entries, zip64, UTF-8 names; damaged a
     assert.throws(() => readBase(path.join(dir, 'cut.zip')), /cut\.zip: (?:not a zip file|damaged|unexpected end)/, 'a truncated download');
     // entries outside the one folder: not a release zip
     put(dir, 'other/x.txt', 'x');
-    const z = spawnSync('zip', ['-q', '-r', 'foreign.zip', 'other'], { cwd: dir });
+    const z = spawnSync('zip', ['-q', '-r', 'foreign.zip', 'other'], { cwd: dir, windowsHide: true });
     if (!z.error && z.status === 0) assert.throws(() => readBase(path.join(dir, 'foreign.zip')), /outside the Stronghold-Protocol\/ folder/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

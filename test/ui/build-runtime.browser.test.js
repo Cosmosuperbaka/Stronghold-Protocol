@@ -81,7 +81,7 @@ process.on('SIGTERM', async () => { await srv.close(); process.exit(0); });
 
 async function start(root, port = 0) {
   const child = fork(path.join(root, 'start.mjs'), [], {
-    cwd: root, env: { ...process.env, PORT: String(port) }, silent: true,
+    cwd: root, env: { ...process.env, PORT: String(port) }, silent: true, windowsHide: true,
   });
   let stderr = '';
   child.stderr.on('data', (buf) => { stderr += buf; });

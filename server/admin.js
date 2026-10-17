@@ -868,7 +868,7 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
         if (body.action === 'open') return send(200, { ...(await updater.open()), automatic: idleUpdater.status() });
         if (body.action === 'more') return send(200, { ...(await updater.check(true)), automatic: idleUpdater.status() });
         if (body.action === 'network') return send(200, { ...(updater.configure(body.network)), automatic: idleUpdater.status() });
-        if (body.action === 'install') return send(200, { ...(updater.install({ tag: body.tag, force: body.force === true, allowDowngrade: body.allowDowngrade === true })), automatic: idleUpdater.status() });
+        if (body.action === 'install') return send(200, { ...(updater.install({ tag: body.tag, force: body.force === true, allowDowngrade: body.allowDowngrade === true, repairAssets: body.repairAssets === true })), automatic: idleUpdater.status() });
         return send(400, { error: '未知更新操作' });
       }
       if (req.method === 'GET' && url.pathname === '/api/rooms') return send(200, { rooms: await roomsView(lobby), announcement: lobby.announcements?.frame().announcement || null });

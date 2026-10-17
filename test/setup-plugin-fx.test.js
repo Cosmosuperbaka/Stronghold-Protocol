@@ -21,11 +21,11 @@ test('setup notices installed official references absent from data/index, withou
   f.put('plugins/linked/plugin.json', { operators: ['linked.json'] });
   if (canLinkFiles) fs.symlinkSync(path.join(f.root, 'plugins/demo/ops.json'), path.join(f.root, 'plugins/linked/linked.json'));
   assert.deepEqual(installedFxReferences(f.root), ids);
-  const r = spawnSync(process.execPath, ['tools/local-extract/plugin-fx.mjs', f.root], { encoding: 'utf8' });
+  const r = spawnSync(process.execPath, ['tools/local-extract/plugin-fx.mjs', f.root], { encoding: 'utf8', windowsHide: true });
   assert.equal(r.status, 0); assert.deepEqual(JSON.parse(r.stdout), ids, 'extractor uses exactly the setup reference reader');
   f.put('.cache/gamedata/excel/character_table.json', { char_4217_makoto: { skills: [{ skillId: 'skcom_synthetic' }] } });
   const source = `import sys, json\nsys.path.insert(0, ${JSON.stringify(path.resolve('tools/local-extract'))})\nimport fx\nprint(json.dumps(fx.game_data(${JSON.stringify(f.root)})))`;
-  const py = spawnSync(process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3'), ['-c', source], { encoding: 'utf8', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' } });
+  const py = spawnSync(process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3'), ['-c', source], { encoding: 'utf8', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' }, windowsHide: true });
   assert.equal(py.status, 0, py.stderr);
   const discovered = JSON.parse(py.stdout);
   assert.deepEqual(discovered.chars, ids); assert.deepEqual(discovered.skills.char_4217_makoto, ['skcom_synthetic']);

@@ -42,7 +42,7 @@ function make(f, template, options = {}, id = `look-${template}`) {
 
 for (const template of ['theme', 'notices', 'fx', 'skins']) test(`${template}: strict CLI check, visual/content composition and form JSON round trip`, t => {
   const f = fixture(t), m = make(f, template);
-  const run = spawnSync(process.execPath, ['tools/plugin.mjs', 'check', m.dir, '--strict'], { encoding: 'utf8', timeout: 60000 });
+  const run = spawnSync(process.execPath, ['tools/plugin.mjs', 'check', m.dir, '--strict'], { encoding: 'utf8', timeout: 60000, windowsHide: true });
   assert.equal(run.status, 0, run.stdout + run.stderr);
   assert.equal(packPlugin(m.dir).wrote, true);
   const original = m.author.read(m.id);

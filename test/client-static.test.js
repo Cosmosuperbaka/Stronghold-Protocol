@@ -49,7 +49,7 @@ function urlPathToFile(urlPath) {
 const fileToUrlPath = (file) => '/' + path.relative(PUBLIC, file).split(path.sep).join('/');
 
 function checkModuleSyntax(source) {
-  const r = spawnSync(process.execPath, ['--input-type=module', '--check'], { input: source, encoding: 'utf8' });
+  const r = spawnSync(process.execPath, ['--input-type=module', '--check'], { input: source, encoding: 'utf8', windowsHide: true });
   return r.status === 0 ? null : (r.stderr || r.stdout || 'syntax error').split('\n').slice(0, 6).join('\n');
 }
 

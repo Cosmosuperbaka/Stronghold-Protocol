@@ -69,7 +69,7 @@ test('environment switch suppresses every emote entry point', () => {
     import {sendEmote} from './server/match/botEmotes.js';
     const ai={playerId:'ai',isBot:true,alive:true};
     if(sendEmote({order:[ai,{isBot:false}]},ai,'autochess_battle_thanks')) process.exit(2);
-  `], { env: { ...process.env, SP_BOT_EMOTES: '0' }, encoding: 'utf8' });
+  `], { env: { ...process.env, SP_BOT_EMOTES: '0' }, encoding: 'utf8', windowsHide: true });
   assert.equal(r.status, 0, r.stderr);
 });
 test('actual match emote and merge hooks broadcast without errors', (t) => {

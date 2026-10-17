@@ -33,12 +33,13 @@
 | [AGENTS.md](../AGENTS.md) | 上游的入口：必读文档、硬性规则（确定性、golden、生成的数据不能手改等）、验证方法 |
 | [LOCAL-DEV.md](LOCAL-DEV.md) | 本分支改了哪些文件、对局引擎速览、回档和控制台的实现、测试、踩过的坑、联动干员 |
 | [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md) | 本分支的更新记录（给玩家看的说法） |
+| [参考站前端私有归档](https://github.com/zhewang448/stronghold-ui-site-archive) | 跟进参考站 UI 的公开源码快照；复抓、来源区分和差异查看见 [REFERENCE-UI-REVIEW.md](REFERENCE-UI-REVIEW.md#后续跟进与私有归档)，需仓库访问权限 |
 | [ARCHITECTURE.md](ARCHITECTURE.md)、[SIM.md](SIM.md)、[META.md](META.md)、[DATA.md](DATA.md) | 上游的代码地图、战斗引擎、对局流程、生成数据 |
 
 ## 2. 分支与维护状态
 
 - `origin` 为本仓库，`upstream` 为原项目。默认分支 `main` 已整合主机工具、联动扩展、可选皮肤、随机装备和素材预加载；`local-tools` 与 `codex/operator-skins` 保留原功能分支历史。`master` 只跟踪上游。
-- 当前版本为 `v0.3.1-extended.1`，基础版本 `0.3.1`；提供带签名的完整素材包与轻量包，上一正式版为 `v0.3.0-extended.3`。本版跟进上游 v0.3.1 并保留本库扩展，发布验证以 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md) 为准。
+- 当前版本为 `v0.3.1-extended.2`，基础版本 `0.3.1`；提供带签名的完整素材包与轻量包，上一正式版为 `v0.3.1-extended.1`。本版修复完整素材更新、皮肤海报、偏好校验和 Windows 子进程弹窗，并适配参考站表情 CDN 与公告宽度，发布验证以 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md) 为准。
 - 九项实现与恢复边界见 LOCAL-DEV §9。聊天位置仅当前浏览器与站点按昵称保存；重启恢复要求同版本及规则指纹，跨版本升级不能续局。完整监控墙尚未重跑 30 分钟持续运行测试。
 - 本版整合上游 v0.3.1（`b3deebda`）。自选池为 79 名（上游 72 名 + 7 名联动），保留 174 套可选皮肤、多语言语音与控制台扩展；完整包包含重新提取的 11 个官方场景（版本 4）及官方 FX。来源与验证见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md)。
 - 定期跟进上游更新，先完成扩展兼容与验证，再合并。查看 `git status` 和远端分支确认实际工作状态，不把某台机器的进程、私人地址或临时 ref 写进公共交接文档。

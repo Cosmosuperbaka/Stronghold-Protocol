@@ -17,7 +17,7 @@ import {
 } from '../tools/setup.mjs';
 
 
-const PY = ['python3', 'python'].find((bin) => spawnSync(bin, ['--version']).status === 0);
+const PY = ['python3', 'python'].find((bin) => spawnSync(bin, ['--version'], { windowsHide: true }).status === 0);
 const ENV = { ...process.env, PYTHONDONTWRITEBYTECODE: '1' };
 
 function manifestOf(keys) {
@@ -55,7 +55,7 @@ function sceneOpts(assessed, extra = {}) {
 
 describe('expected.mjs matches the extractor (no game client)', { skip: !PY && 'no python3' }, () => {
   test('--print-jobs expectedGroups and fx fields', () => {
-    const r = spawnSync(PY, ['-I', '-B', path.join(ROOT, 'tools/local-extract/extract.py'), '--print-jobs'], { encoding: 'utf8', env: ENV });
+    const r = spawnSync(PY, ['-I', '-B', path.join(ROOT, 'tools/local-extract/extract.py'), '--print-jobs'], { encoding: 'utf8', env: ENV, windowsHide: true });
     assert.equal(r.status, 0, r.stderr);
     const j = JSON.parse(r.stdout);
     assert.deepEqual(j.expectedGroups, [...EXPECTED_LOCAL_GROUPS]);

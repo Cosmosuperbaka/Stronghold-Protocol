@@ -10,6 +10,7 @@ import { skinForUnit, setSkins, randomSkins } from '../public/js/ui/skins.js';
 import { store } from '../public/js/store.js';
 import { exportPayload, parseImport } from '../public/js/ui/loadoutModel.js';
 import { buildSkinPlan, skinCatalogue } from '../tools/assets/skins.mjs';
+import { resolveTemplate } from '../tools/assets/manifest.mjs';
 import { installSkins } from '../tools/install-skins.mjs';
 import { makeMatch, DATA } from './match/harness.js';
 import { buildBattleSpec } from '../server/sim/spec.js';
@@ -121,6 +122,29 @@ test('single-model outfits use their real upstream folder without requesting abs
     assert.ok(model.skel.urls[0].includes(id.startsWith('char_1012_skadi2@') ? '/Spine/' : '/Front/'), id);
     assert.equal(plan.template.chars[id.split('@')[0]].skins[id].spine.back, undefined);
   }
+});
+
+test('installed skin posters resolve to distinct local URLs, while missing posters fall back without leaking plan objects', t => {
+  const root = mkdtempSync(join(tmpdir(), 'sp-skin-posters-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const second = `${CHAR}@summer#22`;
+  const choices = [SKIN, second].map((id, i) => ({ id, portrait: `/assets/seat-portrait/skin-${i}.png` }));
+  const seatArt = { chars: { [CHAR]: { choices } } };
+  for (const row of choices) {
+    const file = join(root, row.portrait.slice('/assets/'.length));
+    mkdirSync(join(root, 'seat-portrait'), { recursive: true });
+    writeFileSync(file, 'poster');
+  }
+  const plan = buildSkinPlan(research, [SKIN, second], seatArt);
+  const model = { skel: '/assets/model.skel', atlas: '/assets/model.atlas', textures: [] };
+  const spine = new Map([...plan.models.keys()].map(key => [key, model]));
+  const resolve = () => resolveTemplate(plan.template, { root, spine });
+  for (const row of choices) assert.equal(resolve().value.chars[CHAR].skins[row.id].portrait, row.portrait);
+  rmSync(join(root, 'seat-portrait/skin-1.png'));
+  const missing = resolve();
+  assert.equal(missing.value.chars[CHAR].skins[second].portrait, undefined);
+  assert.equal(missing.value.chars[CHAR].skins[second].spine.front, model);
+  assert.ok(missing.droppedLeaves.some(p => p.endsWith('.portrait')));
 });
 
 test('an incomplete offline install leaves the working manifest byte-identical', async () => {

@@ -26,9 +26,11 @@
 
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { ALL_EMOTE_THEMES, EMOTE_COOLDOWN_MS, EMOTE_BUBBLE_MS, emoteInfo, emoteArtGroup, emoteArtPath } from '../../../shared/constants.js';
+import { assetUrl } from '../../../shared/cdn.js';
 import { html } from './components.js';
 import { GIcon } from './gameComponents.js';
 import { data, useData, localAsset, artUrls, nextArtUrl } from '../data.js';
+import { ASSETS_CDN } from '../asset-cdn.js';
 import { loadPref, savePref } from '../store.js';
 import { t } from '../../../shared/i18n.js';
 import { CHAT_MAX_CHARS } from '../../../shared/constants.js';
@@ -63,15 +65,17 @@ export function ensureEmoteCss(doc = globalThis.document) {
 /**
  * URLs of an emote's art, best first: the local-client picture, then the mirror copy (data.js artUrls). A server-added
  * set (shared/constants.js CUSTOM_EMOTE_THEMES) is in no manifest — its art ships with the server, so its canonical
- * `emoteArtPath` is the only candidate. Empty when the id is unknown or nothing lists the picture (a path that is not
+ * `emoteArtPath` uses the same CDN rewrite as preload manifests, keeping the display and cache URLs identical.
+ * Empty when the id is unknown or nothing lists the picture (a path that is not
  * listed is never requested).
  * @param {string} id emote id (official or server-added)
+ * @param {string} [assetsCdn] assets CDN base; empty keeps the same-origin path
  * @returns {string[]}
  */
-export function emoteArtUrls(id) {
+export function emoteArtUrls(id, assetsCdn = ASSETS_CDN) {
   const e = emoteInfo(id);
   if (!e) return [];
-  if (e.custom) { const p = emoteArtPath(id); return p ? [p] : []; }
+  if (e.custom) { const p = emoteArtPath(id); return p ? [assetUrl(p, assetsCdn)] : []; }
   return artUrls(emoteArtGroup(id), e.picId);
 }
 

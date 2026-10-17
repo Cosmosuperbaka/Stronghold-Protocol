@@ -14,7 +14,7 @@ const lines = readFileSync(path.join(ROOT, '.gitignore'), 'utf8').split(/\r?\n/)
 /** git's own verdict on a path (null when git or the repository is not available). */
 function ignored(rel) {
   try {
-    execFileSync('git', ['check-ignore', '-q', '--no-index', rel], { cwd: ROOT, stdio: 'ignore' });
+    execFileSync('git', ['check-ignore', '-q', '--no-index', rel], { cwd: ROOT, stdio: 'ignore', windowsHide: true });
     return true;
   } catch (e) {
     return e && e.status === 1 ? false : null;

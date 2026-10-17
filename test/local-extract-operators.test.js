@@ -9,7 +9,7 @@ import { skel } from './helpers/pluginFixtures.js';
 function py(code) {
   const source = `import sys,json\nsys.path.insert(0, ${JSON.stringify(path.resolve('tools/local-extract'))})\nimport operators as op, extract as ex\n${code}`;
   const executable = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
-  const r = spawnSync(executable, ['-B', '-c', source], { encoding: 'utf8' });
+  const r = spawnSync(executable, ['-B', '-c', source], { encoding: 'utf8', windowsHide: true });
   assert.equal(r.status, 0, r.stderr);
   return JSON.parse(r.stdout);
 }
@@ -154,7 +154,7 @@ print(json.dumps({'chars':chars,'count':n,'calls':calls,'files':sorted(str(p.rel
 test('Spine metadata bridge parses original synthetic skeletons with existing animation roles', t => {
   const f = fxFixture(t);
   f.put('unit.skel', skel({ animations: { Idle: [], Attack: [['OnAttack', 0.5]] } }));
-  const r = spawnSync(process.execPath, ['tools/local-extract/plugin-art.mjs', '--spine', path.join(f.root, 'unit.skel')], { encoding: 'utf8' });
+  const r = spawnSync(process.execPath, ['tools/local-extract/plugin-art.mjs', '--spine', path.join(f.root, 'unit.skel')], { encoding: 'utf8', windowsHide: true });
   assert.equal(r.status, 0, r.stderr);
   const meta = JSON.parse(r.stdout);
   assert.equal(meta.pma, true);

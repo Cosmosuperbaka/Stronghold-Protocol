@@ -175,12 +175,12 @@ describe('data/emotes.json (tools/build-emotes.mjs)', () => {
   });
 });
 
-const PY = ['python3', 'python'].find((bin) => spawnSync(bin, ['--version']).status === 0);
+const PY = ['python3', 'python'].find((bin) => spawnSync(bin, ['--version'], { windowsHide: true }).status === 0);
 const PY_ENV = { ...process.env, PYTHONDONTWRITEBYTECODE: '1' };
 
 describe('local-client extraction (tools/local-extract/extract.py)', () => {
   test('extracts every emote theme (battle sprites only) into emoticon/<dir>', { skip: !PY && 'no python3' }, () => {
-    const r = spawnSync(PY, [path.join(ROOT, 'tools/local-extract/extract.py'), '--print-jobs'], { encoding: 'utf8', env: PY_ENV });
+    const r = spawnSync(PY, [path.join(ROOT, 'tools/local-extract/extract.py'), '--print-jobs'], { encoding: 'utf8', env: PY_ENV, windowsHide: true });
     assert.equal(r.status, 0, r.stderr);
     const { emoteThemes, jobs } = JSON.parse(r.stdout);
     assert.deepEqual(emoteThemes, EMOTE_THEMES.map((t) => ({ themeId: t.themeId, dir: t.dir })));
@@ -205,7 +205,7 @@ print(json.dumps({
   'merged': e.merge_manifest({'ui/battle': {'b': 1, 'a': 2}, 'emoticon/slug': {'old': 1}, 'emoticon/basic': {'keep': 1}},
                              {'emoticon/slug': {'pic_z_battle': 1, 'pic_a_battle': 2}}, {'emoticon/slug'}),
 }))`;
-    const r = spawnSync(PY, ['-c', code], { encoding: 'utf8', env: PY_ENV });
+    const r = spawnSync(PY, ['-c', code], { encoding: 'utf8', env: PY_ENV, windowsHide: true });
     assert.equal(r.status, 0, r.stderr);
     const out = JSON.parse(r.stdout);
     assert.deepEqual(out.emo, EMOTE_THEMES.map((t) => `emoticon/${t.dir}`));

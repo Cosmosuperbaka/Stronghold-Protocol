@@ -183,7 +183,7 @@ test('restart decision: nothing to do, one spawn, or a hard stop — and the mar
 
 function runHelp(extra) {
   return spawnSync(process.execPath, [SCRIPT, '--help'], {
-    encoding: 'utf8', env: cleanEnv(extra), timeout: 20000,
+    encoding: 'utf8', env: cleanEnv(extra), timeout: 20000, windowsHide: true,
   });
 }
 
@@ -286,7 +286,7 @@ test('built-in fetch tunnels through HTTP_PROXY only when NODE_USE_ENV_PROXY was
   const run = (extra) => new Promise((resolve, reject) => {
     hits.length = 0;
     const child = spawn(process.execPath, ['--input-type=module', '-e', snippet], {
-      env: cleanEnv({ TARGET: targetUrl, ...extra }), stdio: ['ignore', 'pipe', 'pipe'],
+      env: cleanEnv({ TARGET: targetUrl, ...extra }), stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
     });
     let stdout = '';
     let stderr = '';

@@ -359,11 +359,11 @@ test('SP_GITHUB_PROXY is parsed only for online mirror mode', async () => {
 
 test('setup and asset CLI document and validate source options before doing work', () => {
   for (const script of ['tools/setup.mjs', 'tools/fetch-assets.mjs']) {
-    const help = spawnSync(process.execPath, [script, '--help'], { encoding: 'utf8' });
+    const help = spawnSync(process.execPath, [script, '--help'], { encoding: 'utf8', windowsHide: true });
     assert.equal(help.status, 0, help.stderr);
     assert.match(help.stdout, /--asset-source/);
     assert.match(help.stdout, /SP_GITHUB_PROXY/);
-    const invalid = spawnSync(process.execPath, [script, '--asset-source=invalid'], { encoding: 'utf8' });
+    const invalid = spawnSync(process.execPath, [script, '--asset-source=invalid'], { encoding: 'utf8', windowsHide: true });
     assert.notEqual(invalid.status, 0);
     assert.match(invalid.stderr, /unknown asset source/);
   }

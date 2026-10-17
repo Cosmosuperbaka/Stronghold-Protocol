@@ -9,7 +9,7 @@
 .resource-pack-progress :is(.pbar__meta, p) { margin: 0; font-size: max(calc(.15 * var(--t)), 13px); line-height: 1.5; }
 .resource-pack-progress .pbar__track { min-height: 4px; }
 .resource-pack-progress > small { font-size: max(calc(.13 * var(--t)), 12px); color: var(--text-md); overflow-wrap: anywhere; }
-.modal__box.announcement-modal { width: min(9.6rem, calc(100vw - 32px)); }
+.modal__box.announcement-modal { width: min(10.8rem, calc(100vw - 32px)); }
 .announcement-markdown, .notice__plain { font-size: max(calc(.16 * var(--t)), 13px); line-height: 1.75; overflow-wrap: anywhere; user-select: text; }
 .notice__plain, .announcement-content__plain { white-space: pre-wrap; overflow-wrap: anywhere; }
 .announcement-markdown > * + * { margin-top: 1em; }

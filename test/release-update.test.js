@@ -48,7 +48,7 @@ test('Release list: numeric ordering, version relations, missing assets, explici
     [`${base}-extended.10`, 'new'], [tag, 'new'], [current, 'current'], [older, 'old'],
   ]);
   assert.equal(d.versions[0].installable, false);
-  assert.match(d.versions[0].reason, /没有/);
+  assert.match(d.versions[0].reason, /完整素材包/);
   assert.equal(updater.install({ tag: older }).code, 'DOWNGRADE_CONFIRM');
   assert.equal(installed, undefined);
   assert.equal(updater.install({ tag: older, allowDowngrade: true }).state, 'downloading');
@@ -174,14 +174,15 @@ test('release identity: extension revisions sort numerically, app version stays 
   assert.equal(pickReleaseAsset({ assets: [{ name: 'source.zip' }] }), undefined);
 });
 
-test('download verifies ZIP checksum and program manifest, ignores local art, retains new MANIFEST', async (t) => {
+test('download verifies ZIP checksum and program manifest, stages art and retains new MANIFEST', async (t) => {
   const root = temp(t), zip = archive([['Stronghold-Protocol/public/assets/local/x.png', 'art']]);
   const release = releaseFor(zip);
   const states = [];
   const staged = await downloadAndStage({ root, release, fetchImpl: async () => new Response(zip), progress: (p) => states.push(p.state) });
   assert.equal(read(staged.stage, 'server/index.js'), files['server/index.js']);
   assert.equal(read(staged.stage, 'MANIFEST.json'), manifest(files));
-  assert.equal(fs.existsSync(path.join(staged.stage, 'public/assets')), false);
+  assert.equal(read(staged.stage, 'public/assets/local/x.png'), 'art');
+  assert.equal(read(staged.stage, 'data/assets.json'), '{}');
   assert.ok(states.includes('downloading') && states.includes('verifying'));
   const sums = `${sha(zip)}  ${release.assets[0].name}\n`;
   release.assets.push({ name: 'SHA256SUMS.txt', browser_download_url: 'https://github.com/zhewang448/Stronghold-Protocol/releases/download/test/SHA256SUMS.txt' });

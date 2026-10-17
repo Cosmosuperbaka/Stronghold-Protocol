@@ -72,7 +72,7 @@ test('Python packs are byte-stable across clocks, global versions, input orderin
       + 'p=patch("zipfile.time.localtime",return_value=(2026,10,16,10,0,clock,4,289,-1)); '
       + 'p.start(); runpy.run_path(script,run_name="__main__")';
     const result = spawnSync(process.env.PYTHON || 'python', ['-c', wrapper, String(clock), path.resolve('tools/resource_packs.py'),
-      '--manifest', manifestPath, '--assets-root', assets, '--output', output, '--index', indexPath], { encoding: 'utf8' });
+      '--manifest', manifestPath, '--assets-root', assets, '--output', output, '--index', indexPath], { encoding: 'utf8', windowsHide: true });
     assert.equal(result.status, 0, result.stderr);
     const index = JSON.parse(await readFile(indexPath, 'utf8'));
     const bytes = new Map();
@@ -132,7 +132,7 @@ test('Python packs separate English/Korean voices and optional official FX witho
   const indexPath = path.join(root, 'resource-packs.json');
   await writeFile(manifestPath, JSON.stringify({ version: 'scope', files }));
   const result = spawnSync(process.env.PYTHON || 'python', [path.resolve('tools/resource_packs.py'),
-    '--manifest', manifestPath, '--assets-root', assets, '--output', path.join(root, 'packs'), '--index', indexPath], { encoding: 'utf8' });
+    '--manifest', manifestPath, '--assets-root', assets, '--output', path.join(root, 'packs'), '--index', indexPath], { encoding: 'utf8', windowsHide: true });
   assert.equal(result.status, 0, result.stderr);
   const index = JSON.parse(await readFile(indexPath, 'utf8'));
   assert.equal(index.packs.length, 4);
@@ -165,7 +165,7 @@ test('Python pack builder keeps every pack below 16 MB and records verified reso
   await writeFile(manifestPath, JSON.stringify(manifest));
   const script = path.resolve('tools/resource_packs.py');
   const result = spawnSync(process.env.PYTHON || 'python', [script, '--manifest', manifestPath,
-    '--assets-root', assets, '--output', path.join(root, 'resource-packs'), '--index', indexPath], { encoding: 'utf8' });
+    '--assets-root', assets, '--output', path.join(root, 'resource-packs'), '--index', indexPath], { encoding: 'utf8', windowsHide: true });
   assert.equal(result.status, 0, result.stderr);
   const index = JSON.parse(await readFile(indexPath, 'utf8'));
   assert.equal(index.maxBytes, RESOURCE_PACK_MAX_BYTES);
@@ -298,7 +298,7 @@ test('Python pack builder decodes canonical bracket URLs when reading local file
   }] }));
   const result = spawnSync(process.env.PYTHON || 'python', [path.resolve('tools/resource_packs.py'),
     '--manifest', manifestPath, '--assets-root', assets, '--output', path.join(root, 'packs'),
-    '--index', path.join(data, 'resource-packs.json')], { encoding: 'utf8' });
+    '--index', path.join(data, 'resource-packs.json')], { encoding: 'utf8', windowsHide: true });
   assert.equal(result.status, 0, result.stderr);
   const index = JSON.parse(await readFile(path.join(data, 'resource-packs.json'), 'utf8'));
   assert.equal(index.packs[0].files[0].url, '/assets/local/map/fx/%5Bopt%5Dx.webp');
@@ -313,7 +313,7 @@ test('Python pack builder decodes canonical bracket URLs when reading local file
   for (const url of urls) { const dest = path.join(root, 'public', url); await mkdir(path.dirname(dest), { recursive:true }); await writeFile(dest, body); }
   const manifestPath = path.join(root,'manifest.json'), indexPath = path.join(root,'resource-packs.json');
   const run = () => spawnSync(process.env.PYTHON || 'python', [path.resolve('tools/resource_packs.py'), '--manifest', manifestPath,
-    '--assets-root', path.join(root,'public'), '--output', path.join(root,'packs'), '--index', indexPath], {encoding:'utf8'});
+    '--assets-root', path.join(root,'public'), '--output', path.join(root,'packs'), '--index', indexPath], {encoding:'utf8', windowsHide: true});
   await writeFile(manifestPath, JSON.stringify({version:'fixture',files:urls.map(url => ({url,tier:2,size:body.length,hash}))}));
   const result = run(); assert.equal(result.status,0,result.stderr);
   const doc = JSON.parse(await readFile(indexPath,'utf8'));

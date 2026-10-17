@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FX_ROOT = process.env.SP_FX_ROOT ? path.resolve(process.env.SP_FX_ROOT) : ROOT;
 const TOOL = path.join(ROOT, 'tools/local-extract');
-const PY = ['python3', 'python'].find((bin) => spawnSync(bin, ['--version']).status === 0);
+const PY = ['python3', 'python'].find((bin) => spawnSync(bin, ['--version'], { windowsHide: true }).status === 0);
 const ENV = { ...process.env, PYTHONDONTWRITEBYTECODE: '1' };
 const readJson = (rel, root = ROOT) => { try { return JSON.parse(readFileSync(path.join(root, rel), 'utf8')); } catch { return null; } };
 const manifest = readJson('data/local-assets.json', FX_ROOT);
@@ -27,7 +27,7 @@ const fxList = readJson('data/local-fx.json', FX_ROOT);
 /** Run python code with `fx` imported; returns the parsed JSON it prints. */
 function py(code) {
   const src = `import sys, json, math, struct, zlib\nsys.path.insert(0, ${JSON.stringify(TOOL)})\nimport fx\n${code}`;
-  const r = spawnSync(PY, ['-c', src], { encoding: 'utf8', env: ENV });
+  const r = spawnSync(PY, ['-c', src], { encoding: 'utf8', env: ENV, windowsHide: true });
   assert.equal(r.status, 0, r.stderr);
   return JSON.parse(r.stdout);
 }
@@ -488,7 +488,7 @@ describe('extract.py: the fx run is opt-in', { skip: !PY && 'no python3' }, () =
   test('fx_selected: only an --only prefix naming fx runs it (a plain run leaves the effects out)', () => {
     const src = `import sys, json\nsys.path.insert(0, ${JSON.stringify(TOOL)})\nimport extract as e\n`
       + `print(json.dumps([e.fx_selected(o) for o in ([], ['fx'], ['fx/'], ['fx/prefabs'], ['map'], ['f'], ['map', 'fx'])]))`;
-    const r = spawnSync(PY, ['-c', src], { encoding: 'utf8', env: ENV });
+    const r = spawnSync(PY, ['-c', src], { encoding: 'utf8', env: ENV, windowsHide: true });
     assert.equal(r.status, 0, r.stderr);
     assert.deepEqual(JSON.parse(r.stdout), [false, true, true, true, false, false, true]);
   });
@@ -498,7 +498,7 @@ describe('extract.py: the fx run is opt-in', { skip: !PY && 'no python3' }, () =
       + "old = {'fx': {'index': {}}, 'fx/prefabs': {'a': {}}, 'fx/tex': {}, 'map/fx': {'m': {}}, 'emoticon/x': {}}\n"
       + "print(json.dumps([sorted(e.ran_groups(old, {}, True)), sorted(e.ran_groups(old, {'map/fx': {}})),\n"
       + "  sorted(e.merge_manifest(old, {}, e.ran_groups(old, {}, True))), fx.FX_MANIFEST, list(fx.FX_GROUPS)]))";
-    const r = spawnSync(PY, ['-c', src], { encoding: 'utf8', env: ENV });
+    const r = spawnSync(PY, ['-c', src], { encoding: 'utf8', env: ENV, windowsHide: true });
     assert.equal(r.status, 0, r.stderr);
     const [afterFx, afterMap, merged, name, groups] = JSON.parse(r.stdout);
     assert.deepEqual(afterFx, ['fx', 'fx/prefabs', 'fx/tex'], 'map/fx is not an fx group');
@@ -509,7 +509,7 @@ describe('extract.py: the fx run is opt-in', { skip: !PY && 'no python3' }, () =
   });
 
   test('--print-jobs lists the fx run: its output dir, format version and the Phase 1a sample', () => {
-    const r = spawnSync(PY, [path.join(TOOL, 'extract.py'), '--print-jobs'], { encoding: 'utf8', env: ENV });
+    const r = spawnSync(PY, [path.join(TOOL, 'extract.py'), '--print-jobs'], { encoding: 'utf8', env: ENV, windowsHide: true });
     assert.equal(r.status, 0, r.stderr);
     const { fx, jobs } = JSON.parse(r.stdout);
     assert.equal(fx.sub, 'fx');

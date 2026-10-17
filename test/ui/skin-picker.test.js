@@ -179,8 +179,10 @@ describe('皮肤 picker: the choice', () => {
     assert.deepEqual(chosenSkin(OPERATOR), null);
   });
 
-  test('parseStoredSkins keeps only non-empty string pairs (a hand-edited localStorage)', () => {
-    assert.deepEqual(parseStoredSkins({ a: 'x', b: '', c: 7, d: null, '': 'y', e: 'z' }), { a: 'x', e: 'z' });
+  test('parseStoredSkins keeps valid operator/skin pairs and retains unavailable plugin choices', () => {
+    assert.deepEqual(parseStoredSkins({ a: 'x', b: '', c: 7, d: null, '': 'y', [OPERATOR]: SKIN,
+      char_x_unavailable: 'outfit-1', [OTHER]: '../bad', char_002_amiya: 'x'.repeat(65) }),
+    { [OPERATOR]: SKIN, char_x_unavailable: 'outfit-1' });
     assert.deepEqual(parseStoredSkins(null), {});
     assert.deepEqual(parseStoredSkins([]), {});
     assert.deepEqual(parseStoredSkins('x'), {});

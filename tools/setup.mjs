@@ -123,7 +123,7 @@ export const padDisplay = (s, w) => s + ' '.repeat(Math.max(0, w - displayWidth(
 
 /** Run a command with inherited stdio. `.cmd` shims (npm) need a shell on Windows (Node ≥ 18.20 refuses them otherwise). */
 function run(cmd, args, { cwd = ROOT, env, shell = false } = {}) {
-  const r = spawnSync(cmd, args, { cwd, stdio: 'inherit', env: { ...process.env, ...env }, shell });
+  const r = spawnSync(cmd, args, { cwd, stdio: 'inherit', env: { ...process.env, ...env }, shell, windowsHide: true });
   if (r.error) return { ok: false, code: -1, error: r.error };
   return { ok: r.status === 0, code: r.status };
 }

@@ -48,7 +48,7 @@ export function corpusSpecs(families = FAMILIES) {
 export function nodeAdapter(doc) {
   return strongholdAdapter({ spec, ds: new DataSource(getData({ log: { info() {}, warn() {}, error() {} } }), null), doc });
 }
-const commit = () => { try { return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim(); } catch { return ''; } };
+const commit = () => { try { return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8', windowsHide: true }).trim(); } catch { return ''; } };
 
 export function parseOptions(argv) {
   const out = {};

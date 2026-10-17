@@ -91,6 +91,7 @@ import { findSpecifiers } from './check-imports.mjs';
 import { rewriteManifest } from '../server/http/assetViews.js';
 import { mergeLocalManifests, planFromManifests } from '../public/js/assetPack.js';
 import { writePackIndex } from './packs.mjs';
+import { RELEASE_TAG } from '../server/release-version.js';
 import { compareVersions, diffBases, manifestText, readBase, updateText } from './package-update.mjs';
 import {
   APPLIED_FILE, MANIFEST_FILE, UPDATE_FILE, affectsRuntime, digestFile, inManifest, isSetupArt, listedArtFiles,
@@ -140,7 +141,7 @@ export const PLAYER_NPM_SCRIPTS = ['start', 'setup', 'doctor', 'launch', 'postin
 /** Markdown copied into the zip. Relative links to anything else are rewritten at stage time. */
 export const PLAYER_MARKDOWN = [...ROOT_FILES, ...PLAYER_DOCS, 'packs/README.md', 'plugins/README.md', 'plugins/AGENTS.md'].filter((f) => f.endsWith('.md'));
 /** Where a packaged doc link points when the file itself is not in the zip. */
-export const GITHUB_REPO = 'https://github.com/sganggs/Stronghold-Protocol';
+export const GITHUB_REPO = 'https://github.com/zhewang448/Stronghold-Protocol';
 
 /**
  * THE SWITCH for the Japanese voice dub in the full zip (`audio.voiceJp` of data/assets.json: 2674 files under
@@ -242,14 +243,14 @@ export function selectTracked(paths) {
 }
 
 export function trackedFiles(root) {
-  const r = spawnSync('git', ['-C', root, 'ls-files', '-z'], { maxBuffer: 64 * 1024 * 1024 });
+  const r = spawnSync('git', ['-C', root, 'ls-files', '-z'], { maxBuffer: 64 * 1024 * 1024, windowsHide: true });
   if (r.error || r.status !== 0) throw new Error('git ls-files failed: the package takes tracked files only, run it in a git checkout');
   return r.stdout.toString('utf8').split('\0').filter(Boolean);
 }
 
 /** Tracked files of `files` with uncommitted changes (staged or not). */
 export function dirtyFiles(root, files) {
-  const r = spawnSync('git', ['-C', root, 'status', '--porcelain=v1', '-z', '--untracked-files=no'], { maxBuffer: 64 * 1024 * 1024 });
+  const r = spawnSync('git', ['-C', root, 'status', '--porcelain=v1', '-z', '--untracked-files=no'], { maxBuffer: 64 * 1024 * 1024, windowsHide: true });
   if (r.error || r.status !== 0) throw new Error('git status failed');
   const want = new Set(files);
   const out = [];
@@ -442,12 +443,13 @@ export function playerPackageProblems(pkg, files) {
 }
 
 /**
- * `v` + version, with a trailing `-dev` removed (`0.2.5-dev` → `v0.2.5`, `0.2.4` → `v0.2.4`).
+ * The current base version points at its extension tag; other versions use `v` + version with `-dev` removed.
  * [ASSUMED] an unreleased `-dev` build points player docs at the tag that version will use.
  * @param {string} version
  */
 export function releaseTag(version) {
-  return `v${String(version ?? '').replace(/-dev$/, '')}`;
+  const tag = `v${String(version ?? '').replace(/-dev$/, '')}`;
+  return RELEASE_TAG.split('-extended.')[0] === tag ? RELEASE_TAG : tag;
 }
 
 function docLinkPath(fromFile, href) {
@@ -669,9 +671,9 @@ export function packageOutIsUnsafe(out, root = REPO) {
  */
 export function zipFolder(cwd, zipPath, folder = FOLDER) {
   // deflate everything: storing PNG / MP3 as they are made the full zip 8.5 MB larger and saved no real time
-  const z = spawnSync('zip', ['-q', '-r', '-X', zipPath, folder], { cwd, stdio: 'inherit' });
+  const z = spawnSync('zip', ['-q', '-r', '-X', zipPath, folder], { cwd, stdio: 'inherit', windowsHide: true });
   if (!z.error && z.status === 0) return;
-  const t = spawnSync('tar', ['-c', '--format', 'zip', '--options', 'zip:hdrcharset=UTF-8', '-f', zipPath, folder], { cwd, stdio: 'inherit' });
+  const t = spawnSync('tar', ['-c', '--format', 'zip', '--options', 'zip:hdrcharset=UTF-8', '-f', zipPath, folder], { cwd, stdio: 'inherit', windowsHide: true });
   if (t.error || t.status !== 0 || !isFile(zipPath)) throw new Error('zipping failed: install `zip` (or a bsdtar `tar`)');
 }
 
@@ -761,7 +763,7 @@ function makeStage(root, p, stage, { install, env, log }) {
   if (install) {
     log('npm ci --omit=dev …');
     const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    const r = spawnSync(npm, ['ci', '--omit=dev', '--no-audit', '--no-fund'], { cwd: stage, stdio: 'inherit', shell: process.platform === 'win32' });
+    const r = spawnSync(npm, ['ci', '--omit=dev', '--no-audit', '--no-fund'], { cwd: stage, stdio: 'inherit', shell: process.platform === 'win32', windowsHide: true });
     if (r.error || r.status !== 0) throw new Error('npm ci --omit=dev failed in the stage');
     fs.rmSync(path.join(stage, 'node_modules', '.cache'), { recursive: true, force: true });
     for (const file of ['pixi.min.js', 'ses.umd.js', 'acorn.mjs']) {

@@ -24,7 +24,7 @@
 
 import { createStore, loadPref, savePref, store } from '../store.js';
 import { data } from '../data.js';
-import { SKIN_LIMITS } from '../../../shared/protocol.js';
+import { SKIN_LIMITS, isCharId, isSkinId } from '../../../shared/protocol.js';
 
 /** The localStorage preference (`sp.pref.<key>`) of this browser's skin choices: `{ [charId]: skinId }`. */
 export const SKINS_PREF = 'skins';
@@ -47,8 +47,8 @@ const str = (v) => (typeof v === 'string' && v ? v : null);
 export const skinHasModel = (skin) => !!skin && isObj(skin.spine) && isObj(skin.spine.front) && typeof skin.spine.front.skel === 'string';
 
 /**
- * A stored selection as the store holds it: `{ [charId]: skinId }`, both non-empty strings, at most
- * `SKIN_LIMITS.entries` of them.
+ * A stored selection as the store holds it: `{ [charId]: skinId }`, structurally valid wire ids, at most
+ * `SKIN_LIMITS.entries` of them. Unknown but well-formed plugin choices remain available for later use.
  *
  * The cap is the WIRE's own (shared/protocol.js isSkinSelection) and it is applied here because this is the only parse
  * of a stored selection: the store's initial state, every edit (setSkins / setSkin / clearSkin) and what the sync sends
@@ -64,7 +64,7 @@ export function parseStoredSkins(raw) {
   let kept = 0;
   for (const [charId, skinId] of Object.entries(raw)) {
     if (kept >= SKIN_LIMITS.entries) break;
-    if (!str(charId) || !str(skinId)) continue;
+    if (!isCharId(charId) || !isSkinId(skinId)) continue;
     out[charId] = skinId;
     kept++;
   }

@@ -159,7 +159,11 @@ describe('干员调配 overlay (real server, headless Chrome)', { skip: !ENABLED
       assert.equal(await focused(), 'loadout-io-pick', 'Shift+Tab wraps past the disabled import and hidden file input');
       const chooser = page.waitForFileChooser();
       await page.keyboard.press('Enter');
-      await (await chooser).cancel();
+      try { await (await chooser).cancel(); }
+      catch (error) {
+        const state = await page.evaluate(() => ({ focused: document.activeElement?.outerHTML, dialog: document.querySelector('.modal')?.textContent }));
+        throw new Error(JSON.stringify({ state, problems }), { cause: error });
+      }
       assert.ok(await page.$('.modal'), 'Enter acts on the file picker inside the dialog');
       assert.equal(await module(), original, 'the background module cannot be activated');
       assert.deepEqual(await saved(), {});

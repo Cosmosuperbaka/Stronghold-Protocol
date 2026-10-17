@@ -91,6 +91,6 @@ test('CLI test runs the template harness with composed data',t=>{
  // This explicit local command ignores both server mode and the pin (even after test files changed).
  fs.writeFileSync(path.join(f.pluginsDir,'config.json'),JSON.stringify({trusted:{'script-demo':'wrong-pin'}}));
  const env={...process.env,SP_PLUGIN_SCRIPTS:'sandbox'};delete env.NODE_TEST_CONTEXT;
- const r=spawnSync(process.execPath,['tools/plugin.mjs','test','script-demo','--root',f.root],{encoding:'utf8',timeout:20000,env});
+ const r=spawnSync(process.execPath,['tools/plugin.mjs','test','script-demo','--root',f.root],{encoding:'utf8',timeout:20000,env, windowsHide: true});
  assert.equal(r.status,0,r.stdout+r.stderr);assert.match(r.stdout,/ℹ pass 1\b/); // spec on every Node version
 });

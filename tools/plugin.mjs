@@ -213,7 +213,7 @@ export async function main(argv, io = {}) {
       // (an IDE console, a redirect, CI) and spec there too from Node 23
       const r = spawnSync(process.execPath,['--import',setup,'--test-reporter=spec','--test',...tests],{
 
-        stdio:'inherit',env,timeout:120000,
+        stdio:'inherit',env,timeout:120000, windowsHide: true,
       });
       return r.status ?? 1;
     } finally { fs.rmSync(tmp,{recursive:true,force:true}); }

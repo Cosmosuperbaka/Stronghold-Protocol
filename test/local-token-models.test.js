@@ -33,11 +33,11 @@ const ASSETS = path.join(ROOT, 'public/assets');
 const readJson = (rel) => JSON.parse(readFileSync(path.join(ROOT, rel), 'utf8'));
 const COMMITTED = readJson(LOCAL_TOKEN_SPINES_FILE).models;
 const MANIFEST = readJson('data/assets.json');
-const PY = ['python3', 'python'].find((bin) => spawnSync(bin, ['--version']).status === 0);
+const PY = ['python3', 'python'].find((bin) => spawnSync(bin, ['--version'], { windowsHide: true }).status === 0);
 /** extract.py TOKEN_SPINES (--print-jobs needs no dependencies). */
 const TOKEN_SPINES = (() => {
   if (!PY) return null;
-  const r = spawnSync(PY, [path.join(ROOT, 'tools/local-extract/extract.py'), '--print-jobs'], { encoding: 'utf8', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' } });
+  const r = spawnSync(PY, [path.join(ROOT, 'tools/local-extract/extract.py'), '--print-jobs'], { encoding: 'utf8', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' }, windowsHide: true });
   return r.status === 0 ? JSON.parse(r.stdout).tokenSpines.ids : null;
 })();
 const IDS = Object.keys(COMMITTED).sort();

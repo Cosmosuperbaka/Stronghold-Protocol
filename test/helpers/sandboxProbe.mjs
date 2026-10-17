@@ -33,7 +33,7 @@ process.on('message', async ({ source, plugin, probePermissions, probeSdk, probe
     } else if (probePermissions) {
       const denied = fn => { try { fn(); return false; } catch (e) { return e.code === 'ERR_ACCESS_DENIED'; } };
       value = { write: denied(() => writeFileSync('/tmp/sp-sandbox-must-not-exist', 'bad')),
-        read: denied(() => readFileSync('/etc/hosts')), spawn: denied(() => spawnSync(process.execPath, ['-v'])), ipc: true };
+        read: denied(() => readFileSync('/etc/hosts')), spawn: denied(() => spawnSync(process.execPath, ['-v'], { windowsHide: true })), ipc: true };
     } else if (plugin) {
       const sp = { capture: v => { value = v; } };
       loadSandboxPlugin({ plugin, sp, parse });

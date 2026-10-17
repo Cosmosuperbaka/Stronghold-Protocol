@@ -27,14 +27,14 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const TOOL = path.join(ROOT, 'tools/local-extract');
 const ENV = { ...process.env, PYTHONDONTWRITEBYTECODE: '1' };
-const PY = ['python3', 'python'].find((bin) => spawnSync(bin, ['--version']).status === 0);
-const HAS_PIL = !!PY && spawnSync(PY, ['-I', '-B', '-c', 'import PIL'], { env: ENV }).status === 0;
+const PY = ['python3', 'python'].find((bin) => spawnSync(bin, ['--version'], { windowsHide: true }).status === 0);
+const HAS_PIL = !!PY && spawnSync(PY, ['-I', '-B', '-c', 'import PIL'], { env: ENV, windowsHide: true }).status === 0;
 const stages = JSON.parse(readFileSync(path.join(ROOT, 'data/stages.json'), 'utf8'));
 const manifest = (() => { try { return JSON.parse(readFileSync(path.join(ROOT, 'data/local-assets.json'), 'utf8')); } catch { return null; } })();
 
 function py(code) {
   const src = `import sys, json, struct\nsys.path.insert(0, ${JSON.stringify(TOOL)})\nimport scenes as s\n${code}`;
-  const r = spawnSync(PY, ['-I', '-B', '-c', src], { encoding: 'utf8', env: ENV });
+  const r = spawnSync(PY, ['-I', '-B', '-c', src], { encoding: 'utf8', env: ENV, windowsHide: true });
   assert.equal(r.status, 0, r.stderr);
   return JSON.parse(r.stdout);
 }
@@ -109,7 +109,7 @@ const sceneMeshes = (board) => Object.entries(board.meshes).filter(([k, m]) => k
 
 describe('scenes.py (no UnityPy needed)', { skip: !PY && 'no python3' }, () => {
   test('scene table: one prebuilt scene per battlefield of data/stages.json, with the theme bundles of its materials', () => {
-    const r = spawnSync(PY, ['-I', '-B', path.join(TOOL, 'extract.py'), '--print-jobs'], { encoding: 'utf8', env: ENV });
+    const r = spawnSync(PY, ['-I', '-B', path.join(TOOL, 'extract.py'), '--print-jobs'], { encoding: 'utf8', env: ENV, windowsHide: true });
     assert.equal(r.status, 0, r.stderr);
     const { scenes } = JSON.parse(r.stdout);
     assert.equal(scenes.sub, 'scene');
@@ -191,7 +191,7 @@ print(json.dumps({'mode': d.mode, 'px': list(d.getdata()), 'range': s.LIGHT_RANG
 
   test('fetch_scenes.py: CDN file names and the bundles of the scene table', () => {
     const src = `import sys, json\nsys.path.insert(0, ${JSON.stringify(TOOL)})\nimport fetch_scenes as f\nnames = ['arts/maps/map_autochess/res.ab', 'scenes/activities/act2autochess/level_act2autochess_m02/level_act2autochess_m02.ab', 'scenes/activities/act2autochess/level_act2autochess_m02/level_act2autochess_m02/lightingdata.ab', 'scenes/activities/act44side/level_act44side_01/level_act44side_01.ab']\nprint(json.dumps({'dat': f.dat_name('scenes/a/level_x/level_x.ab'), 'hash': f.dat_name('avg/a#1.ab'), 'wanted': f.wanted(names, ['act2autochess_m02'])}))`;
-    const r = spawnSync(PY, ['-I', '-B', '-c', src], { encoding: 'utf8', env: ENV });
+    const r = spawnSync(PY, ['-I', '-B', '-c', src], { encoding: 'utf8', env: ENV, windowsHide: true });
     assert.equal(r.status, 0, r.stderr);
     const out = JSON.parse(r.stdout);
     assert.equal(out.dat, 'scenes_a_level_x_level_x.dat');
