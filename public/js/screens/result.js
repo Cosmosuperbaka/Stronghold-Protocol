@@ -1,3 +1,4 @@
+import { ResultAvatar } from '../ui/resultAvatar.js';
 // Result screen (research 06 §10.6): victory / defeat hero with rounds passed, boss medallions, and a
 // card per player — band, final lineup avatars with elite marks, stats, title (评语) with its icon —
 // plus 返回同盟.
@@ -77,7 +78,7 @@ function PlayerCard({ p, myId, titles, best, solo = false }) {
   const bonds = resultBonds(p.bonds, (id) => gd.bond(id));
   return html`<article class=${cx('rcard', p.playerId === myId && 'is-self', p.alive === false && 'is-dead')}>
     <header class="rcard__head">
-      <${PlayerAvatar} player=${p} self=${p.playerId === myId} />
+      <${ResultAvatar} player=${p} self=${p.playerId === myId} />
       <div class="rcard__who">
         <b class="rcard__name">${p.name}${p.isBot ? html`<span class="rcard__ai">AI</span>` : null}${p.playerId === myId ? html`<span class="rcard__you">${t('你')}</span>` : null}</b>
         <span class="rcard__band">${band ? html`<${BandIcon} bandId=${band.bandId} size="xs" />${band.name}` : '—'}</span>

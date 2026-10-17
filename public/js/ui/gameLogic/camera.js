@@ -104,12 +104,12 @@ export function foldCamera(s) {
  * direction wheel of a legal drop is open (`facing`; equipment and summons skip the wheel and restore on drop).
  * Unlike a hand-made fold this one never waits for the interaction to end — it zooms as the piece is picked up. It is
  * derived from the interaction state and never writes the player's 收起/展开 state.
- * Settings「部署时保持视角」 (`keepDeployView`) skips this temporary fold and zoom together; manual folds still work.
- * @param {{ ownPrep?: boolean, editable?: boolean, pen?: boolean, drag?: boolean, facing?: boolean, keepDeployView?: boolean }|null|undefined} o
+ * Settings「部署时镜头缩放」 (`deploymentZoom`, off by default) explicitly enables this fold and zoom; manual folds still work.
+ * @param {{ ownPrep?: boolean, editable?: boolean, pen?: boolean, drag?: boolean, facing?: boolean, enabled?: boolean }|null|undefined} o
  * @returns {boolean}
  */
 export function deployFoldsShop(o) {
-  return !!o && o.keepDeployView !== true && !!o.ownPrep && !!o.editable && !o.pen && (!!o.drag || !!o.facing);
+  return !!o && o.enabled === true && !!o.ownPrep && !!o.editable && !o.pen && (!!o.drag || !!o.facing);
 }
 
 /**

@@ -100,6 +100,7 @@ export class MatchViews {
         playerId: ps.playerId,
         ...(Object.keys(ps.skins || {}).length ? { skins: ps.skins } : {}),
         bondPlan: ps.bondPlan || null,
+        card: ps.card || null, cardSkin: ps.cardSkin || null,
         seat: ps.seat,
         name: ps.name,
         isBot: ps.isBot,

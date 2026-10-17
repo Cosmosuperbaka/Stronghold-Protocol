@@ -6,7 +6,7 @@ const EDGE = 12;
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(Math.max(lo, hi), n));
 const valid = p => p && Number.isFinite(p.x) && Number.isFinite(p.y) && p.x >= 0 && p.x <= 1 && p.y >= 0 && p.y <= 1;
 
-export function useChatPosition({ name, playerId, active, open }) {
+export function useChatPosition({ name, playerId, active, open, floating = false }) {
   const root = useRef(null), body = useRef(null), position = useRef(null), drag = useRef(null), suppress = useRef(false);
   const key = name ? `chatPosition.name.${encodeURIComponent(name)}` : playerId ? `chatPosition.player.${encodeURIComponent(playerId)}` : null;
   const layout = () => {
@@ -42,7 +42,7 @@ export function useChatPosition({ name, playerId, active, open }) {
     if (body.current) observer.observe(body.current);
     window.addEventListener('resize', layout);
     return () => { observer.disconnect(); window.removeEventListener('resize', layout); drag.current = null; };
-  }, [active, open, key]);
+  }, [active, open, floating, key]);
   useLayoutEffect(layout);
 
   const place = (left, top) => {

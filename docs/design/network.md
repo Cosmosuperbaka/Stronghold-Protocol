@@ -73,7 +73,7 @@ creation, joining, spectating and invitation links use the same room code.
 ### 8.2 Match
 
 **Field pings (owner extension, 2026-10-14).** [ASSUMED] `g.ping {fieldId, area:'board', row, col, kind}`
-accepts attention / attack / danger / retreat / question. The coordinates are integer BOARD coordinates within GEO.
+accepts attention / attack / danger / retreat / question / heart (heart added at the owner's request, 2026-10-17). The coordinates are integer BOARD coordinates within GEO.
 The target must satisfy the current watch restrictions (including normal combat and boss-group visibility), or
 `BAD_TARGET`; 500 ms per-player cooldown or `RATE`. `m.ping {playerId, name, fieldId, area, row, col, kind}` broadcasts
 to room members, with clients showing it only on the matching field for 2.5 s. It is ephemeral, absent from state,

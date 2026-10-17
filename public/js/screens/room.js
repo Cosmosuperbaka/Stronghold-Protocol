@@ -52,7 +52,7 @@ import { net } from '../net.js';
 import { store, useStore, shallowEqual, emptyMatch, isSpectating, serverNow, loadPref, savePref } from '../store.js';
 import { data, useData } from '../data.js';
 import { chessAvatarUrl } from '../ui/assetUrls.js';
-import { CARD_PREF, CARD_SKIN_PREF, cardOperators, seatPortrait } from '../ui/seatArt.js';
+import { CARD_PREF, CARD_SKIN_PREF, cardOperators, seatPortrait, cardAvatarUrl } from '../ui/seatArt.js';
 import { C2S } from '../../../shared/protocol.js';
 import { difficultyInfo, ProtoCard } from './lobby.js';
 import { ProtocolScene } from '../ui/protocolScene.js';
@@ -242,7 +242,7 @@ function SeatCard({ seat, index, room, facts, myId, busy, online, onKick, onInvi
     <div class=${`rseat__plate${seatAccount?.card ? ' has-nc' : ''}`}>
       <${NameCardLayer} card=${seatAccount?.card} />
       ${isMe ? html`<span class="rseat__me" title=${t('你')}><${Icon} name="info" /></span>` : null}
-      <${AvatarFrame} size="sm" name=${seat.name} src=${seatAccount?.avatar || undefined} seat=${index} bot=${seat.isBot} self=${isMe} />
+      <${AvatarFrame} size="sm" name=${seat.name} src=${cardAvatarUrl(seat.card, seat.cardSkin, portraits.m) || seatAccount?.avatar || undefined} seat=${index} bot=${seat.isBot} self=${isMe} />
       <span class="rseat__who">
         <${TrophyBadge} count=${seatAccount?.trophies} class="tbadge--inline" /><b class=${`rseat__name${owner ? ' sp-owner-name' : ''}`}>${seat.name || t('博士')}</b><${AccountTag} playerId=${seat.isBot ? null : seat.playerId} />
         ${owner ? html`<span class="sp-owner-badge">${t('服主')}</span>` : null}

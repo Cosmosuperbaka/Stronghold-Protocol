@@ -35,6 +35,7 @@ describe('the shop folds while deploying a piece and restores afterwards (#602)'
   /** Open the mock PREP match with a free deploy slot (one board operator sold, like facing.e2e.test.js). */
   async function openPage(viewport) {
     const page = await browser.newPage();
+    await page.evaluateOnNewDocument(() => localStorage.setItem('sp.pref.settings', JSON.stringify({ deploymentZoom: true })));
     if (viewport) await page.setViewport(viewport);
     const problems = [];
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
@@ -177,7 +178,7 @@ describe('the shop folds while deploying a piece and restores afterwards (#602)'
     await h.page.close();
   });
 
-  test('the keep-view setting persists and holds the engine camera through moving, facing and equipping on desktop and phone', async () => {
+  test('the default non-zoom setting persists and holds the engine camera through moving, facing and equipping on desktop and phone', async () => {
     for (const viewport of [{ width: 1600, height: 900 }, { width: 844, height: 390, hasTouch: true }]) {
       const context = await browser.createBrowserContext();
       try {
@@ -188,11 +189,13 @@ describe('the shop folds while deploying a piece and restores afterwards (#602)'
         await page.goto(`${base}/dev/game-mock.html?shot=1&phase=PREP`, { waitUntil: 'domcontentloaded', timeout: 60000 });
         await page.waitForFunction(() => globalThis.__SP_VIEW__?.raw?.stats?.().mode === 'prep', { timeout: 60000 });
         await page.click('[data-testid="settings-btn"]');
-        const toggle = '[role="switch"][aria-label="部署时保持视角"]';
+        const toggle = '[role="switch"][aria-label="部署时镜头缩放"]';
         await page.waitForSelector(toggle);
         assert.equal(await page.$eval(toggle, (el) => el.getAttribute('aria-checked')), 'false');
         await page.click(toggle);
-        await page.waitForFunction(() => JSON.parse(localStorage.getItem('sp.pref.settings')).keepDeployView === true);
+        await page.waitForFunction(() => JSON.parse(localStorage.getItem('sp.pref.settings')).deploymentZoom === true);
+        await page.click(toggle);
+        await page.waitForFunction(() => JSON.parse(localStorage.getItem('sp.pref.settings')).deploymentZoom === false);
         await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
         await page.waitForFunction(() => globalThis.__SP_VIEW__?.raw?.stats?.().mode === 'prep', { timeout: 60000 });
         await sleep(1500);

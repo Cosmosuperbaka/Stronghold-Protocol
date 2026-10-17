@@ -91,7 +91,7 @@ const MAX_PER_URL = 2;
 // [ASSUMED] Original short field-ping earcons; independent of downloaded official sound banks.
 const PING_TONES = Object.freeze({
   attention: [880, 1174.66], attack: [659.25, 987.77, 1318.51], danger: [987.77, 659.25, 987.77],
-  retreat: [880, 659.25, 440], question: [659.25, 1046.5],
+  retreat: [880, 659.25, 440], question: [659.25, 1046.5], heart: [523.25, 659.25, 783.99],
 });
 /**
  * 漏怪: the original Arknights exit alarm (`sfx.battle.leak`, `battle/b_ui/b_ui_alarmenter`) runs **1.44 s**, and the

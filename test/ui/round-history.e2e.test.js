@@ -56,7 +56,20 @@ test('shared round chart: live game, console, noStack filtering, settings persis
     await page.select(`${panel} select`, 'income');
     // Repeated public views must not replace a focused control or lose the selected metric.
     await page.focus(`${panel} select`);
-    await page.waitForFunction(() => document.querySelector('#round-history-panel select') === document.activeElement);
+    const metricControl = await page.$(`${panel} select`), metricOption = await page.$(`${panel} option[value="income"]`);
+    m.history[1].players[0].income = 19;
+    m.history[1].players[0].bonds.push({ id: 'metric-refresh-bond', name: '刷新盟约', active: true, layers: 7 });
+    await page.waitForFunction(() => [...document.querySelectorAll('#round-history-panel svg text')].some((e) => e.textContent === '20'));
+    assert.equal(await metricControl.evaluate((el) => el.isConnected && el === document.activeElement && el.value === 'income'), true,
+      'history updates retain the same focused metric select');
+    assert.equal(await metricOption.evaluate((el) => el.isConnected), true, 'history updates retain native options while choosing');
+    assert.equal(await page.$(`${panel} option[value="bond:metric-refresh-bond"]`), null, 'new metric options wait until choosing finishes');
+    await page.focus(`${panel} .row button`); await page.keyboard.press('Enter');
+    await page.waitForSelector(`${panel} option[value="bond:metric-refresh-bond"]`);
+    assert.deepEqual(await page.$$eval(`${panel} tbody td`, (es) => es.map((e) => e.textContent)), ['9', '9', '19', '9'],
+      'table toggle uses the latest history after a live update');
+    await page.click(`${panel} .row button`);
+    await metricControl.dispose(); await metricOption.dispose();
     fs.mkdirSync(OUT, { recursive: true });
     for (const [name, width, height] of [['desktop', 1440, 900], ['mobile', 390, 844], ['landscape', 844, 390]]) {
       await page.setViewport({ width, height });

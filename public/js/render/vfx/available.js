@@ -1,9 +1,11 @@
+import { dataUrl } from '../../../../shared/cdn.js';
+import { DATA_CDN } from '../../asset-cdn.js';
 // render/vfx/available.js — the official battle effects' file list (data/local-fx.json, DESIGN §33.1), fetched once per
 // page and shared by the effects layer (render/vfx/library.js) and 设置「官方特效」 (ui/settings.js shows the setting only
 // when effects were extracted). The served view answers `{ groups: {} }` on an install without effects; a server
 // without the view (an older one, a static host) may answer 404 — both mean "none".
 
-export const FX_LIST_URL = '/data/local-fx.json';
+export const FX_LIST_URL = dataUrl('/data/local-fx.json', DATA_CDN);
 
 let listPromise = null;
 

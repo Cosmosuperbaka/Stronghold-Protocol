@@ -15,6 +15,7 @@ const ping = (fieldId = 'n:p_1', kind = 'question') => ({
 describe('field pings', () => {
   test('protocol accepts the supported kinds and rejects malformed coordinates', () => {
     assert.ok(C2S['g.ping']);
+    assert.ok(PING_KINDS.includes('heart'));
     for (const kind of PING_KINDS) assert.equal(validateC2S(ping('n:p_1', kind)), null, kind);
     assert.ok(S2C.includes('m.ping'));
     for (const bad of [
@@ -92,7 +93,7 @@ describe('field pings', () => {
     assert.equal(pingTileAt(view, rect, 50, 50), null);
   });
 
-  test('real sockets relay the same ping to players and spectator seats', async (t) => {
+  test('real sockets relay heart pings to players and spectator seats', async (t) => {
     const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
     t.after(() => srv.close());
     const clients = [];
@@ -110,9 +111,9 @@ describe('field pings', () => {
     assert.equal((await b.request({ t: 'room.ready', ready: true })).t, 'ok');
     assert.equal((await a.request({ t: 'room.start' })).t, 'ok');
     await a.waitFor('m.public');
-    assert.equal((await a.request(ping(`n:${b.id}`))).t, 'ok');
+    assert.equal((await a.request(ping(`n:${b.id}`, 'heart'))).t, 'ok');
     const received = await Promise.all(clients.map((c) => c.waitFor('m.ping')));
-    for (const msg of received) assert.deepEqual(msg, { ...ping(`n:${b.id}`), t: 'm.ping', playerId: a.id, name: 'P0' });
-    assert.equal((await watcher.request(ping(`n:${b.id}`))).code, ERR.SPECTATOR);
+    for (const msg of received) assert.deepEqual(msg, { ...ping(`n:${b.id}`, 'heart'), t: 'm.ping', playerId: a.id, name: 'P0' });
+    assert.equal((await watcher.request(ping(`n:${b.id}`, 'heart'))).code, ERR.SPECTATOR);
   });
 });

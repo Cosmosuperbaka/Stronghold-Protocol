@@ -32,7 +32,8 @@ export function chessAvatarUrl(m, chess) {
  * @param {any} m
  * @param {any} chess
  */
-export function chessPortraitUrl(m, chess) {
+export function chessPortraitUrl(m, chess, { skin = null } = {}) {
+  if (skin && chess?.charId && str(m?.chars?.[chess.charId]?.skins?.[skin]?.portrait)) return m.chars[chess.charId].skins[skin].portrait;
   const chars = obj(obj(m)?.chars);
   const id = str(chess?.assets?.portrait);
   if (!chars) return null;

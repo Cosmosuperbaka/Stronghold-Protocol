@@ -25,6 +25,7 @@ Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 本回合收入/支出及可叠层盟约的层数；可切换表格，第一回合结算前显示等待记录。
 同一面板内切换「每回合曲线 / 干员伤害排行」。排行复用控制台实现，按回合与玩家筛选、
 默认前 10 并可展开全部，显示干员/玩家、伤害、伤害条、击杀和占本人伤害比例；切换分页保留选择。
+曲线与排行在实时刷新时保留筛选控件节点及焦点，指标选项变化在失焦后同步，选择栏不因刷新收起。
 主机设置 `roundCharts` 默认开启，保存后全房间立即生效并持久化；关闭时隐藏入口、关闭已打开面板，
 不停止历史记录。两处图表的盟约选项均排除数据标记 `noStack` 的盟约（含旧记录）；控制台的这类
 盟约保留人数/档位信息，省略层数及加层/设层输入。
@@ -385,11 +386,11 @@ Explicit false and unmarked raw displacements face the travel direction. Normal 
 
 ### Local preferences and recovery (§28.14, §28.18–20)
 
-Settings「部署时保持视角」 (`keepDeployView`, default false, stored in `sp.pref.settings`) opts out of the temporary
-shop fold and camera zoom of deploy / reposition / equip interactions (§32.14.30). When enabled, pickup, the direction
-wheel, cancellation and equipping keep the player's current shop state and prep camera, on normal and boss boards.
-Manual shop folding / unfolding and 准备就绪 still adjust the camera. This is a local UI preference requested by the
-maintainer (2026-10-17), with no simulation or match-rule change.
+Settings「部署时镜头缩放」 (`deploymentZoom`, default false, stored in `sp.pref.settings`) explicitly enables the
+temporary shop fold and camera zoom of deploy / reposition / equip interactions (§32.14.30). When enabled, pickup, the
+direction wheel, cancellation and equipping use the folded-shop camera, on normal and boss boards. Manual shop folding /
+unfolding and 准备就绪 still adjust the camera. This is a local UI preference requested by the maintainer (2026-10-17),
+with no simulation or match-rule change.
 
 Settings persist `textSize` (sm/md/lg/xl; default sm), `voiceLang` (cn/jp/en/kr; default cn), `voiceNative` (the
 本土语言 switch; default false) and `voiceOverrides` (charId → cn/jp/en/kr/native; default empty). CSS text uses `--t`;
@@ -540,13 +541,24 @@ room and every match phase, independent of the official emote wheel. Its transpo
 follows room membership across route changes. The in-match entry sits below the ready controls and timer.
 Limits and frames: network §8, Room text chat.
 
-Field pings are another owner-requested remake extension [ASSUMED] (2026-10-14). A five-button HUD group selects
-attention, attack, danger, retreat or question; choosing one arms the next tap/click on a board tile (occupied tiles
+Collapsed chat also previews newly received peer and host messages (owner request, 2026-10-17). The floating preview
+follows the draggable entry, stays inside the viewport, shows the latest two messages (three text lines each) and a
+count of further new messages. It fades after 6 seconds since the latest incoming message; hovering or keyboard focus
+pauses the countdown. Clicking opens chat and clears unread/preview state. Expiry preserves unread counts. Own echoes,
+history/reconnect backfills and messages received while chat is expanded do not create previews; moderator clearing
+also removes pending previews. No chat notification sound is added. Player settings →「显示消息提示气泡」
+(`chatBubbles`) defaults on, including older saved profiles, and persists locally. Switching off immediately hides
+and discards pending previews while preserving unread counts; switching back on only previews subsequent messages.
+Previews enter with a 220 ms fade and 6 px upward movement, and leave with a 180 ms fade and 4 px upward movement.
+Reduced-motion preferences disable both animations and transitions.
+
+Field pings are another owner-requested remake extension [ASSUMED] (2026-10-14; heart added at the owner's request on
+2026-10-17). A six-button HUD group selects attention, attack, danger, retreat, question or heart; choosing one arms the next tap/click on a board tile (occupied tiles
 included), then exits placement. Each marker displays its server-authored sender name as escaped text, with long names ellipsized. Click the same button again or press Esc to cancel. Right-clicking empty ground
 sends the selected kind directly. Both the engine and DOM fallback use BOARD coordinates and `view.tileScreen`
 viewport geometry. Matching-field markers last 2.5 s and follow the camera: a 56–80 px SVG badge drops above the target,
 with two expanding ground rings and a pointer stem. Short screens use a shorter drop; reduced motion keeps the badge
-and a static ground ring. Five distinct synthesized cues use the existing AudioManager SFX/mute buses, require an
+and a static ground ring. Six distinct synthesized cues use the existing AudioManager SFX/mute buses, require an
 unlocked visible page, and suppress bursts within 180 ms. Only newly received pings on the currently shown field sound;
 switching fields never replays old cues. No audio assets or downloads are required.
 The 44 px controls sit above the bottom-left communication/settings corner, away from the shop's refresh/freeze buttons.

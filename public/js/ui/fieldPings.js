@@ -4,10 +4,13 @@ import { N_ } from '../../../shared/i18n.js';
 import { html, Icon } from './components.js';
 
 export const PING_LABELS = Object.freeze({
-  attention: N_('注意'), attack: N_('进攻'), danger: N_('危险'), retreat: N_('撤退'), question: N_('疑问'),
+  attention: N_('注意'), attack: N_('进攻'), danger: N_('危险'), retreat: N_('撤退'), question: N_('疑问'), heart: N_('爱心'),
 });
 const ICONS = Object.freeze({ attention: 'info', attack: 'sword', danger: 'warn', retreat: 'exit' });
 export function PingIcon({ kind }) {
+  if (kind === 'heart') return html`<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M12 21 3.5 12.5a5.7 5.7 0 0 1 8.1-8.1l.4.4.4-.4a5.7 5.7 0 0 1 8.1 8.1z" />
+  </svg>`;
   if (kind !== 'question') return html`<${Icon} name=${ICONS[kind] || 'info'} />`;
   return html`<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
     <path d="M7 7a5 5 0 0 1 10 0c0 2.2-1.3 3.2-2.7 4.2-1.3.9-1.3 1.7-1.3 3.8h-2c0-2.8.2-4 2.1-5.4C14.4 8.7 15 8.2 15 7a3 3 0 0 0-6 0zM11 18h2v3h-2z" />

@@ -113,6 +113,8 @@ export function buildResult(m, outcome) {
       playerId: ps.playerId,
       seat: ps.seat,
       name: ps.name,
+      ...(ps.card ? { card: ps.card, cardSkin: ps.cardSkin || null } : {}),
+      ...(Object.keys(ps.skins || {}).length ? { skins: ps.skins } : {}),
       isBot: ps.isBot,
       left: ps.left,
       alive: ps.alive,

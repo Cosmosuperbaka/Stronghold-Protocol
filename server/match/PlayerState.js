@@ -148,6 +148,8 @@ export class PlayerState {
     this.seat = seat.seat;
     this.name = seat.name;
     this.isBot = !!seat.isBot;
+    this.card = this.isBot ? null : seat.card || null;
+    this.cardSkin = this.isBot ? null : seat.cardSkin || null;
     this.connected = this.isBot ? true : !!seat.connected;
     this.left = false;
     this.autoplay = false;

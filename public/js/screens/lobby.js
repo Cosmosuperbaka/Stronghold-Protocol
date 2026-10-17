@@ -22,7 +22,7 @@ import { useHubBackdrop, HubBackdrop, HubRadar, BackdropSettings, BackdropGlyph,
 // config.json mode texts come localized from data.js.
 
 import { ResumeMatchButton } from '../ui/resumeMatch.js';
-import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
+import { useEffect, useLayoutEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS, ROOM_CODE_LEN, MAX_SEATS, MAX_SPECTATORS, modeIdFor, ERR, ERR_TEXT } from '../../../shared/constants.js';
 import { RANDOM_MODE } from '../../../shared/randomMode.js';
 import { html, Button, Icon, MicroLabel, Panel, TextField, PingPill, AvatarFrame, Tooltip, Spinner, DifficultyIcon, doctorNo } from '../ui/components.js';
@@ -388,7 +388,7 @@ function SweepPlate({ onClick }) {
 function HubEntry({ group, name, en, icon, badge, tone = 'mint', count = null, onClick, disabled = false }) {
   return html`<div class="hub-entry-wrap">
     ${group ? html`<span class="hub-entry__group"><${Icon} name=${group.icon} />${group.label}</span>` : html`<span class="hub-entry__group hub-entry__group--blank"></span>`}
-    <button type="button" class=${`hub-entry hub-entry--${tone}`} onClick=${onClick} disabled=${disabled}>
+    <button type="button" aria-label=${en} class=${`hub-entry hub-entry--${tone}`} onClick=${onClick} disabled=${disabled}>
       <span class="hub-entry__icon"><${Icon} name=${icon} /></span>
       <span class="hub-entry__en">${en}</span>
       <span class="hub-entry__name">${name}${badge ? html`<span class="mode-beta">${badge}</span>` : null}</span>
@@ -499,8 +499,10 @@ export function ProtoCard({ roomMode, difficulty, selected, onSelect, matchmakin
 function ProtocolSelect({ card, roomMode, random, variant, difficulty, onDifficulty, onClose, matchmaking, brief, privateRoom, onPrivate,
   online, maint, busy, isSearching, onCreate, onQueue, purpose = 'create', onSearch, onCancel, mm, onBrowse, chained = false }) {
   const [leaving, leave] = useLeave(onClose);
+  const pageRef = useRef(null);
+  useLayoutEffect(() => { pageRef.current?.querySelector('.proto-back')?.focus(); }, []);
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('.modal, .guide')) leave(); };
+    const onKey = (e) => { if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing && !document.querySelector('.modal, .guide, .lo, .st, [aria-modal="true"]')) { e.preventDefault(); e.stopPropagation(); leave(); } };
     addEventListener('keydown', onKey);
     document.body.classList.add('hub-dialog-open');
     return () => { removeEventListener('keydown', onKey); document.body.classList.remove('hub-dialog-open'); };
@@ -533,7 +535,7 @@ function ProtocolSelect({ card, roomMode, random, variant, difficulty, onDifficu
       </div>
     </div>`;
   }
-  return html`<div class=${`proto${fx}`} style=${`--d-color:${DIFFICULTY_COLORS[difficulty]}`} data-difficulty=${difficulty} role="dialog" aria-label=${t('选择模拟协议')}>
+  return html`<div class=${`proto${fx}`} style=${`--d-color:${DIFFICULTY_COLORS[difficulty]}`} data-difficulty=${difficulty} ref=${pageRef} role="main" aria-label=${t('选择模拟协议')}>
     <div class="proto__bg" aria-hidden="true"></div>
     <header class="proto-top">
       <button type="button" class="proto-back" onClick=${leave} title=${t('返回大厅 (Esc)')} aria-label=${t('返回大厅')}>
@@ -948,16 +950,28 @@ export function LobbyScreen() {
   };
   // hub dialogs: the start sheet of a picked mode, 密钥加入 (opened by an invite code in the URL too)
   const [sheetOpen, setSheetOpen] = useState(false);
+  const modeTrigger = useRef(null);
+  const previousSheet = useRef(false);
+  useLayoutEffect(() => {
+    if (previousSheet.current && !sheetOpen) document.querySelector(modeTrigger.current || '.hub-entry')?.focus();
+    previousSheet.current = sheetOpen;
+  }, [sheetOpen]);
   const [sheetPurpose, setSheetPurpose] = useState('create'); // 'create' | 'search' (搜寻队友)
   const [allyOpen, setAllyOpen] = useState(false);            // 选择同盟方式
   const [sheetChained, setSheetChained] = useState(false);    // opened from 选择同盟方式: no darkening of the hub between
   const [joinOpen, setJoinOpen] = useState(false);
   const [achOpen, setAchOpen] = useState(false);              // 成就统计 (ui/achievements.js)
   // 同盟模拟 → 选择同盟方式; 独立模拟 / 无限火力 → 选择模拟协议
-  const openMode = (m) => { pickMode(m); if (m === 'coop') setAllyOpen(true); else { setSheetPurpose('create'); setSheetChained(false); setSheetOpen(true); } };
+  const openMode = (m) => { modeTrigger.current = m === 'solo' ? '.hub-entry[aria-label="SOLO"]' : '.hub-entry[aria-label="ALLIANCE"]'; pickMode(m); if (m === 'coop') setAllyOpen(true); else { setSheetPurpose('create'); setSheetChained(false); setSheetOpen(true); } };
   const openSearch = () => { pickMode('coop'); setSheetChained(allyOpen); setAllyOpen(false); setSheetPurpose('search'); setSheetOpen(true); };
   const modeCard = MODE_CARDS.find((c) => c.id === simulation) || MODE_CARDS[0];
 
+  if (sheetOpen) return html`<${ProtocolSelect} card=${modeCard} roomMode=${roomMode} random=${randomMode} variant=${variant} difficulty=${difficulty}
+      onDifficulty=${pickDifficulty} onClose=${() => setSheetOpen(false)} matchmaking=${matchmakingCounts}
+      brief=${randomMode ? html`<${FirepowerBrief} variant=${fpVariant} onVariant=${pickVariant} />` : null}
+      privateRoom=${privateRoom} onPrivate=${setPrivateRoom} online=${online} maint=${maint} busy=${busy} isSearching=${isSearching}
+      onCreate=${create} onQueue=${async () => { await queueMatch(); setSheetOpen(false); }}
+      purpose=${sheetPurpose} onSearch=${queueMatch} onCancel=${cancelMatch} mm=${mm} onBrowse=${() => setModalOpen(true)} chained=${sheetChained} />`;
   return html`<div class="screen lobby-screen lobby-hub" data-hub-theme=${backdropTheme(bg)}>
     <${HubBackdrop} bg=${bg} />
     <header class="topbar hub-topbar">
@@ -1024,12 +1038,7 @@ export function LobbyScreen() {
       </section>
     </main>
 
-    ${sheetOpen ? html`<${ProtocolSelect} card=${modeCard} roomMode=${roomMode} random=${randomMode} variant=${variant} difficulty=${difficulty}
-      onDifficulty=${pickDifficulty} onClose=${() => setSheetOpen(false)} matchmaking=${matchmakingCounts}
-      brief=${randomMode ? html`<${FirepowerBrief} variant=${fpVariant} onVariant=${pickVariant} />` : null}
-      privateRoom=${privateRoom} onPrivate=${setPrivateRoom} online=${online} maint=${maint} busy=${busy} isSearching=${isSearching}
-      onCreate=${create} onQueue=${async () => { await queueMatch(); setSheetOpen(false); }}
-      purpose=${sheetPurpose} onSearch=${queueMatch} onCancel=${cancelMatch} mm=${mm} onBrowse=${() => setModalOpen(true)} chained=${sheetChained} />` : null}
+
 
     ${allyOpen ? html`<${AllianceSelect} customCode=${customCode} onCustomCode=${setCustomCode} customCodeOk=${customCodeOk} onClose=${() => setAllyOpen(false)} code=${code} onCode=${(v) => setCode(normalizeCode(v))} codeOk=${codeOk}
       recent=${recent} online=${online} maint=${maint} busy=${busy} difficulty=${difficulty} recruiting=${recruitingRooms(rooms).length}

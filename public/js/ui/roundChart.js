@@ -7,6 +7,7 @@ const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const full = new Intl.NumberFormat();
 const compact = new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 });
 const fmt = (n) => Math.abs(n) >= 1e4 ? compact.format(n) : full.format(n);
+const chartViews = new WeakMap();
 function seriesOf(history, nameOf) {
   const last = history[history.length - 1];
   return last ? last.players.map((p, i) => ({ id: p.playerId, name: nameOf(p.playerId), color: SERIES[i] || INK.label })) : [];
@@ -39,23 +40,30 @@ export function niceScale(max) {
  * one tooltip listing every player at that round, and a table view. `state` { metric, table } survives re-renders.
  */
 export function drawRoundChart(host, history, nameOf, state, { bondRecord = () => null, name = (s) => s } = {}) {
-  const focused = host.contains(document.activeElement) ? document.activeElement?.tagName?.toLowerCase() : null;
-  host.textContent = '';
-  if (!history.length) { host.innerHTML = `<p class="meta">${esc(t('第一回合结算后开始记录。'))}</p>`; return; }
+  if (!history.length) { host.innerHTML = `<p class="meta">${esc(t('第一回合结算后开始记录。'))}</p>`; chartViews.delete(host); return; }
   const series = seriesOf(history, nameOf);
   const bonds = new Map();
   for (const h of history) for (const p of h.players) for (const b of p.bonds || []) if (b.active && !b.noStack && !bondRecord(b.id)?.noStack) bonds.set(b.id, name(b.name));
   const metrics = [...METRICS.map(([id, label]) => [id, t(label)]), ...[...bonds].map(([id, name]) => ['bond:' + id, t('盟约层数 · {name}', { name })])];
   const [key, label] = metrics.find((x) => x[0] === state.metric) || metrics[0];
-  const bar = document.createElement('div');
-  bar.className = 'row';
-  bar.innerHTML = `<label>${esc(t('指标'))} <select aria-label="${esc(t('曲线指标'))}">${metrics.map(([k, l]) => `<option value="${esc(k)}" ${k === key ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
-    <button aria-pressed="${!!state.table}">${state.table ? esc(t('看曲线')) : esc(t('看表格'))}</button>`;
+  let view = chartViews.get(host);
+  if (!view || view.bar.parentNode !== host || view.labels !== t('曲线指标')) {
+    const bar = document.createElement('div'), content = document.createElement('div');
+    bar.className = 'row';
+    bar.innerHTML = `<label>${esc(t('指标'))} <select aria-label="${esc(t('曲线指标'))}"></select></label>
+      <button type="button"></button>`;
+    host.replaceChildren(bar, content);
+    view = { bar, content, labels: t('曲线指标') }; chartViews.set(host, view);
+  }
+  const { bar, content } = view;
+  const select = bar.querySelector('select'), button = bar.querySelector('button');
   const redraw = () => drawRoundChart(host, history, nameOf, state, { bondRecord, name });
-  bar.querySelector('select').addEventListener('change', (e) => { state.metric = e.target.value; redraw(); });
-  bar.querySelector('button').addEventListener('click', () => { state.table = !state.table; redraw(); });
-  host.append(bar);
-  if (focused === 'select' || focused === 'button') bar.querySelector(focused)?.focus();
+  syncSelectOptions(select, metrics, key);
+  select.onchange = (e) => { state.metric = e.target.value; redraw(); };
+  button.textContent = state.table ? t('看曲线') : t('看表格');
+  button.setAttribute('aria-pressed', String(!!state.table));
+  button.onclick = () => { state.table = !state.table; redraw(); };
+  content.replaceChildren();
   const rounds = history.map((h) => h.round);
   if (state.table) {
     const table = document.createElement('div');
@@ -63,7 +71,7 @@ export function drawRoundChart(host, history, nameOf, state, { bondRecord = () =
     table.innerHTML = `<table><caption class="meta" style="text-align:left">${esc(t('{label}（每回合结算后）', { label }))}</caption>
       <thead><tr><th scope="col">${esc(t('回合'))}</th>${series.map((s) => `<th scope="col" class="n">${esc(s.name)}</th>`).join('')}</tr></thead>
       <tbody>${rounds.map((r) => `<tr><th scope="row">${r}</th>${series.map((s) => { const p = pointsOf(history, s.id, key).find((x) => x.round === r); return `<td class="n">${p ? full.format(p.v) : '—'}</td>`; }).join('')}</tr>`).join('')}</tbody></table>`;
-    host.append(table);
+    content.append(table);
     return;
   }
   const lines = series.map((s) => ({ ...s, pts: pointsOf(history, s.id, key) }));
@@ -100,7 +108,7 @@ export function drawRoundChart(host, history, nameOf, state, { bondRecord = () =
   const wrap = document.createElement('div');
   wrap.className = 'chart-wrap';
   wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('{label}曲线，第 {from}–{to} 回合，切换到表格可读出数值', { label, from: x0, to: x1 }))}"><title>${esc(label)}</title>${svg}</svg><div class="tip" role="presentation"></div>`;
-  host.append(legend, wrap);
+  content.append(legend, wrap);
 
   const svgEl = wrap.querySelector('svg'), cross = wrap.querySelector('.cross'), tip = wrap.querySelector('.tip');
   wrap.querySelector('.hit').addEventListener('pointermove', (e) => {
@@ -135,7 +143,7 @@ export function drawRoundChart(host, history, nameOf, state, { bondRecord = () =
 /** Shared console ranking: one settled round, all players or one, top ten or all. */
 const pct = (x) => `${(x * 100).toFixed(x >= 0.1 ? 0 : 1)}%`;
 const unitViews = new WeakMap();
-function syncRankOptions(select, options, value) {
+function syncSelectOptions(select, options, value) {
   // A native select's popup belongs to this exact DOM node. Do not replace it or its options while choosing.
   const signature = JSON.stringify(options);
   const sync = () => {
@@ -185,8 +193,8 @@ export function drawUnitRounds(host, history, nameOf, state, { name = (s) => s }
   const { bar, table } = view;
   const roundSelect = bar.querySelector('[data-k="round"]'), playerSelect = bar.querySelector('[data-k="player"]');
   const redraw = () => drawUnitRounds(host, history, nameOf, state, { name });
-  syncRankOptions(roundSelect, history.map((x) => [x.round, t('第 {r} 回合', { r: x.round }) + (x.live ? t('（进行中）') : x.round === latest ? t('（最新）') : '')]), h.round);
-  syncRankOptions(playerSelect, [['', t('全部')], ...h.players.map((p) => [p.playerId, nameOf(p.playerId)])], state.player || '');
+  syncSelectOptions(roundSelect, history.map((x) => [x.round, t('第 {r} 回合', { r: x.round }) + (x.live ? t('（进行中）') : x.round === latest ? t('（最新）') : '')]), h.round);
+  syncSelectOptions(playerSelect, [['', t('全部')], ...h.players.map((p) => [p.playerId, nameOf(p.playerId)])], state.player || '');
   roundSelect.onblur = redraw;
   roundSelect.onchange = (e) => {
     const r = Number(e.target.value);

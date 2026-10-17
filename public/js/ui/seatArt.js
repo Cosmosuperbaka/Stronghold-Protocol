@@ -49,3 +49,16 @@ export function seatPortrait(seat, { pool, byChar, m, myId, myCard, mySkin = '' 
   if (!Array.isArray(pool) || !pool.length) return null;
   return chessPortraitUrl(m, pool[hash32(seat.playerId) % pool.length]);
 }
+
+/** A profile image is independent of equipping a battle model. Only installed manifest URLs are returned. */
+export function cardAvatarUrl(charId, skinId, manifest) {
+  const rec = manifest?.chars?.[charId];
+  return rec?.skins?.[skinId]?.avatar || rec?.avatar || null;
+}
+export function chosenPortrait(charId, skinId, manifest, catalogue, chess = []) {
+  const rec = catalogue?.chars?.[charId];
+  const choice = rec?.choices?.find((row) => row.id === skinId);
+  return choice?.portrait || manifest?.chars?.[charId]?.skins?.[skinId]?.portrait
+    || chessPortraitUrl(manifest, chess.find((row) => row.charId === charId && row.isGolden) || chess.find((row) => row.charId === charId))
+    || rec?.choices?.[0]?.portrait || null;
+}

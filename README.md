@@ -22,6 +22,7 @@ A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance
 | --- | --- |
 | [本库 · Stronghold-Protocol](https://github.com/zhewang448/Stronghold-Protocol) | 主机管理与联机体验扩展；本 README、整合包与问题反馈对应此仓库 |
 | [原项目 · sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol) | 上游玩法、确定性模拟与官方数据适配来源 |
+| [UI 设计上游 · xinhai-ai/Stronghold-Protocol](https://github.com/xinhai-ai/Stronghold-Protocol) | 本库 Hub 大厅、同盟等待室、干员调配与对局界面的 UI 设计及后续适配参考；原始界面作者与移植来源见 [NOTICE.md](NOTICE.md) |
 | [Stronghold-Protocol-Forge-Mods](https://github.com/XiaMo233M/Stronghold-Protocol-Forge-Mods) | Forge 工坊包与成品索引；配套下方 Forge 宿主使用 |
 | [Stronghold-Protocol-Forge](https://github.com/XiaMo233M/Stronghold-Protocol-Forge) | Forge-Mods 对应的游戏宿主与 MOD API |
 | [RyantArgnisan/Stronghold-Protocol](https://github.com/RyantArgnisan/Stronghold-Protocol) | 社区扩展分支，本库文字聊天参考来源，署名见 [NOTICE.md](NOTICE.md) |

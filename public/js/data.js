@@ -1,3 +1,5 @@
+import { dataUrl, i18nUrl } from '../../shared/cdn.js';
+import { DATA_CDN, ASSETS_CDN } from './asset-cdn.js';
 // Lazy loader + cache for the generated game data served at /data/*.json.
 //
 // Files are fetched on first use and cached for the page's lifetime (the Promise is shared, so concurrent callers
@@ -182,7 +184,7 @@ export function createDataStore(opts = {}) {
     }
   };
 
-  const urlFor = (name) => base + (DATA_FILES[name] || `${name}.json`);
+  const urlFor = (name) => dataUrl(base + (DATA_FILES[name] || `${name}.json`), DATA_CDN);
 
   /**
    * One attempt at a file. Art manifests reject with a transient `{ timeout: true }` when the clock fires; a response
@@ -325,7 +327,7 @@ export function createDataStore(opts = {}) {
       }
       for (let attempt = 0; ; attempt++) {
         try {
-          const res = await doFetch(url, { cache: 'no-cache' });
+          const res = await doFetch(i18nUrl(url, ASSETS_CDN, DATA_CDN), { cache: 'no-cache' });
           if (!res || !res.ok) throw Object.assign(new Error(`HTTP ${res ? res.status : '???'}`), { status: res ? res.status : null });
           const json = await res.json();
           if (!json || typeof json !== 'object' || !json.files) throw Object.assign(new Error('not an overlay'), { badJson: true });

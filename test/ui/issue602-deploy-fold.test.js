@@ -24,7 +24,7 @@ const { FOLD_CAMERA_MS, CAMERA_MS } = await import('../../public/js/render/app/t
 // ---- the choice (gameLogic deployFoldsShop) -----------------------------------------------------------------------
 
 describe('deployFoldsShop: the deploy interaction temporarily folds the shop', () => {
-  const own = { ownPrep: true, editable: true, pen: false };
+  const own = { enabled: true, ownPrep: true, editable: true, pen: false };
 
   test('a dragged piece or the open direction wheel on the editable own prep board folds it', () => {
     assert.equal(deployFoldsShop({ ...own, drag: true }), true, 'piece picked up (operator / equipment / summon)');
@@ -46,20 +46,19 @@ describe('deployFoldsShop: the deploy interaction temporarily folds the shop', (
     assert.equal(deployFoldsShop(null), false);
   });
 
-  test('keeping the deploy view skips the temporary fold through pickup and facing; old profiles keep the zoom', () => {
-    assert.equal(DEFAULT_SETTINGS.keepDeployView, false);
-    for (const raw of [null, {}, { keepDeployView: 'true' }, { keepDeployView: 1 }]) {
+  test('deployment zoom requires explicit opt-in and old profiles no longer carry the inverse option', () => {
+    assert.equal(DEFAULT_SETTINGS.deploymentZoom, false);
+    for (const raw of [null, {}, { deploymentZoom: 'true' }, { deploymentZoom: 1 }, { keepDeployView: false }, { keepDeployView: true }]) {
       const settings = sanitizeSettings(raw);
-      assert.equal(settings.keepDeployView, false);
-      assert.equal(deployFoldsShop({ ...own, ...settings, drag: true }), true);
+      assert.equal(settings.deploymentZoom, false);
+      assert.equal(Object.hasOwn(settings, 'keepDeployView'), false);
+      assert.equal(deployFoldsShop({ ...own, enabled: settings.deploymentZoom, drag: true }), false);
     }
-    const saved = JSON.parse(JSON.stringify(sanitizeSettings({ keepDeployView: true })));
-    const settings = sanitizeSettings(saved);
-    assert.equal(settings.keepDeployView, true, 'the choice survives a save / reload');
+    const saved = JSON.parse(JSON.stringify(sanitizeSettings({ deploymentZoom: true })));
+    assert.equal(saved.deploymentZoom, true);
     for (const interaction of [{ drag: true }, { facing: true }, { drag: true, facing: true }]) {
-      assert.equal(deployFoldsShop({ ...own, ...settings, ...interaction }), false);
+      assert.equal(deployFoldsShop({ ...own, enabled: saved.deploymentZoom, ...interaction }), true);
     }
-    assert.equal(deployFoldsShop({ ...own, ...sanitizeSettings({ keepDeployView: false }), drag: true }), true);
   });
 
   test('the zoom it causes is exactly issue #5\'s folded-shop camera, on the boss prep half too', () => {
@@ -77,7 +76,7 @@ describe('game.js wiring', () => {
   const game = read('public/js/screens/game.js');
 
   test('deployFold is derived from the interaction state on the own editable prep board, never written into `collapsed`', () => {
-    assert.match(game, /const deployFold = deployFoldsShop\(\{\n\s+ownPrep: !!view && viewModeRef\.current === 'prep' && showPrep, editable, pen, drag: !!drag, facing: !!facing,\n\s+keepDeployView: settings\.keepDeployView,\n\s+\}\);/);
+    assert.match(game, /const deployFold = deployFoldsShop\(\{\n\s+ownPrep: !!view && viewModeRef\.current === 'prep' && showPrep, editable, pen, drag: !!drag, facing: !!facing,\n\s+enabled: settings\.deploymentZoom,\n\s+\}\);/);
     // the player's own state feeds the camera state only ORed with the temporary fold (pen behavior untouched)
     assert.match(game, /const shopFolded = showShop && \(pen \? penRef\.current\.collapsed : \(collapsed \|\| deployFold\)\);/);
     assert.match(game, /const barCollapsed = collapsed \|\| deployFold;/);

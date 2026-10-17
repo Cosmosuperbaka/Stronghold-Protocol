@@ -30,6 +30,7 @@ export function normalizeResult(res, pub) {
       alive,
       lp: teamLp != null ? (alive === false ? 0 : Math.max(0, teamLp)) : ownLp,
       lpShared: teamLp != null,
+      card: p.card ?? pp.card ?? null, cardSkin: p.cardSkin ?? pp.cardSkin ?? null, skins: p.skins ?? pp.skins ?? {},
       bandId: p.bandId ?? pp.bandId ?? null,
       roundsPassed: Number.isFinite(p.roundsPassed) ? p.roundsPassed : (Number.isFinite(r.roundsPassed) ? r.roundsPassed : 0),
       title,

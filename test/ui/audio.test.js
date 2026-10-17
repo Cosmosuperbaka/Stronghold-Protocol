@@ -586,7 +586,7 @@ describe('AudioManager', () => {
     assert.equal(fw.made.tones.length, 0, 'locked audio does not queue a ping');
     a.install(); fw.fire('pointerdown');
     const cues = [];
-    for (const kind of ['attention', 'attack', 'danger', 'retreat', 'question']) {
+    for (const kind of ['attention', 'attack', 'danger', 'retreat', 'question', 'heart']) {
       const before = fw.made.tones.length;
       a.ctx.currentTime += 1;
       a.ping(kind);
@@ -596,7 +596,7 @@ describe('AudioManager', () => {
       a.ping(kind);
       assert.equal(fw.made.tones.length, after, 'simultaneous senders do not stack cues');
     }
-    assert.equal(new Set(cues).size, 5, 'each kind can be recognized by sound');
+    assert.equal(new Set(cues).size, 6, 'each kind can be recognized by sound');
     a.ctx.currentTime += 1;
     const before = fw.made.tones.length;
     a.setVolumes({ muted: true }); a.ping('danger');

@@ -1298,6 +1298,7 @@ export class Lobby {
         seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, connected: s.connected,
         // DESIGN §16: the human's checked operator loadout and (0.2.2) per-operator 潜能 / 练度 (bots fight with the defaults)
         skins: s.isBot ? null : s.skins || null,
+        card: s.card || null, cardSkin: s.cardSkin || null,
         bondPlan: s.isBot ? null : s.bondPlan || null,
         loadout: own ? own.loadout : null,
         ops: own ? own.ops : null,

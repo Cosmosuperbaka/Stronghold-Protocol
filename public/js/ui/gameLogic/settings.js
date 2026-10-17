@@ -31,14 +31,15 @@ export const TEXT_SIZES = Object.freeze(['sm', 'md', 'lg', 'xl']);
  *  applyTextSize). ammoCount: 设置「弹药数量」 — the rounds left / the magazine under an ammo skill's bar (render/units.js;
  *  PR #552), off by default: the official HUD has no such number (the maintainer's decision of 2026-10-13).
  *  combatMetrics: 设置「作战统计」 (PR #618), on by default in this extension (owner request, 2026-10-16).
- *  keepDeployView: 设置「部署时保持视角」 — skip the temporary shop fold and camera zoom during deploy / equip;
- *  off by default to preserve the official interaction (owner request, 2026-10-17).
+ *  chatBubbles: 设置「显示消息提示气泡」 — collapsed room-chat previews, on by default (owner request, 2026-10-17).
+ *  deploymentZoom: 设置「部署时镜头缩放」 — enable the temporary shop fold and camera zoom during deploy / equip;
+ *  off by default; enabled only by an explicit boolean preference (owner request, 2026-10-17).
  *  mysticEnergy: 设置「秘术师能量」 (PR #636) — a 秘术师's stored attack energies as stored/cap under the bars
  *  (render/units.js), off by default: the official HUD shows them as an effect on the operator, not a number (the
  *  maintainer's decision of 2026-10-15).
  *  officialFx: 设置「官方特效」 (0.3.0, render/vfx): 'auto' (完整 on a desktop, 精简 on a touch device — render/vfx/tier.js),
  *  'off', 'lite' (精简), 'full' (完整); only shown when effects were extracted from the local client. */
-export const DEFAULT_SETTINGS = Object.freeze({ bgm: 0.6, sfx: 0.8, voice: 0.8, voiceLang: 'cn', voiceNative: false, voiceOverrides: Object.freeze({}), muted: false, damageNumbers: true, officialDamageNumbers: false, ammoCount: false, combatMetrics: true, mysticEnergy: false, keepDeployView: false, quality: 'high', officialFx: 'auto', textSize: 'sm', fpsLimit: 0, preload: false, preloadOptional: false, preloadVoiceLang: 'all', keys: DEFAULT_HOTKEYS });
+export const DEFAULT_SETTINGS = Object.freeze({ bgm: 0.6, sfx: 0.8, voice: 0.8, voiceLang: 'cn', voiceNative: false, voiceOverrides: Object.freeze({}), muted: false, damageNumbers: true, officialDamageNumbers: false, ammoCount: false, combatMetrics: true, chatBubbles: true, mysticEnergy: false, deploymentZoom: false, quality: 'high', officialFx: 'auto', textSize: 'sm', fpsLimit: 0, preload: false, preloadOptional: false, preloadVoiceLang: Object.freeze(['cn', 'jp']), keys: DEFAULT_HOTKEYS });
 const QUALITIES = ['high', 'medium', 'low'];
 /** The values of 设置「官方特效」 (render/vfx/tier.js OFFICIAL_FX). */
 export const OFFICIAL_FX_MODES = Object.freeze(['auto', 'off', 'lite', 'full']);
@@ -46,8 +47,8 @@ export const OFFICIAL_FX_MODES = Object.freeze(['auto', 'off', 'lite', 'full']);
 /**
  * Sanitize persisted settings.
  * @param {any} raw
- * @returns {{ bgm: number, sfx: number, voice: number, voiceLang: 'cn'|'jp'|'en'|'kr', voiceNative: boolean, voiceOverrides: Record<string, string>, muted: boolean, damageNumbers: boolean, officialDamageNumbers: boolean, ammoCount: boolean, combatMetrics: boolean, mysticEnergy: boolean, keepDeployView: boolean, quality: 'high'|'medium'|'low', officialFx: 'auto'|'off'|'lite'|'full',
- *   textSize: 'sm'|'md'|'lg'|'xl', fpsLimit: number, preload: boolean, preloadOptional: boolean, preloadVoiceLang: string, keys: Record<'buy'|'refresh'|'freeze'|'levelUp'|'retreat'|'sell'|'ready', string> }}
+ * @returns {{ bgm: number, sfx: number, voice: number, voiceLang: 'cn'|'jp'|'en'|'kr', voiceNative: boolean, voiceOverrides: Record<string, string>, muted: boolean, damageNumbers: boolean, officialDamageNumbers: boolean, ammoCount: boolean, combatMetrics: boolean, chatBubbles: boolean, mysticEnergy: boolean, deploymentZoom: boolean, quality: 'high'|'medium'|'low', officialFx: 'auto'|'off'|'lite'|'full',
+ *   textSize: 'sm'|'md'|'lg'|'xl', fpsLimit: number, preload: boolean, preloadOptional: boolean, preloadVoiceLang: string[], keys: Record<'buy'|'refresh'|'freeze'|'levelUp'|'retreat'|'sell'|'ready', string> }}
  */
 export function sanitizeSettings(raw) {
   const r = isObj(raw) ? raw : {};
@@ -64,15 +65,16 @@ export function sanitizeSettings(raw) {
     officialDamageNumbers: typeof r.officialDamageNumbers === 'boolean' ? r.officialDamageNumbers : false,
     ammoCount: typeof r.ammoCount === 'boolean' ? r.ammoCount : DEFAULT_SETTINGS.ammoCount,
     combatMetrics: typeof r.combatMetrics === 'boolean' ? r.combatMetrics : DEFAULT_SETTINGS.combatMetrics,
+    chatBubbles: typeof r.chatBubbles === 'boolean' ? r.chatBubbles : DEFAULT_SETTINGS.chatBubbles,
     mysticEnergy: typeof r.mysticEnergy === 'boolean' ? r.mysticEnergy : DEFAULT_SETTINGS.mysticEnergy,
-    keepDeployView: typeof r.keepDeployView === 'boolean' ? r.keepDeployView : DEFAULT_SETTINGS.keepDeployView,
+    deploymentZoom: r.deploymentZoom === true,
     quality: QUALITIES.includes(r.quality) ? r.quality : DEFAULT_SETTINGS.quality,
     officialFx: OFFICIAL_FX_MODES.includes(r.officialFx) ? r.officialFx : DEFAULT_SETTINGS.officialFx,
     textSize: TEXT_SIZES.includes(r.textSize) ? r.textSize : DEFAULT_SETTINGS.textSize,
     fpsLimit: normalizeFrameRate(r.fpsLimit),
     preload: r.preload === true,
     preloadOptional: r.preloadOptional === true,
-    preloadVoiceLang: normalizePreloadVoiceLang(r.preloadVoiceLang, 'all'),
+    preloadVoiceLang: normalizePreloadVoiceLang(r.preloadVoiceLang ?? 'all'),
     keys: sanitizeHotkeys(r.keys),
   };
 }

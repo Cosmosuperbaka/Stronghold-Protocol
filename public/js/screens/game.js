@@ -39,7 +39,7 @@
 // dragged or its direction is chosen). A deploy is the other way round (GitHub #602, PR #646 by @Euqorab): picking up a
 // piece on the own prep board, and a legal drop's direction wheel, fold the shop bar for as long as they last and zoom
 // to that framing at once (gameLogic deployFoldsShop); the player's own fold state comes back after. The fold flights
-// take FOLD_CAMERA_MS (render/app/tune.js), not the generic camera flight. Settings「部署时保持视角」 skips this temporary
+// take FOLD_CAMERA_MS (render/app/tune.js), not the generic camera flight. Settings「部署时镜头缩放」 skips this temporary
 // fold / zoom, leaving the player's own shop state and camera in place.
 // Equipment dropped on an operator whose two slots are used opens the equip-replace dialog (ui/equipReplace.js): the
 // player picks the equipped item to destroy → g.equip {itemUid, targetUid, replaceUid}; 取消 sends nothing. 销毁 is only
@@ -504,7 +504,7 @@ function MatchScreen() {
   // derived from the interaction state only: `collapsed` (the 收起/展开 state) is never set by it.
   const deployFold = deployFoldsShop({
     ownPrep: !!view && viewModeRef.current === 'prep' && showPrep, editable, pen, drag: !!drag, facing: !!facing,
-    keepDeployView: settings.keepDeployView,
+    enabled: settings.deploymentZoom,
   });
   // the shop bar is shown folded (收起; the pen folds it for itself: the player's own state is the one it returns to) —
   // the own prep board then takes the official shop-collapsed camera (public issue #5, gameLogic prepCameraFor);

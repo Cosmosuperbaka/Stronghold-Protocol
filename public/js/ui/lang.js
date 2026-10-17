@@ -1,3 +1,5 @@
+import { i18nUrl } from '../../../shared/cdn.js';
+import { ASSETS_CDN, DATA_CDN } from '../asset-cdn.js';
 // Language switch of the client (docs/I18N.md): lists the language packs — the "lang" entries of the pack index
 // /packs/index.json (shared/packs.js; the server's registry, server/packs.js, scans the language folders and the pack
 // folders; a static host serves the file `node tools/packs.mjs index` writes) — picks the language at boot, loads the UI
@@ -82,7 +84,7 @@ export function loadUiMessages(lang, doFetch = defaultFetch) {
   const url = langInfo(lang)?.ui || `/i18n/${lang}.json`;
   const p = (async () => {
     try {
-      const res = await doFetch(url, { cache: 'no-cache' });
+      const res = await doFetch(i18nUrl(url, ASSETS_CDN, DATA_CDN), { cache: 'no-cache' });
       if (!res || !res.ok) throw new Error(`HTTP ${res ? res.status : '???'}`);
       addMessages(lang, await res.json());
       return true;

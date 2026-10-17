@@ -1,3 +1,5 @@
+import { ResultAvatar, ResultPortrait } from '../ui/resultAvatar.js';
+import { OperatorPortrait } from '../ui/operatorPortrait.js';
 // The settlement flow of a match on screen (the event video 11:39–12:32, 2026-10-13): a radar intro, then two pages.
 //   个人战报 (SelfPage): my own outcome (模拟完成, or 模拟中断 when the team lost or I was out before the end), the rounds I
 //     passed, the leaders I helped defeat, my final lineup (ten slots: tier, elite level and gear of each operator), my
@@ -16,7 +18,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
 import { RANDOM_MODE_NAME } from '../../../shared/randomMode.js';
 import { html, Icon, DifficultyTag } from '../ui/components.js';
-import { useGameData, Img, Sprite, PlayerAvatar, BondGlyph, BandIcon } from '../ui/gameComponents.js';
+import { useGameData, Img, Sprite, BondGlyph, BandIcon } from '../ui/gameComponents.js';
 import { normalizeResult, diyRecordFor, cardStandIn, standInForText } from '../ui/gameLogic.js';
 import { data } from '../data.js';
 import { chessPortraitUrl, chessAvatarUrl, itemIconUrl, enemyIconUrl, titleIconUrl } from '../ui/assetUrls.js';
@@ -290,6 +292,7 @@ function unitView(u, gd) {
   const tier = Math.max(0, Math.min(6, Number(u.tier) || Number(rec?.tier) || 0));
   return {
     si,
+    record: rec,
     tier,
     golden: !!(u.golden ?? rec?.isGolden),
     name: rec?.name || '',
@@ -305,7 +308,7 @@ function NoInfo() {
 }
 
 /** One lineup slot as a tall card (also the 成就统计 panel's 战果纪录, ui/achievements.js); `u` null = an empty slot. */
-export function OpCard({ u, gd, i }) {
+export function OpCard({ u, gd, i, player }) {
   if (!u) {
     return html`<div class="sop is-empty" style=${`--i:${i}`}>
       <span class="sop__art"><small>NO INFO</small></span>
@@ -314,9 +317,8 @@ export function OpCard({ u, gd, i }) {
   }
   const v = unitView(u, gd);
   const lv = opLevel(v.tier, v.golden);
-  const src = v.art || v.avatar;
   return html`<div class=${cx('sop', v.tier && `sop--t${v.tier}`, v.golden && 'is-golden')} style=${`--i:${i}`} title=${v.title}>
-    <span class="sop__art"><${Img} src=${src} class=${v.art ? 'is-portrait' : 'is-avatar'} fallback=${html`<span class="sop__glyph">${[...(v.name || '?')][0]}</span>`} /></span>
+    <span class="sop__art"><${OperatorPortrait} m=${gd.m} chess=${v.record} ownerId=${player?.playerId ?? null} skin=${v.si || player?.isBot ? null : u.skin} class=${v.art ? 'is-portrait' : 'is-avatar'} fallback=${html`<span class="sop__glyph">${[...(v.name || '?')][0]}</span>`} /></span>
     ${v.tier ? html`<b class="sop__tier">${ROMAN[v.tier]}</b>` : null}
     <span class="sop__lv"><${EliteMark} phase=${lv.phase} /><b class="num">${lv.level}</b></span>
     ${v.si ? html`<span class="sop__si" data-standin=${v.si.charId}>${t('替补')}</span>` : null}
@@ -396,7 +398,7 @@ function SelfPage({ r, raw, self, gd, prog, seed, onNext }) {
       <${SettleMap} lose=${!cleared} seed=${seed} />
       <div class="smap__fx" aria-hidden="true"></div>
       <${Logo} />
-      <div class="sself__band">${self.bandId ? html`<${BandIcon} bandId=${self.bandId} size="lg" />` : html`<${PlayerAvatar} player=${self} self=${true} />`}<i aria-hidden="true"></i></div>
+      <div class="sself__band">${self.bandId ? html`<${BandIcon} bandId=${self.bandId} size="lg" />` : html`<${ResultAvatar} player=${self} self=${true} />`}<i aria-hidden="true"></i></div>
       <div class="sself__mode"><${ModePill} r=${r} /></div>
       <h1 class="sself__title">${cleared ? t('模拟完成') : t('模拟中断')}</h1>
       <div class="sself__rounds"><span>${t('通过回合')}</span><b class="num">${rounds}</b></div>
@@ -405,7 +407,7 @@ function SelfPage({ r, raw, self, gd, prog, seed, onNext }) {
         <${Img} src=${enemyIconUrl(gd.m, m.rec.enemyKey)} fallback=${html`<${Icon} name="crown" class="smedal__glyph" />`} />
         <i class="smedal__check"><${Icon} name=${m.done ? 'check' : 'close'} /></i></span>`)}</div>` : null}
       <div class="splate">
-        <${PlayerAvatar} player=${self} self=${true} class="splate__ava" />
+        <${ResultAvatar} player=${self} self=${true} class="splate__ava" />
         <div class=${cx('splate__info', acct?.card && 'has-nc')}>
           <${NameCardLayer} card=${acct?.card} />
           <b class="splate__name">${self.name}<${AccountTag} playerId=${self.isBot ? null : self.playerId} /></b>
@@ -414,8 +416,8 @@ function SelfPage({ r, raw, self, gd, prog, seed, onNext }) {
         </div>
       </div>
       <div class="sops">
-        <div class="sops__row sops__row--1">${slots.slice(0, 5).map((u, i) => html`<${OpCard} key=${i} u=${u} gd=${gd} i=${i} />`)}</div>
-        <div class="sops__row sops__row--2">${slots.slice(5).map((u, i) => html`<${OpCard} key=${i} u=${u} gd=${gd} i=${i + 5} />`)}</div>
+        <div class="sops__row sops__row--1">${slots.slice(0, 5).map((u, i) => html`<${OpCard} key=${i} player=${self} u=${u} gd=${gd} i=${i} />`)}</div>
+        <div class="sops__row sops__row--2">${slots.slice(5).map((u, i) => html`<${OpCard} key=${i} player=${self} u=${u} gd=${gd} i=${i + 5} />`)}</div>
       </div>
       <${BondBar} bonds=${self.bonds} gd=${gd} />
       <div class="settle__barbg" aria-hidden="true"></div>
@@ -516,7 +518,7 @@ function TeamCard({ p, i, gd, self, victory, raw, social }) {
   return html`<article class=${cx('tcard', self && 'is-self', p.alive === false && 'is-dead', p.left && 'is-left', cleared ? 'is-clear' : 'is-fail')} style=${`--i:${i}`}>
     <header class="tcard__head" aria-hidden="true"><i class="tcard__pin"></i><span class="tcard__code"><i></i><i></i><i></i>STRONGHOLD PROTOCOL</span><span class="tcard__seat num">${pad2(p.seat + 1)}</span></header>
     <div class="tcard__art">
-      <${Img} src=${v?.art || v?.avatar} class=${cx('tcard__img', v?.art ? 'is-portrait' : 'is-avatar')} fallback=${html`<span class="tcard__glyph">${[...(p.name || '?')][0]}</span>`} />
+      <${ResultPortrait} player=${p} self=${self} fallbackSrc=${v?.art || v?.avatar} class="tcard__img" fallbackClass=${v?.art ? 'is-portrait' : 'is-avatar'} fallback=${html`<span class="tcard__glyph">${[...(p.name || '?')][0]}</span>`} />
       ${p.left ? html`<span class="tcard__cut">${t('中断连接')}</span>` : null}
       ${title ? html`<div class="tcard__title" title=${title.text}>
         <${Img} src=${title.icon} class="tcard__ticon" fallback=${html`<${Icon} name="crown" class="tcard__ticon" />`} /><b>${title.name}</b></div>` : null}
@@ -525,7 +527,7 @@ function TeamCard({ p, i, gd, self, victory, raw, social }) {
     <div class=${cx('tcard__plate', acct?.card && 'has-nc')}>
       <${NameCardLayer} card=${acct?.card} />
       ${self ? html`<i class="tcard__me" aria-hidden="true"><${Icon} name="user" /></i>` : null}
-      <${PlayerAvatar} player=${p} self=${self} class="tcard__ava" />
+      <${ResultAvatar} player=${p} self=${self} class="tcard__ava" />
       <span class="tcard__who">
         <b class="tcard__name"><${TrophyBadge} count=${acct?.trophies} class="tbadge--inline" /><span>${p.name}</span><${AccountTag} playerId=${p.isBot ? null : p.playerId} />${p.isBot ? html`<span class="tcard__ai">AI</span>` : null}</b>
         ${band ? html`<span class="tcard__band"><${BandIcon} bandId=${band.bandId} size="xs" /><span>${band.name}</span></span>` : null}

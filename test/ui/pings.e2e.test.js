@@ -170,6 +170,18 @@ describe('field ping placement in the browser', { skip: !ENABLED && 'set SP_E2E=
       await page.waitForSelector('.gm__ping-target');
       await page.keyboard.press('Escape');
       await page.waitForFunction(() => !document.querySelector('.gm__ping-target'));
+      assert.ok(await page.$eval('.gm__ping-btn--heart', el => {
+        const r = el.getBoundingClientRect();
+        return r.width >= 44 && r.height >= 44 && r.right <= innerWidth
+          && document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest('button') === el;
+      }), 'heart is reachable alongside the five existing pings');
+      await page.click('.gm__ping-btn--heart');
+      await page.waitForSelector('.gm__ping-target');
+      await page.mouse.click(watchedPoint.x, watchedPoint.y);
+      await page.waitForSelector('.gm__ping--heart');
+      assert.equal(await page.evaluate(() => globalThis.pingRequests.at(-1).kind), 'heart');
+      assert.equal(await page.evaluate(() => globalThis.pingSounds.at(-1)), 'heart');
+      if (process.env.PING_QA_SCREENSHOTS === '1') await page.screenshot({ path: `.cache/ping-qa/heart-${render}-${width}.png` });
       assert.deepEqual(errors, []);
     });
   }

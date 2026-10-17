@@ -1,3 +1,5 @@
+import { dataUrl } from '../../shared/cdn.js';
+import { DATA_CDN } from './asset-cdn.js';
 // assets.js — asset manifest (/data/assets.json, docs/ASSETS.md) URL helpers, image cache/preload, and the
 // Spine loader (LRU + refcount + memory budget + timeout + concurrency cap) used by the battlefield renderer. A
 // skeleton is never handed out while its unload is in flight (RefLru; user playtest #3 item 1: invisible models).
@@ -763,8 +765,8 @@ const transientFetch = (err) => {
 export function createAssets(options) {
   const opts = options && typeof options === 'object' ? options : {};
   const layers = opts.cosmetics && typeof opts.cosmetics.apply === 'function' ? opts.cosmetics : null;
-  const url = opts.url || '/data/assets.json';
-  const localUrl = opts.localUrl || '/data/local-assets.json';
+  const url = opts.url || dataUrl('/data/assets.json', DATA_CDN);
+  const localUrl = opts.localUrl || dataUrl('/data/local-assets.json', DATA_CDN);
   let localPromise = isObj(opts.localManifest) ? Promise.resolve(opts.localManifest) : null;
   let localManifest = isObj(opts.localManifest) ? opts.localManifest : null;
   const doFetch = opts.fetch || ((...a) => globalThis.fetch(...a));
