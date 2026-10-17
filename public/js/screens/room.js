@@ -161,7 +161,7 @@ function CardPicker({ current, currentSkin, list, m, onPick, onClose }) {
     <div class="cardpick__grid cardpick__grid--skins">
       <button type="button" class="cardpick__op" onClick=${() => onPick(selected.charId, '')}><span class="cardpick__img"><img src=${chessAvatarUrl(m, selected) || selected.choices?.[0]?.portrait} alt="" /></span><span class="cardpick__name">${t('默认')}</span></button>
       ${(selected.choices || []).map(s => html`<button key=${s.id} type="button" class=${`cardpick__op${current === selected.charId && currentSkin === s.id ? ' is-on' : ''}`} onClick=${() => onPick(selected.charId, s.id)} title=${s.name}>
-        <span class="cardpick__img"><img src=${s.portrait} alt="" loading="lazy" /></span><span class="cardpick__name">${s.name}</span></button>`)}
+        <span class="cardpick__img"><img src=${s.portrait} alt="" /></span><span class="cardpick__name">${s.name}</span></button>`)}
     </div>
   <//>`;
   const needle = q.trim().toLowerCase();
@@ -225,7 +225,7 @@ function SeatCard({ seat, index, room, facts, myId, busy, online, onKick, onInvi
     <span class="rseat__clip" aria-hidden="true"></span>
     <header class="rseat__strip"><i></i><span class="num">P${index + 1}</span></header>
     <div class=${`rseat__art${canPick ? ' is-pickable' : ''}`} onClick=${canPick ? onPickCard : undefined} title=${canPick ? t('点击更换名片干员') : undefined}>
-      ${src && bad !== src ? html`<img src=${src} alt="" draggable=${false} loading="lazy" onError=${() => setBad(src)} />`
+      ${src && bad !== src ? html`<img src=${src} alt="" draggable=${false} onError=${() => setBad(src)} />`
         : html`<span class="rseat__glyph">${seat.isBot ? html`<${Icon} name="robot" />` : [...(seat.name || '?')][0]}</span>`}
       ${canPick ? html`<button type="button" class="rseat__pick" onClick=${(e) => { e.stopPropagation(); onPickCard(); }} aria-label=${t('更换名片干员')}><${Icon} name="edit" /><span>${t('更换立绘')}</span></button>` : null}
       ${isHostSeat ? html`<span class="rseat__host">${t('创建者')}</span>` : null}
