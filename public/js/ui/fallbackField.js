@@ -34,17 +34,14 @@ const DMG_TTL = 900;
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
 /** Avatar URL for a UnitInfo `avatar` asset id (chars / E2 / tokens / enemies). */
-function unitArt(m, info) {
+function unitArt(m, info, settings, myId) {
   const id = info?.avatar || info?.defId;
   if (!m || !id) return null;
   if (info.side === 'enemy' || String(id).startsWith('enemy_')) return enemyIconUrl(m, id);
   if (String(id).startsWith('token_')) return tokenAvatarUrl(m, id);
-  const skin = skinForUnit(info);
-  if (skin) return avatarUrl(m, id, { skin });
-  const chars = m.chars || {};
-  if (chars[id]?.avatar) return chars[id].avatar;
-  if (String(id).endsWith('_2') && chars[id.slice(0, -2)]) return chars[id.slice(0, -2)].avatarE2 || chars[id.slice(0, -2)].avatar;
-  return null;
+  const skin = settings?.otherSkins === false && info.ownerId && info.ownerId !== myId ? null : skinForUnit(info);
+  return chessAvatarUrl(m, { charId: String(id).replace(/_[12]$/, ''), isGolden: !!info.golden, assets: { avatar: id } }, skin ? { skin } : undefined);
+
 }
 
 /** Look of the stage tile (row, col) on the fallback board (stage coordinates). */
@@ -281,7 +278,7 @@ export function createFallbackView(host, opts = {}) {
     const py = (st.rect.r1 - y + 0.5) * L.tile;
     const enemy = info.side === 'enemy';
     const size = info.boss ? L.tile * 1.3 : L.tile * 0.86;
-    const src = unitArt(m(), info);
+    const src = unitArt(m(), info, st.settings, store.get().me.playerId);
     const dead = anim === 4;
     const hpPct = maxHp > 0 ? Math.max(0, Math.min(100, (hp / maxHp) * 100)) : 0;
     const spPct = spMax > 0 ? Math.max(0, Math.min(100, (sp / spMax) * 100)) : 0;
@@ -498,6 +495,7 @@ export function createFallbackView(host, opts = {}) {
       schedule();
     },
     highlightTiles(tiles, style) {
+      if (st.destroyed) return false;
       if (!tiles || !style) { st.highlight.clear(); st.hlGroups.clear(); schedule(); return; }
       if (typeof style === 'object' && style.group) {
         // a named group (direction wheel / selected unit range): replaced as a whole, drawn as a range tile

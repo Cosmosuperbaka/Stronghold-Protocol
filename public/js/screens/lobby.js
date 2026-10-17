@@ -12,6 +12,7 @@ import { useHubBackdrop, HubBackdrop, HubRadar, BackdropSettings, BackdropGlyph,
 // 快速匹配, create), 搜寻队友 opens the room list. The 密钥加入 dialog joins with a 同盟密钥 (recent codes remembered) —
 // as a player (加入同盟) or in one of its MAX_SPECTATORS spectator seats (观战: room.spectate, also while its match
 // runs; community report #26). The server is picked on the title screen.
+
 //
 // Difficulty descriptions come from data/config.json `modes[modeId]` when present, else from the
 // official act2autochess `modeDataDict` texts embedded below (desc + effectDescList), so the
@@ -21,16 +22,19 @@ import { useHubBackdrop, HubBackdrop, HubRadar, BackdropSettings, BackdropGlyph,
 // Texts go through t() (docs/I18N.md); the module-level tables hold msgids (N_) translated where they are shown, the
 // config.json mode texts come localized from data.js.
 
+import { TestMark } from '../ui/testConsole.js';
 import { ResumeMatchButton } from '../ui/resumeMatch.js';
 import { useEffect, useLayoutEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS, ROOM_CODE_LEN, MAX_SEATS, MAX_SPECTATORS, modeIdFor, ERR, ERR_TEXT } from '../../../shared/constants.js';
 import { RANDOM_MODE } from '../../../shared/randomMode.js';
-import { html, Button, Icon, MicroLabel, Panel, TextField, PingPill, AvatarFrame, Tooltip, Spinner, DifficultyIcon, doctorNo } from '../ui/components.js';
+import { html, confirmDialog, Button, Icon, MicroLabel, Panel, TextField, PingPill, AvatarFrame, Tooltip, Spinner, DifficultyIcon, doctorNo } from '../ui/components.js';
+
 import { toast, toastError } from '../ui/toasts.js';
 import { GuideButton, openGuide } from '../ui/guide.js';
 import { openStats } from './stats.js';
 import { AchievementEntry, AchievementPanel } from '../ui/achievements.js';
 import { FriendsTile } from '../ui/friends.js';
+
 import { SettingsButton } from '../ui/settings.js';
 import { AnnouncementButton } from '../ui/announcement.js';
 import { PwaInstallButton, fullscreen } from '../ui/device.js';
@@ -44,6 +48,8 @@ import { store, useStore, shallowEqual, loadPref, savePref } from '../store.js';
 import { getConfig, getMode, getStage, useData } from '../data.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
 import { C2S as SERVER_C2S } from '../../../shared/protocol.js';
+import { NoticesButton } from '../ui/notices.js';
+
 
 /** Official mode texts (activity_table act2autochess.modeDataDict), fallback when config.json is absent. */
 export const MODE_TEXT = {
@@ -262,9 +268,24 @@ export function recentRooms() {
 }
 
 /** @param {string} code */
-export function rememberRoom(code) {
+export function rememberRoom(code, test = false) {
   if (!CODE_RE.test(code)) return;
-  savePref('recentRooms', [code, ...recentRooms().filter((c) => c !== code)].slice(0, 4));
+  const recent = [code, ...recentRooms().filter((c) => c !== code)].slice(0, 4);
+  const marks = loadPref('recentTestRooms', []);
+  savePref('recentTestRooms', recent.filter(c => c === code ? test : Array.isArray(marks) && marks.includes(c)));
+  savePref('recentRooms', recent);
+}
+
+export async function joinKnown(type, key) {
+  try { return await net.request(type, { code: key }); } catch (err) {
+    if (err?.code !== ERR.TEST_CONFIRM) throw err;
+    const text = type === 'room.spectate'
+      ? t('这是测试房间，不计入任何记录。确认观战？')
+      : t('这是测试房间，不计入任何记录。确认加入？');
+    if (await confirmDialog({ title: t('测试'), text })) {
+      return net.request(type, { code: key, testAck: true });
+    }
+  }
 }
 
 const FALLBACK_TIPS = [
@@ -804,8 +825,13 @@ export function LobbyScreen() {
   const [customCode, setCustomCode] = useState('');
   const customCodeOk = !customCode || CODE_RE.test(customCode);
   const [privateRoom, setPrivateRoom] = useState(false);
+  const [asTest, setAsTest] = useState(false);
+  const testMode = useStore((s) => s.testMode === true);
+
   const [busy, setBusy] = useState(null);
   const [recent] = useState(recentRooms);
+  const marks = loadPref('recentTestRooms', []);
+  const [sweepOpen, setSweepOpen] = useState(false);
   const alive = useRef(true);
   const inFlight = useRef(false); // synchronous guard against double clicks (state updates are async)
   useEffect(() => () => { alive.current = false; }, []);
@@ -821,7 +847,6 @@ export function LobbyScreen() {
   const [rooms, setRooms] = useState(() => (federationEnabled ? [] : lobbyStats?.rooms ?? []));
   const bg = useHubBackdrop();
   const [bgOpen, setBgOpen] = useState(false);
-  const [sweepOpen, setSweepOpen] = useState(false);
   // The Android shell can ask the local network who hosts a key, so a guest never types an address: the code is enough.
   const nativeShell = globalThis.AndroidNative?.isNativeApp?.() ? globalThis.AndroidNative : null;
   const [lanRoom, setLanRoom] = useState(null);
@@ -903,7 +928,7 @@ export function LobbyScreen() {
       return;
     }
     return run('create', () => net.request('room.create', {
-      mode: roomMode, difficulty,
+      mode: roomMode, difficulty, ...(testMode && asTest ? { test: true } : {}),
       ...(roomMode === 'coop' && customCode ? { code: customCode } : {}),
       ...(CAN_FIREPOWER ? { random: randomMode, ...(randomMode ? { variant } : {}) } : {}),
       ...(CAN_PRIVATE ? { private: roomMode !== 'solo' && privateRoom } : {}),
@@ -923,14 +948,16 @@ export function LobbyScreen() {
       setLanNote(t('正在进入 {ip} 的房间…', { ip: lanRoom.ip }));
       return;
     }
-    run('join', () => net.request('room.join', { code: k, ...(federationNode ? { federationNode } : {}) }));
+    run('join', () => joinKnown('room.join', k));
+
   };
   // a spectator seat: no player seat taken, nothing to do but watch (also a match already running)
   const spectate = (c = code, federationNode) => {
     // same guard as join: `onClick=${spectate}` passes the click event, not a code
     const k = codeArg(c, code);
     if (!k) { toast(t('同盟密钥为 {ROOM_CODE_LEN} 位字母或数字', { ROOM_CODE_LEN }), 'warn'); return; }
-    run('spectate', () => net.request('room.spectate', { code: k, ...(federationNode ? { federationNode } : {}) }).catch((err) => {
+    run('spectate', () => joinKnown('room.spectate', k).catch((err) => {
+
       // Clearer than the bare ERR_TEXT: the usual cause is a code that is not the host's (a remembered one from an
       // earlier room, or another machine's) — the server can only answer "no such room".
       if (err?.code === ERR.ROOM_NOT_FOUND) {
@@ -980,6 +1007,7 @@ export function LobbyScreen() {
         <${PingPill} ms=${conn.ping} online=${online} />
         <span class="topbar__sep" aria-hidden="true"></span>
         <div class="topbar__tools">
+          <${NoticesButton} />
           <${SettingsButton} class="lobby-settings" variant="secondary" square=${true} />
           <${AnnouncementButton} class="lobby-notice" />
           <${GuideButton} class="lobby-guide" variant="secondary" square=${true} />
@@ -994,6 +1022,7 @@ export function LobbyScreen() {
         <span class="hub-online"><span class="online-pill__dot"></span><span class="num">${onlineCount}</span><span>${t('名博士在线')}</span></span>
         <${ResumeMatchButton} />
         <${AccountMeChip} player=${me} onStats=${openStats} />
+
       </div>
     </header>
 
@@ -1008,6 +1037,7 @@ export function LobbyScreen() {
         <${AchievementEntry} key=${achOpen ? 'open' : 'shut'} onOpen=${() => setAchOpen(true)} />
         <${HubTile} icon="key" label=${t('密钥加入')} en="JOIN WITH KEY" onClick=${() => setJoinOpen(true)} />
         <${FriendsTile} />
+
         <${TipsPanel} />
       </aside>
 
@@ -1030,6 +1060,10 @@ export function LobbyScreen() {
             <${Button} variant="danger" size="md" loading=${busy === 'cancel'} onClick=${cancelMatch}>${t('取消匹配')}<//>
           </div>` : null}
         ${maint?.active ? html`<div class="hub-maint">${t('服务器即将维护，暂停开启新的模拟')}</div>` : null}
+        ${testMode ? html`<label class="create-box__test" data-testid="create-test">
+          <input type="checkbox" checked=${asTest} onChange=${e => setAsTest(e.target.checked)} />
+          <span>${t('测试房间')}</span><em>${t('不计入战绩。房间会标明「测试」，只有房主能使用测试指令。')}</em>
+        </label>` : null}
         <div class="hub-entries__row">
           <${HubEntry} group=${{ icon: 'user', label: t('独立模拟') }} name=${t('独立模拟')} en="SOLO" icon="user" onClick=${() => openMode('solo')} />
           <${HubEntry} group=${{ icon: 'users', label: t('同盟模拟') }} name=${t('同盟模拟')} en="ALLIANCE" icon="users" count=${matchmakingCounts?.total} onClick=${() => openMode('coop')} />
@@ -1071,6 +1105,7 @@ export function LobbyScreen() {
 
     <${MatchmakingModal} open=${modalOpen} onClose=${() => setModalOpen(false)} onJoin=${join} onSpectate=${spectate} />
     ${achOpen ? html`<${AchievementPanel} me=${me} onClose=${() => setAchOpen(false)} />` : null}
+
     ${sweepOpen ? html`<${SweepReport} onClose=${() => setSweepOpen(false)} />` : null}
   </div>`;
 }

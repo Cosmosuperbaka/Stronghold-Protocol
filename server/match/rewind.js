@@ -20,10 +20,10 @@
 import { truncateReplay } from './replay.js';
 
 const PS_SKIP = new Set(['m', 'gd', 'playerId', 'seat', 'name', 'isBot', 'connected', 'left', 'autoplay', 'lastEmoteAt',
-  'loadout', 'ops', 'bondPlan', '_deployMap', '_deployField', '_legalityStale', '_lastPriv', '_botPrepToken',
+  'loadout', 'ops', 'skins', 'bondPlan', '_deployMap', '_deployField', '_legalityStale', '_lastPriv', '_botPrepToken',
   'diy', '_diyRecords', 'diyBanned', 'diyStock', 'standIns', '_standInSet']);
 const MATCH_KEYS = ['round', 'wave', 'bossWaves', 'bossPairs', 'lastResults', 'draft', 'teamLp', 'hiddenLayerSum', 'hiddenReached', 'overtimeApplied', 'history', 'adminPicks',
-  '_botEmotesSettledRound', '_botEmotesMerges', 'bossOvertimeStartReal', 'bossRoundOpeningLp', 'prepOverride'];
+  '_botEmotesSettledRound', '_botEmotesMerges', 'bossOvertimeStartReal', 'bossRoundOpeningLp', 'prepOverride', 'offerDrawSeq'];
 const RNGS = ['rngSetup', 'rngShop', 'rngWaves', 'rngDraft', 'rngBots', 'rngMeta'];
 
 /** Snapshot for rewindToPrep, or null when the state cannot be cloned (logged; the match itself is never affected). */
@@ -63,6 +63,7 @@ export function rewindToPrep(m, round) {
     if (m.runner) { try { m.runner.stop(); } catch { /* ignore */ } m.runner = null; }
     m._stopClientCombat();
     m._cancelRehearsal();
+    m.offersDispose();
     for (const h of m._timers) { try { m.sched.clearTimeout(h); } catch { /* ignore */ } }
     m._timers.clear();
     m._phaseTimer = null;

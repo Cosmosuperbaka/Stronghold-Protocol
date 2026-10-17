@@ -18,11 +18,11 @@ test('outfit selection persists, synchronizes, draws real front/back models and 
     await c.click('.lobby-screen [data-testid="loadout-open"]');
     await c.page.waitForSelector('.lo-op', { visible: true });
     await c.click('[data-testid="skins-random"]');
-    await c.page.waitForFunction(async () => (await import('/js/ui/skins.js')).skinsStore.get().sync === 'synced');
+    await c.page.waitForFunction(async () => (await import('/js/ui/skins.js')).skinsStore.get().skinsSync === 'synced');
     const randomized = await c.page.evaluate(async () => {
       const { data } = await import('/js/data.js');
       const { skinsStore, availableSkins } = await import('/js/ui/skins.js');
-      const catalogue = data.get('skins'), manifest = data.get('assets'), entries = skinsStore.get().entries;
+      const catalogue = data.get('skins'), manifest = data.get('assets'), entries = skinsStore.get().skins;
       return Object.keys(catalogue.chars).every((id) => {
         const options = availableSkins(catalogue, manifest, id);
         return options.length ? options.some((s) => s.id === entries[id]) : !entries[id];
@@ -35,9 +35,10 @@ test('outfit selection persists, synchronizes, draws real front/back models and 
     await c.click('button[title="筛选干员 · 切换列表视图"]');
     await c.click('.lo-op__pick'); await c.page.waitForSelector(choice, { visible: true });
     await c.page.click(choice);
-    await c.page.waitForFunction(async (id) => (await import('/js/ui/skins.js')).skinsStore.get().sync === 'synced'
+    await c.page.waitForFunction(async (id) => (await import('/js/ui/skins.js')).skinsStore.get().skinsSync === 'synced'
       && JSON.parse(localStorage.getItem('sp.pref.skins') || '{}').char_498_inside === id, {}, SKIN);
     assert.equal(await c.page.$eval(choice, (e) => e.getAttribute('aria-checked')), 'true');
+    assert.equal(await c.page.$eval(choice + ' .lo-skin__name', e => e.textContent), '甜品大奖');
     await c.shot('desktop-picker');
     await c.page.setViewport({ width: 844, height: 390 });
     await sleep(400); await c.page.$eval(choice, (e) => e.scrollIntoView({ block: 'center' }));

@@ -122,7 +122,7 @@ describe('the shop folds while deploying a piece and restores afterwards (#602)'
     await page.setViewport({ width: 1280, height: 720, hasTouch: true });
     const problems = [];
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
-    await page.goto(`${base}/dev/game-mock.html?shot=1&phase=PREP`, { waitUntil: 'networkidle0', timeout: 60000 });
+    await page.goto(`${base}/dev/game-mock.html?shot=1&phase=PREP`, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(() => globalThis.__SP_VIEW__?.raw?.stats?.().mode === 'prep', { timeout: 30000 });
     await sleep(1500);
     const cam = () => page.evaluate(() => JSON.stringify(globalThis.__SP_VIEW__.raw.debug.cam.params()));

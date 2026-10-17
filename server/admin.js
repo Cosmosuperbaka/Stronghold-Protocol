@@ -927,7 +927,7 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
   const hadOwn = Object.hasOwn(lobby, 'onMatchEnd');
   const onMatchEnd = lobby.onMatchEnd;
   lobby.onMatchEnd = function (room, ctx, summary) {
-    if (ctx && !ctx.ended && ctx.live && room.matchCtx === ctx && !room.disposed && ctx.match && summary) {
+    if (ctx && !ctx.ended && ctx.live && room.matchCtx === ctx && !room.disposed && ctx.match && summary && !room.test && !ctx.match.test && !summary.test) {
       let rec = null;
       let id = null;
       try {

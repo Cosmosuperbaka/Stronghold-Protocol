@@ -62,6 +62,18 @@ test('disk snapshot restores PREP identically and continues to the same final re
   assert.deepEqual(normalize(other.m.history), normalize(f.h.m.history));
 });
 
+test('test rooms never write a resumable recovery snapshot', t => {
+  const f = fixture(t);
+  fs.unlinkSync(f.file);
+  f.room.test = true;
+  f.recovery.save(f.room, f.h.m, f.h.m.prepSnapshots.get(1));
+  assert.equal(fs.existsSync(f.file), false);
+  f.room.test = false;
+  f.h.m.test = true;
+  f.recovery.save(f.room, f.h.m, f.h.m.prepSnapshots.get(1));
+  assert.equal(fs.existsSync(f.file), false);
+});
+
 test('room prep recovery restores the saved override or follows current host settings', t => {
   resetHostSettings(); t.after(resetHostSettings);
   const f = fixture(t, 'coop', { humans: 2, bots: 0 });

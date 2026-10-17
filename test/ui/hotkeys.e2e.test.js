@@ -28,7 +28,7 @@ describe('rebindable shortcuts (设置 → 快捷键)', { skip: !ENABLED && 'set
   const mockState = (page) => page.evaluate(() => JSON.parse(JSON.stringify(globalThis.__MOCK__.S().priv)));
   const keyOf = (page, action) => page.$eval(`.set-key[data-action="${action}"]`, (el) => el.textContent.trim());
   const keyIs = (page, action, label) => page.waitForFunction((a, l) => document.querySelector(`.set-key[data-action="${a}"]`)?.textContent.trim() === l, {}, action, label);
-  const note = (page) => page.$eval('.set-keys__note', (el) => el.textContent.trim());
+  const note = (page) => page.$eval('.settings-shortcuts-modal .set-keys__note', (el) => el.textContent.trim());
 
   async function open(page, { width = 1280, height = 720, touch = false } = {}) {
     const problems = [];

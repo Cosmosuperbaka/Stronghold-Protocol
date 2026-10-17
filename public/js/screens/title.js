@@ -42,11 +42,10 @@ import { ResourceLauncher } from '../ui/resourcePanel.js';
 import { useSettings } from '../ui/settings.js';
 import { unsupportedReason } from '../resources/index.js';
 import { installedCount } from '../content.js';
+import { NoticesButton } from '../ui/notices.js';
 import { sanitizeName, isValidName } from '../ui/playerName.js';
 
 export { stripLoneSurrogates, sanitizeName, isValidName } from '../ui/playerName.js';
-
-const UI_AUTHOR = 'B站雨千代Chiyo'; // i18n-ignore: creator's public display name
 
 /**
  * Enter the game shell with a nickname (title → lobby).
@@ -287,11 +286,11 @@ export function TitleScreen() {
     <footer class="title-foot">
       <${ResumeMatchButton} />
       <${PwaInstallButton} />
+      <${NoticesButton} />
       ${installed ? html`<button type="button" class="title-plugins" data-testid="title-plugins" onClick=${openPlugins}>
         <${Icon} name="info" />${t('本服务器安装了 {n} 个插件', { n: installed })}</button>` : null}
       <span>${t('非官方同人复刻 · 游戏素材版权归 上海鹰角网络 / Yostar 所有')}</span>
       <span class="title-foot__meta">
-        <a class="title-ui-credit" href="https://space.bilibili.com/27675079" target="_blank" rel="noopener noreferrer">${t('UI 制作')}: ${UI_AUTHOR}</a>
         <a class="title-repo" href="https://github.com/zhewang448/Stronghold-Protocol" target="_blank" rel="noopener noreferrer">${t('项目仓库')}</a>
         <${MicroLabel}>v${APP_VERSION} · WEB SIMULATION<//>
         ${DEV_BUILD ? html`<span class="title-dev" role="note">${t('开发版 · 不稳定，请勿用于公开服务器')}</span>` : null}

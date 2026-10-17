@@ -1,10 +1,9 @@
-// 异形屏适配 (the owner, 2026-10-14: on some phones Chrome's fullscreen puts the interface under the camera cutout or the
-// curved edge, or leaves it off-centre): 设置 → 异形屏适配 moves each edge of the interface by a number of CSS pixels the
-// player picks while watching it move. Each slider reads 0–100 and starts at 50 = unchanged (the owner, same day):
-// right of 50 pulls that edge in, left of 50 pushes it out past the reported viewport — 2 CSS px per step, ±100 px.
-// Kept per device (`sp.pref.screenFit`, not one of ui/accountPrefs.js's synced keys: another phone has another cutout);
-// the stored values are the pixel offsets (inward positive), so a profile saved by the first version (0–160 px inward)
-// keeps its meaning, clamped to 100.
+// 异形屏适配 (设置): on some phones the browser's fullscreen puts the interface under the camera cutout or the curved
+// edge, or leaves it off-centre, and reports no safe-area inset for it. This section moves each edge of the interface
+// by a number of CSS pixels the player picks while watching it move. Each slider reads 0–100 and starts at 50 =
+// unchanged: right of 50 pulls that edge in, left of 50 pushes it out past the reported viewport — 2 CSS px per step,
+// ±100 px. Kept on this device only (`sp.pref.screenFit`): another device has another screen.
+
 // Applied on <html>: `data-fit` plus --fit-l / --fit-r / --fit-t / --fit-b; css/devices.css then sets .app-root (the
 // screens' fixed box, theme.css) and the full-page panels to that box (every .screen is absolute inset 0 inside it, the
 // board is sized from its host element) and computes the layout root 1rem from it instead of the whole viewport. Fixed
@@ -64,7 +63,8 @@ const LO = sliderOf(FIT_MIN), HI = sliderOf(FIT_MAX);
 export function ScreenFitSection() {
   const f = useStore((s) => s, Object.is, fitStore);
   const any = FIT_SIDES.some((k) => f[k] !== 0);
-  return html`<section class="set-fit" aria-labelledby="set-fit-title">
+  return html`<section class="set-fit" aria-labelledby="set-fit-title" data-testid="screen-fit">
+
     <div class="set-keys__head">
       <span class="set-row__label" id="set-fit-title">${t('异形屏适配')}<${MicroLabel}>SCREEN FIT<//></span>
       <${Button} variant="ghost" size="sm" icon="refresh" class="set-fit__reset" disabled=${!any} onClick=${() => updateFit(NONE)}>${t('重置')}<//>

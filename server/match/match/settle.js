@@ -80,16 +80,10 @@ export class MatchSettle {
       this.dispatch(ps, 'onBattleResult', { result: r, lpLoss: loss, perfect: counted === 0 && r.perfect !== false, unite: uniteResult || null });
       ps.recompute();
     }
-    for (const ps of alive) {
-      if (ps.lp <= 0) {
-        ps.lp = 0;
-        ps.eliminate(this.round);
-        this.toast(ps, 'error', '你的目标生命值耗尽，已被淘汰');
-        this.tickerText(msg('{name}博士的目标生命值已耗尽', { name: ps.name }), FLOW_TICKER_PRIORITY);
-      }
-    }
+    this.eliminateBroken();
     // local console: the round's LP / funds / battle record (history.js)
     try { recordRound(this, { uniteResult }); } catch (e) { this.reportError('recordRound', e); }
+
     this.fields = [];
     this.watchers.clear();
     this.markPublic();
@@ -120,6 +114,22 @@ export class MatchSettle {
     }
   }
 
+  /**
+   * Drop every alive player whose LP is already gone. Settlement calls this after the round's LP loss.
+   * An accepted test round jump calls the same helper before the next round starts, so LP 0 cannot be
+   * written back into a new prep. The LP command itself stays a raw write.
+   */
+  eliminateBroken() {
+    for (const ps of this.alivePlayers()) {
+      if (ps.lp <= 0) {
+        ps.lp = 0;
+        ps.eliminate(this.round);
+        this.toast(ps, 'error', '你的目标生命值耗尽，已被淘汰');
+        this.tickerText(msg('{name}博士的目标生命值已耗尽', { name: ps.name }), FLOW_TICKER_PRIORITY);
+      }
+    }
+  }
+
   afterSettle() {
     if (!this.alivePlayers().length) { this.finish({ victory: false, reason: 'eliminated' }); return; }
     resetRoundCounters(this); // AI bot merge-counter resets each round (server/match/botEmotes.js)
@@ -127,8 +137,12 @@ export class MatchSettle {
   }
 
   finish({ victory, hiddenCleared = false, reason = 'defeat' }) {
+    // A command that ends a test match must be audited/counted before publishing its result.
+    if (this.test && this._testApplying) { this._testOutcome = { victory, hiddenCleared, reason }; return; }
     if (this.ended || this.disposed) return;
     const settledBattle = [PHASE.SETTLE, PHASE.FINAL_ASSAULT, PHASE.HIDDEN_CORE].includes(this.phase);
+    this.offersDispose();
+
     this.ended = true;
     if (this.runner) { try { this.runner.stop(); } catch { /* ignore */ } this.runner = null; }
     this._stopClientCombat();
@@ -148,6 +162,11 @@ export class MatchSettle {
     } catch (e) {
       this.reportError('buildResult', e);
       result = { t: 'm.result', victory: !!victory, roundsPassed: 0, reason, modeId: this.modeId, difficulty: this.difficulty, players: [] };
+    }
+    if (this.test) {
+      result.test = true;
+      result.testActions = this.testActions;
+      if (this.testReplayable === false) result.testReplayable = false;
     }
     this.lastResultMsg = result;
     this.markPublic();

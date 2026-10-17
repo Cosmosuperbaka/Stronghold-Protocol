@@ -24,13 +24,15 @@ import { useGameData, BandIcon, BondGlyph, RichText, PlayerAvatar, LpTower, Spri
 import { StepHeader, ExitModal } from '../ui/matchChrome.js';
 import { MatchInfoDialog, matchInfoModel } from '../ui/matchInfo.js';
 // package (对局动画): the 「请选择策略」 band each time a pick becomes the player's (ui/matchIntro.js TurnBanner)
-import { TurnBanner } from '../ui/matchIntro.js';
 import { actions, act } from '../ui/gameActions.js';
 import { normalizeDraft, sortedPlayers } from '../ui/gameLogic.js';
 import { useStore, shallowEqual } from '../store.js';
 import { BondPlanDialog, BondPlanBadge, bondPlanStore, loadBondPlanData } from '../ui/bondPlan.js';
 import { data } from '../data.js';
 import { audio } from '../audio.js';
+import { TurnBanner } from '../ui/turnBanner.js';
+import { bootArtReady } from '../ui/protocolBoot.js';
+import { reducedMotion } from '../ui/device.js';
 import { modeOffBonds, bandOffBonds, bandOffLine } from '../ui/gameLogic.js';
 import { t, tParts, tName } from '../../../shared/i18n.js';
 
@@ -182,7 +184,6 @@ export function BandDraftScreen() {
   const [skipped, setSkipped] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
-  const [banner, setBanner] = useState(null);
 
   const mode = gd.config?.modes?.[pub?.modeId];
   const offBonds = modeOffBonds(mode); // the bonds this mode never activates (标准: 10 of 23)
@@ -210,11 +211,16 @@ export function BandDraftScreen() {
     const next = draftSelection(sel, { bands, taken, myPick, myTurn, defaultId });
     if (next !== sel) setSel(next);
   }, [bands.length, myPick, myTurn, takenKey]);
-  // "your turn" cue
-  useEffect(() => { if (myTurn && !solo) audio.sfx('yourTurn'); }, [myTurn]);
-  // the BOND PLAN picker draws its grid from data/bonds.json
+  // "your turn" cue: the sound, and the event's 请选择策略 band (ui/turnBanner.js) once its art is in
+  const [turnBanner, setTurnBanner] = useState(0);
+  useEffect(() => {
+    if (!myTurn || solo) return;
+    audio.sfx('yourTurn');
+    if (bootArtReady() && !reducedMotion()) setTurnBanner((n) => n + 1);
+  }, [myTurn]);
+  // The extension's core-bond preference is independent of the draft.
   useEffect(() => { loadBondPlanData(); }, []);
-  useEffect(() => { if (myTurn) setBanner(`${draft.turnPid || 'self'}|${Date.now()}`); }, [myTurn]);
+
   // the 本局信息 dialog never outlives the turn it was opened in: a turn change (a pick, a skip, a turn that ran out, an
   // AI pick) or my pick closes it, so whoever's turn begins sees the draft
   const turnKey = `${draft.turnPid || ''}|${myPick || ''}`;
@@ -340,12 +346,12 @@ export function BandDraftScreen() {
         </div>
       </aside>
     </main>
-    ${banner ? html`<${TurnBanner} key=${banner} text=${t('请选择策略')} onDone=${() => setBanner(null)} />` : null}
     <${ExitModal} open=${exit} onClose=${() => setExit(false)} solo=${solo} />
     <${BondPlanDialog} open=${planOpen} onClose=${() => setPlanOpen(false)} current=${myPlan} />
     <${MatchInfoDialog} open=${infoOpen} onClose=${() => setInfoOpen(false)} model=${info}
       status=${infoStatus ? html`<span class=${cx('minfo-dlg__turn', `is-${infoStatus.tone}`)}>
         <${Icon} name=${infoStatus.tone === 'mint' ? 'check' : 'hourglass'} />${infoStatus.text}${infoStatus.secs != null ? html`<b class="num">${infoStatus.secs}s</b>` : null}
       </span>` : null} />
+    ${turnBanner ? html`<${TurnBanner} key=${turnBanner} onDone=${() => setTurnBanner(0)} />` : null}
   </div>`;
 }

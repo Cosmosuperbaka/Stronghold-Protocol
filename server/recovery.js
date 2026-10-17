@@ -72,7 +72,7 @@ export function createRecovery({ lobby, root, dir = path.join(root, 'logs', 'rec
     roomClosed(code) { if (!stopping) remove(code); },
     prepareShutdown() { stopping = true; },
     save(room, m, snap) {
-      if (!enabled || stopping || restoring) return;
+      if (!enabled || stopping || restoring || room.test || m.test) return;
       const sessions = [...room.seats, ...room.spectators].filter((s) => s && !s.isBot)
         .map((s) => lobby.registry.byId(s.playerId)).filter(Boolean)
         .map((s) => Object.fromEntries(['playerId', 'token', 'name', 'loadout', 'ops', 'skins', 'card', 'cardSkin', 'notOwned', 'diy', 'resumeWindowMs'].map((k) => [k, s[k]])));

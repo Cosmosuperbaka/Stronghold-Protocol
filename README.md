@@ -1,16 +1,17 @@
 # 卫戍协议：盟约 · Stronghold Protocol: Alliance
 
-![扩展版本](https://img.shields.io/badge/version-0.3.0--extended.3-blue)
-![上游基础版本](https://img.shields.io/badge/version-0.3.0-2ea44f)
+![扩展版本](https://img.shields.io/badge/version-0.3.1--extended.1-blue)
+![上游基础版本](https://img.shields.io/badge/version-0.3.1-2ea44f)
 ![许可](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)
 
 在浏览器里招募干员、布置阵容，与朋友合作迎敌。本库是《明日方舟》「卫戍协议：盟约」的非商业同人扩展分支，提供独立模拟与 **1–4 人同盟模拟**，空位可由 AI 队友补齐；着重完善自行开服、主机管理、局内交流与统计、对局回放和外观选择。
+
 
 A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance*, extended with host tools, shared round statistics, chat, replays and optional cosmetics.
 
 [下载正式版](https://github.com/zhewang448/Stronghold-Protocol/releases/latest) · [开始运行](#开始运行) · [和朋友一起玩](#和朋友一起玩) · [更新记录](docs/LOCAL-CHANGELOG.md) · [玩法指南](docs/PLAYING.md) · [反馈问题](https://github.com/zhewang448/Stronghold-Protocol/issues)
 
-> 当前版本为 **`v0.3.0-extended.3`**（基础版本 `0.3.0`）。正式版提供完整素材包与轻量包，新增融合交流面板、头像气泡、快捷键弹窗、资源阶段进度、公告长文和大厅统计入口。新版内容见[扩展更新记录](docs/LOCAL-CHANGELOG.md)，上游变化见 [CHANGELOG.md](CHANGELOG.md)。
+> 当前版本为 **`v0.3.1-extended.1`**（基础版本 `0.3.1`）。提供完整素材包与轻量包，跟进上游 Forge、工作台、测试房间、交互窗口与规则修复，保留本库主机工具、交流统计、回档回放与外观扩展。新版内容见[扩展更新记录](docs/LOCAL-CHANGELOG.md)，上游变化见 [CHANGELOG.md](CHANGELOG.md)。
 >
 > 非官方、非商业同人项目，与《明日方舟》官方无隶属或授权关系。游戏名称、美术、音频、文本与数据的权利归原权利人，仅供学习和个人非商业使用。
 
@@ -30,6 +31,8 @@ A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance
 
 不同分支的插件格式和宿主 API 并不通用。**Forge-Mods 与 Lele 插件尚未验证可直接用于本库**；更多来源、安装前核对项和兼容边界见[社区插件索引](docs/COMMUNITY-PLUGINS.md)。本库设置页提供本机插件工作台入口。
 
+本版已整合上游 **v0.3.1**，包含 Forge 导入与工作台扩展、测试房间、联防及干员规则修复，详见 [更新记录](docs/LOCAL-CHANGELOG.md)。
+
 ## 本库特色
 
 | 方向 | 可以做什么 |
@@ -40,9 +43,11 @@ A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance
 | [干员与外观](#联动干员皮肤与组队海报) | 7 名联动自选干员、174 套可选皮肤、432 名干员的组队海报、随机外观与素材预加载 |
 | [开服与更新](#一键开服与控制台更新) | Windows 一键开服与临时公网隧道、重启恢复、签名校验、控制台更新 |
 
+
 以下均为**桌面版真实界面截图**，使用测试房间和演示数据；部分图片裁剪了无关区域。
 
 ### 主机控制台
+
 
 控制台只在开服电脑本机开放，默认地址为 `http://127.0.0.1:3100`，以启动日志的 `Console:` 行为准。顶部显示在线人数、房间、对局、CPU 与内存；房间分为「操作 / 数据」，玩家调整收进展开区，对局记录支持搜索与每页 20 条分页。
 
@@ -178,6 +183,7 @@ winget install Cloudflare.cloudflared
 
 刷新或断线后，同盟模拟可在 **10 分钟**内重连，独立模拟可在 **24 小时**内恢复原座位，前提是服务器和该对局仍在运行。默认每次休整期保存本机恢复文件；同版本重启后恢复进行中的对局，回到最近休整期开始，保留当时机变，作战中重启需重打本回合。玩家仍用原浏览器身份重连。等待室与聊天不恢复；关闭恢复或版本指纹不符时不能自动续局；玩法插件局暂不支持跨服务重启恢复。
 
+
 ## 操作
 
 休整期招募、配装与部署，作战期自动迎敌；漏怪时顶栏用红字 + 「−N」标记待扣的目标生命值，结算时才显示扣除后的数值。点击干员按地上的方格定位。
@@ -225,6 +231,7 @@ npm start
 | 主机时长、联防叠层、每回合统计、屏蔽词与回放录制设置 | `logs/admin-settings.json` | 保留 |
 | 玩家身份、调配、皮肤偏好、本机统计 | 玩家浏览器本地存储 | 保留；更换浏览器或清除站点数据会影响恢复 |
 | 下载的游戏与皮肤素材 | `public/assets/` 等本地资源目录 | 保留 |
+
 
 数据位置与分享前的隐私检查见[本地数据说明](docs/PRIVACY.md)，更多部署选项见[部署说明](docs/DEPLOY.md)。
 

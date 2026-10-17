@@ -1,6 +1,6 @@
 # 扩展分支开发笔记
 
-这份文档记录本仓库在上游 [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol) 之上做的改动，以及读代码时摸清的结构和坑，方便之后继续开发。上游自己的架构文档见 [DESIGN.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.3.0/docs/DESIGN.md)（总体）、[META.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.3.0/docs/META.md)（对局与经济）、[SIM.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.3.0/docs/SIM.md)（战斗模拟）。
+这份文档记录本仓库在上游 [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol) 之上做的改动，以及读代码时摸清的结构和坑，方便之后继续开发。上游自己的架构文档见 [DESIGN.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.3.1/docs/DESIGN.md)（总体）、[META.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.3.1/docs/META.md)（对局与经济）、[SIM.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.3.1/docs/SIM.md)（战斗模拟）。
 
 ## 1. 仓库与分支
 
@@ -13,11 +13,19 @@
 - 合并上游新版本时从 `main` 开功能分支，完成适配与测试后再合并回 `main`。
 - 同步上游：`git fetch upstream` → `git merge upstream/master` → `npm install` → `npm run setup`（上游常会加素材）→ `node --test`。
 - 素材 `public/assets/`、`.cache/`、`.claude/` 都在 `.gitignore` 里，不进仓库。新机器 clone 后要先 `npm install && npm run setup`。
-- 当前版本为 `v0.3.0-extended.3`（正式版），基于上游 `v0.3.0`（`c24e17ee`）。上一正式版为 `v0.3.0-extended.2`。本版新增融合交流面板、头像气泡、快捷键弹窗、资源阶段进度、公告长文和大厅统计入口，保留既有控制台、回档、回放、联动与皮肤扩展。完整包包含 11 个官方战场场景、0.3.0 官方 FX、多语言语音、174 套皮肤和海报素材；lite 需按文档补齐。素材来源与原始校验记录见 DEPLOY §6；发布预检要求 `--require-local-art`，同时核对场景和素材完整性。
+- 当前版本为 `v0.3.1-extended.1`（正式版），基于上游 `v0.3.1`（`b3deebda`）。上一正式版为 `v0.3.0-extended.3`。接入 Forge、工作台、交互窗口、干员特质、规则开关、测试房间与上游规则修复，保留控制台、聊天、统计、回档、回放、联动与皮肤扩展。完整包包含 11 个官方战场场景（提取版本 4）、官方 FX、多语言语音、174 套皮肤和海报素材；lite 需按文档补齐。发布预检使用 `--require-local-art`。
 
-`package.json` / APP_VERSION 保持上游基础版本 0.3.0；`server/release-version.js` 单独记录扩展标签。发布附件与公开状态以 Releases 为准。
+当前源码已整合上游 `v0.3.1`（`b3deebda`）；`package.json` / APP_VERSION 为基础版本 0.3.1；`server/release-version.js` 单独记录扩展标签。发布附件与公开状态以 Releases 为准。
 
-上游合并的兼容处理：
+上游 v0.3.1 合并的兼容处理（2026-10-18，随 v0.3.1-extended.1 发布）：
+
+- 保留 Hub 布局、文字聊天、每回合统计、主机工具、7 名联动与 174 套安装皮肤。皮肤选择与上游外观插件共用一个 store、同步器和服务端校验，支持插件皮肤、他人皮肤显隐及原有随机 / 导入导出。
+- 部署缩放继续默认关闭，以既有 `deploymentZoom` 偏好为准；上游 `prepDeployFold` 仅在旧配置没有本库字段时迁移。弹药和秘术师能量按上游合成一个开关，旧布尔偏好自动迁移，作战统计仍默认开启。
+- 测试房间通过 Hub 开关创建，保留自定义密钥、加入确认与测试标识；测试房间不写入本库战绩、回放和重启恢复，跨局汇总过滤旧测试记录。普通插件局仍转发 hostId，主机迁移同时供本库工具与测试指令使用。
+- 回档保留当前皮肤选择，恢复交互窗口抽取次序，通信序号保持单调递增，取消旧窗口的定时器与延续；玩家状态中的凯瑟琳领取次数随快照恢复。
+- 官方数据生成与上游一致，另保留联动自选池；音效清单比上游多 23 个联动攻击 / 命中引用及对应音库。
+
+此前 v0.3.0 合并的兼容处理：
 
 - 保留社区 Hub UI、皮肤、7 名联动、聊天标点、公告、盟约预选、帧率、ZIP 资源管理和状态增量；快捷键随上游扩成七项，加入 W 悬停购买；作战统计按维护者要求默认开启，保留已保存的关闭偏好，仍用浏览器只读统计。
 - 两套素材功能统一注册 classic `/sw.js`：上游导入包使用独立缓存，本库预载保留按哈希校验、音频别名和 Range。关闭预载停止下载，清理只删除本库缓存，统一 worker 继续服务上游导入素材。旧 `/resource-sw.js` 只保留升级兼容，不再注册争用 scope。
