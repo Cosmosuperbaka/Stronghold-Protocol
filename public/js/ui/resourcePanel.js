@@ -2,12 +2,23 @@
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { html, Button, MicroLabel, Modal, ProgressBar } from './components.js';
 import { createStore, useStore } from '../store.js';
-import { formatBytes, PRELOAD_VOICE_LANGS, normalizePreloadVoiceLang } from '../resources/common.js';
+import { formatBytes, resourcePackPercent, PRELOAD_VOICE_LANGS, normalizePreloadVoiceLang } from '../resources/common.js';
 import { clearResources, exportResources, importResources, inspectResources, pauseResources,
   resourceState, startResources, subscribeResources } from '../resources/index.js';
 import { t, N_ } from '../../../shared/i18n.js';
 
 const PRELOAD_VOICE_LABELS = { cn: N_('中文语音'), jp: N_('日语语音'), en: N_('英语语音'), kr: N_('韩语语音') };
+
+export function ResourcePackProgress({ progress }) {
+  if (!progress) return null;
+  const label = progress.phase === 'verify' ? t('正在校验资源包') : progress.phase === 'import' ? t('正在导入资源包') : t('正在下载资源包');
+  return html`<section class="resource-pack-progress" aria-label=${t('资源处理进度')}>
+    ${progress.phase === 'verify' ? html`<p role="status">${label}</p>`
+      : html`<${ProgressBar} value=${resourcePackPercent(progress)} max=${100} label=${label} size="sm" />`}
+    <small>${progress.phase === 'download' ? `${formatBytes(progress.loaded || 0)} / ${formatBytes(progress.totalBytes || 0)} · ${t('下载速度：{0}/秒', { 0: formatBytes(progress.speedBytesPerSecond || 0) })}`
+      : progress.phase === 'import' ? t('{done}/{total} 个文件', { done: progress.done || 0, total: progress.totalFiles || 0 }) : t('校验通过后写入本机缓存')}</small>
+  </section>`;
+}
 
 
 export function byteText(st) {
@@ -162,6 +173,7 @@ export function ResourceHost({ enabled, optional, voiceLang = 'cn', onVoiceLang,
       </div>
       <p class=${`resource-manager__status${st.error ? ' is-error' : ''}`} role="status" aria-live="polite">
         ${st.message || (enabled ? t('预载已开启') : t('选择下载范围，然后开始预载；也可以直接导入资源包。'))}</p>
+      <${ResourcePackProgress} progress=${st.packProgress} />
       ${st.worker ? html`<p class="resource-manager__warn">${st.worker}</p>` : null}
       ${st.failed ? html`<p class="resource-manager__warn">${t('{failed} 个文件下载失败，继续下载时重试。', { failed: st.failed })}</p>` : null}
       ${st.skipped ? html`<p class="resource-manager__warn">${t('{skipped} 个文件超过单文件缓存上限，使用时按需加载。', { skipped: st.skipped })}</p>` : null}

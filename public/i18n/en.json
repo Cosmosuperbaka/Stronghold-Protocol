@@ -2616,5 +2616,12 @@
   "选择立绘": "Choose a portrait",
   "暂无可用的皮肤立绘": "No outfit portraits are available",
   "已选立绘暂不可用，当前显示默认立绘。": "The selected portrait is unavailable. Showing the default portrait.",
-  "插件房间不能参加公共匹配": "Rooms with gameplay plugins cannot join public matchmaking"
+  "插件房间不能参加公共匹配": "Rooms with gameplay plugins cannot join public matchmaking",
+  "点击查看详情": "Click for details",
+  "正在校验资源包": "Verifying resource pack",
+  "正在导入资源包": "Importing resource pack",
+  "正在下载资源包": "Downloading resource pack",
+  "资源处理进度": "Resource progress",
+  "{done}/{total} 个文件": "{done}/{total} files",
+  "校验通过后写入本机缓存": "Verified resources will be saved to the local cache"
 }

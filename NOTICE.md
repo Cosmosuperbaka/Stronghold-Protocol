@@ -83,4 +83,13 @@ under GPL-3.0-or-later. Adaptation keeps the current room API, four-player rules
 补充界面译文及后续界面适配参考了 [社区部署](https://weishuxieyi.xiaolubao.com/) 公开分发的源码
 （GPL 衍生作品，抓取日期 2026-10-15；额外修改的原作者不明）。不引入赞助、付费或玩家端控制台。
 
+2026-10-17 局内交流布局进一步移植自该站公开的 `/js/ui/emotes.js` 与 `/css/emotes.css`
+（SHA-256 前缀分别为 `b7125b41d24474a1a`、`d4cadf9d41c73773`），包括左侧图标栏、单行输入、历史与头像文字气泡。
+本库仅适配既有房间聊天协议与主机管理；继续保留原项目 GPL-3.0-or-later 及上述作者 / 站点来源致谢。
+
 社区自制表情素材：按用户授权于 2026-10-16 从参考站点公布的素材地址下载 6 套（超辉夜姬、鹿乃、十年星扉、十年星扉动态、星白、迷迭香），36 张 PNG / GIF，共 2,603,782 字节。来源为该站点的 local.xiaolubao.com/Stronghold-Protocol/assets/local/emoticon/，仅存本机被忽略的 public/assets/local/emoticon/，运行时使用同源路径。逐文件 SHA-256 记录在本机 .cache/ui-hub-port/emote-downloads.json。这些社区图片不属于官方游戏表情清单，作者 / 独立素材许可未在站点源码中注明；代码 GPL 致谢不授予这些图片的权利。
+
+参考站工具 UI（2026-10-17）：快捷键独立弹窗、资源阶段展示及 `announcementMarkdown.js` 参考 / 改编自
+[xinhai-ai/Stronghold-Protocol](https://github.com/xinhai-ai/Stronghold-Protocol) 与其站点当日公开源码，
+保留 GPL-3.0-or-later；具体本库适配见 `docs/REFERENCE-UI-REVIEW.md`。
+公告 Markdown 分词使用 [Marked](https://github.com/markedjs/marked) 17.0.4（MIT），浏览器文件保留其许可头。

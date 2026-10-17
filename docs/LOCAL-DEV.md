@@ -13,7 +13,7 @@
 - 合并上游新版本时从 `main` 开功能分支，完成适配与测试后再合并回 `main`。
 - 同步上游：`git fetch upstream` → `git merge upstream/master` → `npm install` → `npm run setup`（上游常会加素材）→ `node --test`。
 - 素材 `public/assets/`、`.cache/`、`.claude/` 都在 `.gitignore` 里，不进仓库。新机器 clone 后要先 `npm install && npm run setup`。
-- 当前版本为 `v0.3.0-extended.2`（正式版），基于上游 `v0.3.0`（`c24e17ee`）。上一正式版为 `v0.2.6-extended.5`。新增局内每回合统计、主机聊天与屏蔽词、分组设置和组队海报，保留既有控制台、回档、回放、联动与皮肤扩展。完整包包含 11 个官方战场场景、0.3.0 官方 FX、多语言语音、174 套皮肤和海报素材；lite 需按文档补齐。素材来源与原始校验记录见 DEPLOY §6；发布预检要求 `--require-local-art`，同时核对场景和素材完整性。
+- 当前版本为 `v0.3.0-extended.3`（正式版），基于上游 `v0.3.0`（`c24e17ee`）。上一正式版为 `v0.3.0-extended.2`。本版新增融合交流面板、头像气泡、快捷键弹窗、资源阶段进度、公告长文和大厅统计入口，保留既有控制台、回档、回放、联动与皮肤扩展。完整包包含 11 个官方战场场景、0.3.0 官方 FX、多语言语音、174 套皮肤和海报素材；lite 需按文档补齐。素材来源与原始校验记录见 DEPLOY §6；发布预检要求 `--require-local-art`，同时核对场景和素材完整性。
 
 `package.json` / APP_VERSION 保持上游基础版本 0.3.0；`server/release-version.js` 单独记录扩展标签。发布附件与公开状态以 Releases 为准。
 
@@ -96,6 +96,16 @@
 0.2.0 起上游把 `Match` 的方法拆到了 `server/match/match/*.js`，启动代码从 `server/index.js` 拆到了 `server/http/`。
 
 ### 房间交流（文字聊天与战场标点）
+
+2026-10-17 交流面板移植：棋盘阶段将文字聊天放入左下角「交流」，使用参考站当日公开 `emotes.js` / `emotes.css`
+的左侧图标栏、表情 / 历史共用区域与单行输入布局，保留数字页码。`matchCommunication.js` 将本库 `chatStore`
+接入组件，继续通过 `sendChat` / `room.chat` 发送，权限、屏蔽词、200 字限制和失败草稿均不变。
+新玩家消息使用 `EmoteBubble` 文字模式，在对应头像右侧显示约 3 秒；历史同步不补播，主机消息只在记录里显示。
+过长气泡最多显示三行，全文保留在记录。关闭消息提示后丢弃当前气泡批次，重开不补播。
+等待室、开局说明、盟约轮选和结算继续使用可拖动聊天窗口。设置页、HUD、商店和全局比例不参与本次改动。
+来源、外观参数及其他候选 UI 见 [REFERENCE-UI-REVIEW.md](REFERENCE-UI-REVIEW.md)。
+验证：`test/ui/match-communication.test.js` 与 `SP_E2E=1` 下的 `test/ui/match-communication.e2e.test.js`；
+原聊天与表情浏览器回归继续适用。
 
 2026-10-16 主机聊天恢复：`POST /api/action {room,action:'chatSend',value:text}` 仅走认证本机控制台，
 复用 `RoomChat.message` 和房间广播，固定主机身份、`role:system`，前端称「主机消息」。
@@ -589,3 +599,12 @@ Windows 文件锁、既有资源缓存/标题链接断言。观战隐私断言�
 - 服务端：`test/admin-chat.test.js`、`resources-wall.test.js`、`match/history-details.test.js`、`result-summary.test.js`、`recovery.test.js`、`idle-update.test.js`、`release-notes.test.js`（除已写目录者外均在 test 根目录）。
 - 浏览器：`SP_E2E=1 node --test test/ui/admin-chat.e2e.test.js test/ui/admin-stats.e2e.test.js test/ui/next-features.e2e.test.js`；设 `CHROME_PATH`。监控墙真实 30 分钟验收另设 `SP_WALL_SOAK=1`，日常回归无需等待半小时。
 - 最终汇总见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md) 的 `v0.2.6-extended.5` 节；只在明确授权后提交。
+
+## 参考站工具界面适配（2026-10-17，未发布）
+
+设置点「修改快捷键」打开独立子弹窗；编辑时 Esc 取消，再按关闭子弹窗，设置继续打开。
+资源管理显示分包下载（字节 / 速度）、校验（状态）、导入（文件数），不改变下载与缓存配置。
+控制台「服务器 → 全站公告」可选择纯文本（500 字）或 Markdown（20000 字）；长文仅在公告弹窗排版，
+横幅提示点击查看详情。支持标题、列表、引用、表格、代码、安全链接；HTML 原样显示、图片显示替代文字。
+`/api/action` 的 JSON 上限为 256 KiB，覆盖长文及其 JSON 转义，其他接口保留原上限。
+源码来源、私有归档范围与验证入口见 [REFERENCE-UI-REVIEW.md](REFERENCE-UI-REVIEW.md)。

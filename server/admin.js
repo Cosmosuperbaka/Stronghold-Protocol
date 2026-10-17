@@ -900,7 +900,8 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
         return rec ? send(200, rec) : send(404, { error: '记录不存在' });
       }
       if (req.method === 'POST' && url.pathname === '/api/action') {
-        const body = await readJson(req);
+        // Markdown announcements accept up to 20k Unicode characters, plus JSON escapes.
+        const body = await readJson(req, 256 * 1024);
         if (!body) return send(400, { error: '请求格式错误' });
         const r = await handleAction(lobby, body);
         log.info(`[admin] ${body.room} ${body.action}${body.playerId ? ' ' + body.playerId : ''}${body.value != null ? ' ' + JSON.stringify(body.value) : ''} → ${r.ok ? 'ok' : r.error}`);

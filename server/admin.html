@@ -167,7 +167,9 @@
 <section id="site-announcement" class="room" aria-label="全站公告">
   <h2>全站公告</h2>
   <p class="meta" id="site-notice-status">暂无公告</p>
-  <label>公告正文 <textarea id="site-notice-text" maxlength="1000" rows="3" aria-label="公告正文"></textarea></label>
+  <label>公告正文 <textarea id="site-notice-text" maxlength="40000" rows="6" aria-label="公告正文"></textarea></label>
+  <label>正文格式 <select id="site-notice-format"><option value="plain">纯文本（最多 500 字）</option><option value="markdown">Markdown 长文（最多 20000 字）</option></select></label>
+  <p class="meta">Markdown 支持标题、列表、强调、代码、引用、表格与链接；HTML 和图片不会执行或加载。长文横幅只提示点击查看。</p>
   <div class="row">
     <label>级别 <select id="site-notice-level"><option value="info">通知</option><option value="warning">提醒</option><option value="urgent">紧急通知</option></select></label>
     <label>开始 <select id="site-notice-delay"><option value="0">立即</option><option value="600000">10 分钟后</option><option value="3600000">1 小时后</option></select></label>
@@ -1412,7 +1414,7 @@ document.addEventListener('click', (e) => {
     const startAt = Date.now() + Number($('#site-notice-delay').value);
     const untilRemoved = $('#site-notice-duration').value === 'untilRemoved';
     const endAt = untilRemoved ? 8640000000000000 : startAt + Number($('#site-notice-duration').value);
-    act('*', 'announce', null, notice.dataset.siteNotice === 'remove' ? null : { text: $('#site-notice-text').value, level: $('#site-notice-level').value, startAt, endAt, untilRemoved }, '全站公告'); refreshStatus(); return;
+    act('*', 'announce', null, notice.dataset.siteNotice === 'remove' ? null : { text: $('#site-notice-text').value, format: $('#site-notice-format').value, level: $('#site-notice-level').value, startAt, endAt, untilRemoved }, '全站公告'); refreshStatus(); return;
   }
   const serviceButton = e.target.closest('button[data-service]');
   if (serviceButton && !serviceButton.disabled) { controlService(serviceButton.dataset.service); return; }

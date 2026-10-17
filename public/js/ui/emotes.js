@@ -1,10 +1,15 @@
+// Communication UI ported from weishuxieyi.xiaolubao.com public sources, 2026-10-17; see NOTICE.md.
 // Emotes (交流, research 09 §4): the 36 official in-match emotes of 盟约 — 6 themes × 6 (shared/constants.js
-// ALL_EMOTE_THEMES / EMOTES, generated reference data/emotes.json). Official emotes are pictures only: nothing here ever
-// renders an emote's text (our labels are aria-labels only).
+// EMOTE_THEMES / EMOTES, generated reference data/emotes.json) — plus the six server-added sets this fork carries
+// (shared/constants.js CUSTOM_EMOTE_THEMES: 鹿乃, 超辉夜姬, 十年星扉, 十年星扉动态, 星白, 迷迭香). The wheel pages are
+// ALL_EMOTE_THEMES (12 pages: the two interleave, EMOTE_PAGE_ORDER); the protocol whitelist is EMOTE_IDS. Emotes are
+// pictures only: nothing here ever renders an emote's text (our labels are aria-labels only).
 //
 //   EmoteArt    the emote picture: the local-client art (data/local-assets.json → emoticon/<dir>/<picId>) first, else
 //               the copy setup downloads from the public mirror (data/assets.json → ui['emoticon/<dir>/<picId>'];
 //               GitHub issue #42), each tried in turn when one fails to load; a neutral glyph when neither is there.
+//               A server-added set is in no manifest: its art ships with the server (emoteArtPath) and is the only
+//               candidate, and it never waits for the manifests.
 //               An empty box only while a manifest is still in flight; a timeout or a failed manifest (GitHub #99)
 //               uses that glyph, and a later success replaces it.
 //   EmoteBubble the pop bubble beside the sender's avatar in the team panel (official emoji_bubble_bkg: a dark rounded
@@ -12,10 +17,10 @@
 //               seq so a newer emote replaces the old one and pops again, and passes the arrival time (`at`) so a
 //               bubble mounted late resumes its timeline instead of restarting it.
 //   EmoteWheel  bottom-left 交流 button (official emoji_btn / emoji_btn_disable) + panel (emoji_bkg): one page per theme
-//               with 3×2 cells (emoji_cell_bkg), pager dots, swipe / drag / arrow keys / wheel to change the page (the
-//               wheel turns one page per gesture, a plain vertical mouse wheel included, like Unity's ScrollRect). The
-//               panel reopens on the theme of the last emote sent (localStorage). Sending closes the panel and greys
-//               the button for the 1 s cooldown (chatCD), counted from the send so a remount keeps it.
+//               with 3×2 cells (emoji_cell_bkg), a numeric `1/12` page indicator, swipe / drag / arrow keys / wheel to
+//               change the page (the wheel turns one page per gesture, a plain vertical mouse wheel included, like
+//               Unity's ScrollRect). The panel reopens on the theme of the last emote sent (localStorage). Sending closes
+//               the panel and greys the button for the 1 s cooldown (chatCD), counted from the send so a remount keeps it.
 // Official UI sprites come from the local ui/battle extraction when present; CSS draws look-alikes otherwise.
 // Styles: public/css/emotes.css (injected on first use when the page does not link it).
 
@@ -26,6 +31,10 @@ import { GIcon } from './gameComponents.js';
 import { data, useData, localAsset, artUrls, nextArtUrl } from '../data.js';
 import { loadPref, savePref } from '../store.js';
 import { t } from '../../../shared/i18n.js';
+import { CHAT_MAX_CHARS } from '../../../shared/constants.js';
+const CHAT_MAX_LENGTH = CHAT_MAX_CHARS;
+const chatLength = text => Array.from(text).length;
+const validChatText = text => typeof text === 'string' && text.trim().length > 0 && chatLength(text) <= CHAT_MAX_LENGTH;
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -52,20 +61,23 @@ export function ensureEmoteCss(doc = globalThis.document) {
 }
 
 /**
- * URLs of an emote's official art, best first: the local-client picture, then the mirror copy (data.js artUrls). Empty
- * when the id is unknown or neither manifest lists the picture (a path that is not listed is never requested).
- * @param {string} id official emoji id
+ * URLs of an emote's art, best first: the local-client picture, then the mirror copy (data.js artUrls). A server-added
+ * set (shared/constants.js CUSTOM_EMOTE_THEMES) is in no manifest — its art ships with the server, so its canonical
+ * `emoteArtPath` is the only candidate. Empty when the id is unknown or nothing lists the picture (a path that is not
+ * listed is never requested).
+ * @param {string} id emote id (official or server-added)
  * @returns {string[]}
  */
 export function emoteArtUrls(id) {
   const e = emoteInfo(id);
-  if (e?.custom) return [emoteArtPath(id)];
-  return e ? artUrls(emoteArtGroup(id), e.picId) : [];
+  if (!e) return [];
+  if (e.custom) { const p = emoteArtPath(id); return p ? [p] : []; }
+  return artUrls(emoteArtGroup(id), e.picId);
 }
 
 /**
- * URL of an emote's official art (the first of emoteArtUrls), or null.
- * @param {string} id official emoji id
+ * URL of an emote's art (the first of emoteArtUrls), or null.
+ * @param {string} id emote id (official or server-added)
  */
 export function emoteArtUrl(id) {
   return emoteArtUrls(id)[0] || null;
@@ -178,18 +190,19 @@ export function EmoteArt({ id, class: cls }) {
     return html`<img key=${src} class=${cx('eart', cls)} src=${src} alt="" draggable=${false} decoding="async"
       onError=${() => setBad((s) => new Set(s).add(src))} />`;
   }
-  if (emoteInfo(id) && !emoteInfo(id).custom && artManifestsPending()) return html`<span class=${cx('eart', 'eart--pending', cls)} aria-hidden="true"></span>`;
+  const known = emoteInfo(id);
+  if (known && !known.custom && artManifestsPending()) return html`<span class=${cx('eart', 'eart--pending', cls)} aria-hidden="true"></span>`;
   return html`<${EmoteGlyph} class=${cls} />`;
 }
 
 /**
- * Pop bubble (picture only) beside the sender's avatar. Unknown ids show the neutral glyph. Key it by the emote's seq
+ * Pop bubble (official picture, or plain chat text) beside the sender's avatar. Unknown ids show the neutral glyph. Key it by the emote's seq
  * (a newer emote replaces the bubble and pops again).
- * @param {{ id: string, class?: string, ttl?: number, at?: number }} props ttl = display time in ms (fade-out at the
+ * @param {{ id?: string, text?: string, class?: string, ttl?: number, at?: number }} props ttl = display time in ms (fade-out at the
  *   end); at = when the emote arrived (Date.now() clock): a bubble mounted after that resumes its pop / fade timeline
  *   instead of restarting it.
  */
-export function EmoteBubble({ id, class: cls, ttl = EMOTE_BUBBLE_MS, at }) {
+export function EmoteBubble({ id, text, class: cls, ttl = EMOTE_BUBBLE_MS, at }) {
   useData('local');
   useEffect(() => { ensureEmoteCss(); }, []);
   const life = Math.max(300, Number(ttl) || EMOTE_BUBBLE_MS);
@@ -197,6 +210,9 @@ export function EmoteBubble({ id, class: cls, ttl = EMOTE_BUBBLE_MS, at }) {
   const bg = emoteUiSprite('emoji_bubble_bkg');
   const e = emoteInfo(id);
   const style = [`--ebubble-ttl:${life}ms`, age && `--ebubble-age:${Math.round(age)}ms`, bg && `--ebubble-bg:url("${bg}")`].filter(Boolean).join(';');
+  if (validChatText(text)) return html`<div class=${cx('ebubble', 'ebubble--chat', cls)} style=${style} role="status">
+    <span class="ebubble__text" title=${text}>${text}</span>
+  </div>`;
   return html`<div class=${cx('ebubble', bg && 'has-sprite', cls)} style=${style} role="img"
     aria-label=${e ? t(e.label) : t('表情')} data-emote=${e ? e.id : ''}>
     <span class="ebubble__icon"><${EmoteArt} id=${id} /></span>
@@ -206,20 +222,33 @@ export function EmoteBubble({ id, class: cls, ttl = EMOTE_BUBBLE_MS, at }) {
 /**
  * 交流 button + emote panel.
  * @param {{ onSend: (id:string)=>void, open: boolean, onToggle: (open:boolean)=>void, disabled?: boolean,
- *   cooldownMs?: number }} props
+ *   chatState?: any, cooldownMs?: number, onChat?: (text:string)=>Promise<boolean>, history?: any[], myId?: string }} props
  */
-export function EmoteWheel({ onSend, open, onToggle, disabled = false, cooldownMs = EMOTE_COOLDOWN_MS }) {
+export function EmoteWheel({ onSend, onChat, chatState = null, history = [], myId, open, onToggle, disabled = false, cooldownMs = EMOTE_COOLDOWN_MS }) {
   useData('local');
   useEffect(() => { ensureEmoteCss(); }, []);
   const [page, setPage] = useState(lastThemeIndex);
   const [dir, setDir] = useState(0);          // direction of the last page change (slide-in animation)
   const [dx, setDx] = useState(0);            // live drag offset (px)
   const [cooling, setCooling] = useState(() => cooldownLeft(lastSentAt, Date.now(), cooldownMs) > 0);
+  const draft = chatState?.draft || '';
+  const sending = !!chatState?.sending;
+  const setDraft = value => chatState?.onDraft(value);
+  const [chatView, setChatView] = useState('emotes');
+  const composing = useRef(false);
+  const pendingChat = useRef(false);
+  const entry = useRef(null), wasOpen = useRef(false);
+  useEffect(() => {
+    if (wasOpen.current && !open) entry.current?.focus({ preventScroll: true });
+    wasOpen.current = open;
+  }, [open]);
+  useEffect(() => { chatState?.onReading(open && chatView === 'history'); }, [open, chatView, history]);
+  const chatInput = useRef(null);
   const drag = useRef(null);                  // { id, x0, moved }
   const swallowClick = useRef(false);
   const wheelAcc = useRef({ x: 0, t: -Infinity, spent: false });
   const live = useRef({});
-  live.current = { page, onToggle };
+  live.current = { page, onToggle, chatView };
 
   const go = (to) => {
     const next = clampPage(to);
@@ -230,7 +259,9 @@ export function EmoteWheel({ onSend, open, onToggle, disabled = false, cooldownM
   };
 
   // reopen on the last used theme
-  useEffect(() => { if (open) { setPage(lastThemeIndex()); setDir(0); setDx(0); } }, [open]);
+  useEffect(() => {
+    if (open) { setPage(lastThemeIndex()); setDir(0); setDx(0); setChatView('emotes'); }
+  }, [open]);
 
   // cooldown: the button is greyed for chatCD after a send (from the send time, so a remounted wheel keeps it)
   useEffect(() => {
@@ -244,6 +275,7 @@ export function EmoteWheel({ onSend, open, onToggle, disabled = false, cooldownM
     if (!open) return undefined;
     const onDown = (e) => { if (!(e.target instanceof Element) || !e.target.closest('.ewheel')) live.current.onToggle(false); };
     const onKey = (e) => {
+      if (live.current.chatView === 'history') return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const t = e.target;
       if (t instanceof Element && t.closest('input, textarea, select, [contenteditable="true"]')) return;
@@ -261,12 +293,21 @@ export function EmoteWheel({ onSend, open, onToggle, disabled = false, cooldownM
     if (swallowClick.current) { swallowClick.current = false; return; }
     const e = emoteInfo(id);
     const now = Date.now();
-    if (!e || cooling || disabled || cooldownLeft(lastSentAt, now, cooldownMs) > 0) return;
+    if (!e || cooling || disabled || pendingChat.current || cooldownLeft(lastSentAt, now, cooldownMs) > 0) return;
     lastSentAt = now;
     rememberTheme(e.themeId);
     setCooling(true);
     onSend(id);
     onToggle(false);
+  };
+
+  const sendChat = async (event) => {
+    event.preventDefault();
+    if (!disabled && !composing.current) chatInput.current?.focus({ preventScroll: true });
+    if (!onChat || composing.current || pendingChat.current || sending || disabled || chatState?.readOnly || !validChatText(draft)) return;
+    pendingChat.current = true;
+    try { await onChat(draft); }
+    finally { pendingChat.current = false; }
   };
 
   // swipe / drag (touch, pen and mouse)
@@ -309,25 +350,93 @@ export function EmoteWheel({ onSend, open, onToggle, disabled = false, cooldownM
   const cellBg = emoteUiSprite('emoji_cell_bkg');
   const panelStyle = [panelBg && `--ewheel-bg:url("${panelBg}")`, cellBg && `--ewheel-cell:url("${cellBg}")`].filter(Boolean).join(';');
   return html`<div class="ewheel">
-    <button type="button" class=${cx('ewheel__btn', btnSprite && 'has-sprite', open && 'is-on', cooling && 'is-cooling')}
+    <button ref=${entry} type="button" class=${cx('ewheel__btn', btnSprite && 'has-sprite', open && 'is-on', cooling && 'is-cooling')}
       style=${btnSprite ? `--ewheel-btn:url("${btnSprite}")` : ''} onClick=${() => onToggle(!open)}
-      aria-expanded=${open ? 'true' : 'false'} aria-haspopup="dialog" disabled=${disabled || cooling}>
+      aria-expanded=${open ? 'true' : 'false'} aria-haspopup="dialog" disabled=${!onChat && (disabled || cooling)}>
       ${btnSprite ? null : html`<${GIcon} name="emote" />`}<span class="ewheel__label">${t('交流')}</span>
+      ${chatState?.unread ? html`<span class="echat__unread">${chatState.unread}</span>` : null}
     </button>
-    ${open ? html`<div class=${cx('ewheel__panel', panelBg && 'has-sprite', cellBg && 'has-cell')} style=${panelStyle} role="dialog" aria-label=${t('交流')}>
+    ${open ? html`<div class=${cx('ewheel__dialog', onChat && 'has-chat')} role="dialog" aria-label=${t('交流')}
+      onKeyDown=${e => { if (e.key === 'Escape' && !composing.current && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); e.stopPropagation(); onToggle(false); } }}>
+    ${onChat ? html`<nav class="echat__tabs" aria-label=${t('交流内容')}>
+      <button type="button" class=${cx('echat__tab', chatView === 'emotes' && 'is-on')}
+        aria-label=${t('表情')} title=${t('表情')}
+        aria-pressed=${chatView === 'emotes' ? 'true' : 'false'} onClick=${() => setChatView('emotes')}>
+        <${GIcon} name="emote" />
+      </button>
+      <button type="button" class=${cx('echat__tab', chatView === 'history' && 'is-on')}
+        aria-label=${t('聊天历史')} title=${t('聊天历史')}
+        aria-pressed=${chatView === 'history' ? 'true' : 'false'} onClick=${() => setChatView('history')}>
+        <${GIcon} name="history" /><span class="echat__tab-count">${history.length}</span>
+      </button>
+    </nav>` : null}
+    <div class="ewheel__compose">
+    <div class=${cx('ewheel__panel', panelBg && 'has-sprite', cellBg && 'has-cell')} style=${panelStyle}
+      hidden=${!!onChat && chatView !== 'emotes'}>
       <div class="ewheel__viewport" onPointerDown=${onPointerDown} onPointerMove=${onPointerMove}
         onPointerUp=${(e) => endDrag(e, false)} onPointerCancel=${(e) => endDrag(e, true)} onWheel=${onWheel}>
         <div key=${theme.themeId} class=${cx('ewheel__page', dir > 0 && 'is-from-right', dir < 0 && 'is-from-left', dx !== 0 && 'is-dragging')}
           style=${dx ? `transform:translateX(${dx}px)` : ''} role="group" aria-label=${t(theme.name)} data-theme=${theme.themeId}>
           ${theme.emotes.map((e) => html`<button key=${e.id} type="button" class="ewheel__item" data-emote=${e.id} aria-label=${t(e.label)}
-              disabled=${cooling || disabled} onClick=${() => send(e.id)}>
+              disabled=${cooling || disabled || sending} onClick=${() => send(e.id)}>
             <${EmoteArt} id=${e.id} />
           </button>`)}
         </div>
       </div>
+      <div class="ewheel__pager">
       <button type="button" class="ewheel__nav is-prev" aria-label=${t('上一组表情')} disabled=${page <= 0} onClick=${() => go(page - 1)}><${GIcon} name="chevronLeft" /></button>
-      <button type="button" class="ewheel__nav is-next" aria-label=${t('下一组表情')} disabled=${page >= ALL_EMOTE_THEMES.length - 1} onClick=${() => go(page + 1)}><${GIcon} name="chevronRight" /></button>
       <span class="ewheel__count" role="status" aria-label=${`${t(theme.name)} ${page + 1}/${ALL_EMOTE_THEMES.length}`}>${page + 1}/${ALL_EMOTE_THEMES.length}</span>
+      <button type="button" class="ewheel__nav is-next" aria-label=${t('下一组表情')} disabled=${page >= ALL_EMOTE_THEMES.length - 1} onClick=${() => go(page + 1)}><${GIcon} name="chevronRight" /></button>
+      </div>
+    </div>
+    ${onChat && chatView === 'history' ? html`<section class="echat__history-pane" aria-label=${t('聊天历史')}>
+      <${ChatHistory} history=${history} myId=${myId} />
+    </section>` : null}
+    </div>
+    ${onChat ? html`<div class="echat">
+      <form class="echat__form" onSubmit=${sendChat}>
+        ${chatState?.reason ? html`<p class="echat__notice" role="status">${chatState.reason}</p>` : null}
+        ${chatState?.error ? html`<p class="echat__error" role="alert">${chatState.error}</p>` : null}
+        <input type="text" class="echat__input" ref=${chatInput} value=${draft} placeholder=${t('聊天消息')}
+          aria-label=${t('聊天消息')} disabled=${disabled || chatState?.readOnly}
+          onCompositionStart=${() => { composing.current = true; }}
+          onCompositionEnd=${(e) => {
+            composing.current = false;
+            setDraft(e.currentTarget.value);
+          }}
+          onInput=${(e) => {
+            setDraft(e.currentTarget.value);
+          }}
+          onKeyDown=${(e) => {
+            if (e.key === 'Enter' && (e.isComposing || composing.current || e.keyCode === 229)) e.preventDefault();
+            if (e.key !== 'Escape' || composing.current || e.isComposing || e.keyCode === 229) e.stopPropagation();
+          }} />
+        <span class="echat__count">${chatLength(draft)}/${CHAT_MAX_LENGTH}</span>
+        <button type="submit" class="echat__send" disabled=${disabled || chatState?.readOnly}
+          aria-disabled=${sending || !validChatText(draft) ? 'true' : 'false'}
+          onPointerDown=${(e) => {
+            // A pointer press must not blur the input (or dismiss the mobile keyboard).
+            if (!disabled) e.preventDefault();
+          }}>${sending ? t('发送中…') : t('发送')}</button>
+      </form>
     </div>` : null}
+    </div>` : null}
+  </div>`;
+}
+
+/** Page-local text messages. Only move to the newest row on open, or if already following the bottom. */
+function ChatHistory({ history, myId }) {
+  const list = useRef(null);
+  const follow = useRef(true);
+  useEffect(() => {
+    if (follow.current && list.current) list.current.scrollTop = list.current.scrollHeight;
+  }, [history]);
+  return html`<div class="echat__history" ref=${list} role="log" aria-label=${t('聊天历史')} aria-live="polite"
+    onScroll=${(e) => { const el = e.currentTarget; follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24; }}>
+    ${history.length ? history.map((entry) => html`<div key=${entry.seq} class=${cx('echat__entry', entry.playerId === myId && 'is-self')}>
+      <div class="echat__meta"><span>${entry.role === 'system' ? t('主机消息') : entry.name}${entry.playerId === myId ? ` (${t('你')})` : ''}</span>
+        ${Number.isFinite(entry.sentAt) ? html`<time>${new Date(entry.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</time>` : null}</div>
+      <div class="echat__text">${entry.text}</div>
+    </div>`) : html`<div class="echat__empty">${t('暂无聊天记录')}</div>`}
   </div>`;
 }

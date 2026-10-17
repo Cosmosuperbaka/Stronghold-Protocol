@@ -5,6 +5,34 @@
 
 /* ---- icon ------------------------------------------------------------------------------------ */
 .icon { fill: currentColor; flex: none; display: inline-block; vertical-align: middle; }
+.resource-pack-progress { display: flex; flex-direction: column; gap: .08rem; padding: .1rem 0; }
+.resource-pack-progress :is(.pbar__meta, p) { margin: 0; font-size: max(calc(.15 * var(--t)), 13px); line-height: 1.5; }
+.resource-pack-progress .pbar__track { min-height: 4px; }
+.resource-pack-progress > small { font-size: max(calc(.13 * var(--t)), 12px); color: var(--text-md); overflow-wrap: anywhere; }
+.modal__box.announcement-modal { width: min(9.6rem, calc(100vw - 32px)); }
+.announcement-markdown, .notice__plain { font-size: max(calc(.16 * var(--t)), 13px); line-height: 1.75; overflow-wrap: anywhere; user-select: text; }
+.notice__plain, .announcement-content__plain { white-space: pre-wrap; overflow-wrap: anywhere; }
+.announcement-markdown > * + * { margin-top: 1em; }
+.announcement-markdown :is(h1, h2, h3, h4, h5, h6) { line-height: 1.4; color: var(--text-hi); margin: 1.25em 0 .5em; }
+.announcement-markdown > :first-child { margin-top: 0; }
+.announcement-markdown h1 { font-size: 1.6em; }
+.announcement-markdown h2 { font-size: 1.35em; }
+.announcement-markdown h3 { font-size: 1.15em; }
+.announcement-markdown :is(ul, ol) { padding-left: 1.8em; }
+.announcement-markdown li + li { margin-top: .3em; }
+.announcement-markdown a { color: var(--mint-400); text-decoration: underline; text-underline-offset: .18em; }
+.announcement-markdown pre { max-width: 100%; overflow-x: auto; padding: .8em; background: var(--bg-0); border: 1px solid var(--line); }
+.announcement-markdown code { font-family: ui-monospace, monospace; font-size: .9em; }
+.announcement-markdown blockquote { margin-left: 0; padding: .7em 1em; border: 1px solid var(--line); background: var(--bg-2); }
+.announcement-markdown hr { border: 0; border-top: 1px solid var(--line-2); margin-block: 1.2em; }
+.announcement-markdown__table { overflow-x: auto; max-width: 100%; }
+.announcement-markdown table { border-collapse: collapse; min-width: 100%; }
+.announcement-markdown :is(th, td) { border: 1px solid var(--line-2); padding: .4em .7em; }
+.announcement-markdown__cell--center { text-align: center; }
+.announcement-markdown__cell--right { text-align: right; }
+.announcement-markdown__cell--left { text-align: left; }
+.site-notice__label { pointer-events: auto; cursor: pointer; font: inherit; padding: 0; border: 0; background: transparent; }
+.site-notice__label:focus-visible { outline: 2px solid var(--notice-color); outline-offset: 3px; }
 
 /* ---- button ------------------------------------------------------------------------------------ */
 .btn {

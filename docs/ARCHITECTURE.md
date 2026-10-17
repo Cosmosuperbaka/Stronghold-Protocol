@@ -126,6 +126,7 @@ so old imports keep working: `public/js/ui/gameLogic.js` (`public/js/ui/gameLogi
 | `public/index.html`, `public/js/main.js` | the page and its entry: boot, the router (title → lobby → room → game) |
 | `public/js/net.js`, `public/js/store.js`, `public/js/data.js` | the socket client, the observable store, the data loader (`/data/*.json`, with the English overlay) |
 | `public/js/ui/chat.js`, `public/js/ui/chatStore.js` | room text panel and transport subscriptions across room/match screens (owner extension; network §8 Room text chat) |
+| `public/js/ui/matchCommunication.js` | in-match reference-style emote/text/history adapter and avatar message bubbles; reuses `room.chat` and the room chat store |
 | `public/js/content.js` | the room's cosmetic plugins and the player's own (PLUGINS.md §9): fetched, checked against `room.state.content.vs` and laid over the art manifest (`public/js/cosmetics.js` cosmetic layers — small; `shared/plugins/visual.js` loads with the first set —, data.js's view of `assets`); the plugin catalogue; the room's 插件 tag is `public/js/ui/pluginTag.js`, its panel `public/js/ui/pluginPanel.js` (loaded when it opens) |
 | `public/js/battle/` | `runner.js` (the local battle clock and reports), `simHost.js` (C4: vanilla InPageSimHost, every gameplay set WorkerSimHost), `simWorker.js` / `simWorkerRuntime.js` (pure Worker engine, no JSON fetch), `simLoader.js` (shared data loader), `rehearsal.js` / `rehearsalWorker.js` (same-origin module Worker: test AI layouts when `SP_BOT_REHEARSAL=host`), `observe.js` (who may watch which field) |
 | `public/js/screens/` | `title.js`, `lobby.js`, `room.js`, `loadout.js` (干员调配), `cultivation.js` (its 潜能 / 练度 controls), `ownership.js` (干员持有), `diy.js` (自选编队), `briefing.js`, `bandDraft.js`, `game.js` with `public/js/screens/game/`, `result.js` |
@@ -234,3 +235,10 @@ public/assets/ ─────────▶ public/js/render/, public/js/audio
 Before changing a rule, read the DESIGN section that owns it (module headers cite their sections; the table in
 DESIGN.md names the file that holds each) and the official source; a rule no source settles is marked `[ASSUMED]`
 ([CONTRIBUTING.md](../CONTRIBUTING.md) §3).
+
+### 本库参考站工具界面（2026-10-17）
+
+`ui/settings.js` 管理快捷键子弹窗；资源 `archive.js` → `transport.js` → `index.js` 传播 download / verify / import，
+`ui/resourcePanel.js` 显示阶段、字节 / 速度或文件数。`shared/announcements.js` 定义格式与长度契约，
+`server/announcements.js` 校验，控制台选择格式，`ui/announcement.js` 按需加载 `announcementMarkdown.js`，
+后者仅将 Marked tokens 转为固定 Preact 节点。Marked 的浏览器模块由 `tools/vendor.mjs` 安装到 vendor。

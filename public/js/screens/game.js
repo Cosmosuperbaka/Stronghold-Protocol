@@ -89,7 +89,8 @@ import { RewardOverlay } from '../ui/rewardOverlay.js';
 import { ChoiceOverlay, spMarks } from '../ui/choiceOverlay.js';
 import { EnemyDrawer } from '../ui/enemyDrawer.js';
 import { Ticker } from '../ui/ticker.js';
-import { EmoteWheel } from '../ui/emotes.js';
+import { MatchCommunication } from '../ui/matchCommunication.js';
+import { ChatPanel } from '../ui/chat.js';
 import { EffectsList } from '../ui/effectsList.js';
 import { CombatHud } from '../ui/combatHud.js';
 import { CombatMetricsPanel } from '../ui/combatMetrics.js';
@@ -185,7 +186,7 @@ export function GameScreen() {
     return html`<div class="screen gload">
       <${Spinner} size="lg" label=${pub ? 'LOADING DATA' : 'ENTERING SIMULATION'} />
       <p class="t-lo">${pub ? t('正在载入模拟数据…') : t('正在进入模拟…')}</p>
-    </div>`;
+    </div><${ChatPanel} />`;
   }
   let body;
   if (over && !endOn) body = html`<${ResultScreen} />`;
@@ -193,6 +194,7 @@ export function GameScreen() {
   else if (mode === 'draft') body = html`<${BandDraftScreen} />`;
   else body = html`<${MatchScreen} />`;
   return html`${body}
+    ${mode === 'briefing' || mode === 'draft' || (over && !endOn) ? html`<${ChatPanel} />` : null}
     ${endOn && endKind ? html`<${EndPlate} kind=${endKind} leaving=${endStage === 'leaving'}
       leaderIcon=${bossIconOf(gd, pub.bossId)} coreIcon=${bossIconOf(gd, pub.hiddenBossId)} />` : null}
     ${bootShown ? html`<${ProtocolBoot} players=${sortedPlayers(pub)} myId=${myId} leaving=${bootLeaving} />` : null}
@@ -1805,7 +1807,7 @@ function MatchScreen() {
         </div>` : null}
         ${showMetrics && metricsOpen ? html`<${CombatMetricsPanel} myId=${myId} onClose=${() => setMetricsOpen(false)} />` : null}
         ${showHistory && historyOpen ? html`<${RoundHistoryPanel} history=${pub.roundHistory} players=${pub.players} onClose=${() => setHistoryOpen(false)} />` : null}
-        ${spectator ? null : html`<${EmoteWheel} open=${emoteOpen} onToggle=${setEmoteOpen} onSend=${(id) => actions.emote(id)} disabled=${conn.status !== 'online'} />`}
+        <${MatchCommunication} open=${emoteOpen} onToggle=${setEmoteOpen} onSend=${(id) => actions.emote(id)} disabled=${spectator || conn.status !== 'online'} />
         ${showHistory ? html`<button type="button" class="gm__gear gm__metrics" aria-label=${t('每回合统计')} title=${t('每回合统计')}
           aria-expanded=${historyOpen} aria-controls="round-history-panel" onKeyDown=${(e) => { if (e.key === ' ') e.stopPropagation(); }}
           onClick=${() => { setHistoryOpen(!historyOpen); setMetricsOpen(false); setEmoteOpen(false); }}><${Icon} name="chart" /></button>` : null}

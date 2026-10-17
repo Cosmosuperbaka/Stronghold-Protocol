@@ -22,11 +22,22 @@ function useNotice() {
   useTicker(notice && net.serverNow() < notice.endAt ? 250 : 0);
   return announcementLive(notice, net.serverNow()) ? notice : null;
 }
+let markdownModule = null;
+function MarkdownNotice({ text }) {
+  const [module, setModule] = useState(markdownModule);
+  useEffect(() => {
+    let live = true;
+    import('./announcementMarkdown.js').then(value => { markdownModule = value; if (live) setModule(value); }, () => {});
+    return () => { live = false; };
+  }, []);
+  return module ? module.renderAnnouncementMarkdown(text) : html`<p class="notice__plain">${text}</p>`;
+}
 export function AnnouncementHost() {
   const notice = useNotice(), open = useStore(s => s.open, Object.is, ui);
   return html`<${Modal} open=${open} title=${t('公告')} class="announcement-modal" onClose=${closeAnnouncement}
     actions=${html`<${Button} onClick=${closeAnnouncement}>${t('关闭')}<//>`}>
-    ${notice ? html`<div class="notice__body">${notice.text.split('\n').map((line,i) => html`<p key=${i} class="notice__line">${line}</p>`)}</div>`
+    ${notice ? notice.format === 'markdown' ? html`<${MarkdownNotice} text=${notice.text} />`
+      : html`<div class="notice__body">${notice.text.split('\n').map((line,i) => html`<p key=${i} class="notice__line">${line}</p>`)}</div>`
       : html`<p>${t('暂无公告')}</p>`}
   <//>`;
 }
@@ -48,10 +59,11 @@ export function AnnouncementBanner() {
   }, [live, notice]);
   if (!live) return null;
   const label = notice.level === 'urgent' ? t('紧急通知') : notice.level === 'warning' ? t('提醒') : t('通知');
+  const bannerText = notice.format === 'markdown' ? `${t('公告')} · ${t('点击查看详情')}` : notice.text;
   return html`<aside class=${`site-notice site-notice--${notice.level}`} role="status" aria-live="polite" aria-atomic="true">
-    <span class="site-notice__label">${label}</span><span class="site-notice__accessible">${notice.text}</span>
+    <button type="button" class="site-notice__label" onClick=${openAnnouncement}>${label}</button><span class="site-notice__accessible">${bannerText}</span>
     <div ref=${viewport} class="site-notice__viewport" aria-hidden="true"><span ref=${line} class="site-notice__text"
-      style=${{ '--notice-from': `${scroll.from}px`, '--notice-to': `${scroll.to}px`, '--notice-duration': `${scroll.duration}s` }}>${notice.text}</span></div>
+      style=${{ '--notice-from': `${scroll.from}px`, '--notice-to': `${scroll.to}px`, '--notice-duration': `${scroll.duration}s` }}>${bannerText}</span></div>
     <button type="button" class="site-notice__close" aria-label=${t('关闭通知')} onClick=${() => { savePref('announcementDismissed', notice.id); setDismissed(notice.id); }}><${Icon} name="close" /></button>
   </aside>`;
 }

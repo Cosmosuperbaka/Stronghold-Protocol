@@ -1,5 +1,5 @@
 // i18n-ignore-file: validation errors belong to the authenticated local host console.
-import { ANNOUNCEMENT_LEVELS, ANNOUNCEMENT_MAX_TEXT, normalizeAnnouncementText } from '../shared/announcements.js';
+import { ANNOUNCEMENT_LEVELS, announcementTextLimit, normalizeAnnouncementText } from '../shared/announcements.js';
 
 /** One global in-memory notice. Only the local host console edits it; no C2S action exists. */
 export class SiteAnnouncements {
@@ -12,9 +12,12 @@ export class SiteAnnouncements {
     if (value === null) { this.notice = null; this.publish(); return { ok: true }; }
     if (!value || typeof value !== 'object' || Array.isArray(value)) return { error: '公告格式无效' };
     const text = normalizeAnnouncementText(value.text), { level, startAt, endAt } = value;
-    if (!text || [...text].length > ANNOUNCEMENT_MAX_TEXT || Buffer.byteLength(text, 'utf8') > 4096) return { error: '公告须为 1–500 字' };
+    if (value.format != null && !['plain', 'markdown'].includes(value.format)) return { error: '公告正文格式无效' };
+    const limit = announcementTextLimit(value.format);
+    if (!text || [...text].length > limit || Buffer.byteLength(text, 'utf8') > limit * 4) return { error: `公告须为 1–${limit} 字` };
     if (!Object.hasOwn(ANNOUNCEMENT_LEVELS, level) || !Number.isFinite(startAt) || !Number.isFinite(endAt) || endAt <= startAt || endAt <= this.now()) return { error: '公告级别或起止时间无效' };
-    this.notice = { id: `${this.now()}-${++this.seq}`, text, level, startAt, endAt, ...(value.untilRemoved === true ? { untilRemoved: true } : {}) };
+    this.notice = { id: `${this.now()}-${++this.seq}`, text, level, startAt, endAt,
+      ...(value.format === 'markdown' ? { format: 'markdown' } : {}), ...(value.untilRemoved === true ? { untilRemoved: true } : {}) };
     this.publish(); return { ok: true };
   }
   publish() {

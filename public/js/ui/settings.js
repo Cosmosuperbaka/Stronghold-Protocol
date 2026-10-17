@@ -139,11 +139,11 @@ const HOTKEY_NAMES = { buy: N_('购买鼠标指向的商品'), refresh: N_('刷�
  * 快捷键: each shortcut with its key. Click its key (or Enter / Space on it) and press the new one: Esc cancels (the
  * dialog stays open), Tab leaves, a key held with Ctrl / Alt / ⌘ or one the interface keeps is refused, a key another
  * shortcut has is swapped — the line under the list says what happened; 恢复默认 restores the keys of 0.1.4. Esc
- * (cancel / close) is fixed. On a touch-only device the section says the keys need a keyboard and folds the list (an
+ * (cancel / close) is fixed. On a touch-only device the independent dialog says the keys need a keyboard (an
  * attached keyboard still uses it).
- * @param {{ keys: Record<string, string>, touchUi: boolean }} props
+ * @param {{ keys: Record<string, string> }} props
  */
-function HotkeySection({ keys, touchUi }) {
+function HotkeySection({ keys }) {
   const [waiting, setWaiting] = useState(null); // the action waiting for its new key
   const [note, setNote] = useState(null);       // { text, warn }: the result line
   // a layout effect: the key listener is on as soon as the key shows that it waits (an Esc right after the click must
@@ -210,8 +210,7 @@ function HotkeySection({ keys, touchUi }) {
       <${Button} variant="ghost" size="sm" icon="refresh" class="set-keys__reset" disabled=${isDefaultHotkeys(keys)}
         onClick=${() => { setWaiting(null); updateSettings({ keys: DEFAULT_HOTKEYS }); setNote({ text: t('已恢复默认快捷键') }); }}>${t('恢复默认')}<//>
     </div>
-    ${touchUi ? html`<p class="set-hint">${t('快捷键需要实体键盘；触屏设备连接键盘后可用')}</p>
-      <details class="set-keys__more"><summary>${t('查看 / 更改快捷键')}</summary>${list}</details>` : list}
+    ${list}
   </section>`;
 }
 
@@ -340,6 +339,8 @@ function UiPluginSection() {
  */
 export function SettingsModal({ open, onClose }) {
   const s = useSettings();
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  useEffect(() => { if (!open) setShortcutsOpen(false); }, [open]);
   const [tested, setTested] = useState(false);
   const [touchUi] = useState(() => detectFeatures().coarse && !detectFeatures().fine);
   const mtNote = machineTranslationNote(); // a pack marked as machine translation says so under the switch
@@ -421,14 +422,23 @@ export function SettingsModal({ open, onClose }) {
         </div>
       </div>
       <${ScreenFitSection} />
-      <${HotkeySection} keys=${s.keys} touchUi=${touchUi} />
+      <div class="set-row">
+        <span class="set-row__label">${t('快捷键')}<${MicroLabel}>HOTKEYS<//></span>
+        <${Button} size="sm" class="set-shortcuts-open" onClick=${() => setShortcutsOpen(true)}>${t('修改快捷键')}<//>
+      </div>
       <${CosmeticSection} />
       <${UiPluginSection} />
       <${DiagSection} />
       ${unsupportedReason() ? html`<${PreloadSection} />` : html`<${ResourceRow} enabled=${s.preload} />`}
       <p class="set-hint">${touchUi ? t('触屏操作：点击单位选中（撤退 / 出售）· 长按单位或卡牌查看详情 · 拖动部署后滑动选择朝向') : t('右键查看详情')}</p>
     </div>
-  <//>`;
+  <//>
+  ${open && shortcutsOpen ? html`<${Modal} open=${true} title=${t('修改快捷键')} micro="KEYBOARD SHORTCUTS"
+    width="min(max(7.4rem, 420px), calc(100vw - 32px))" class="settings-shortcuts-modal" onClose=${() => setShortcutsOpen(false)}
+    actions=${html`<${Button} variant="primary" onClick=${() => setShortcutsOpen(false)}>${t('完成')}<//>`}>
+    ${touchUi ? html`<p class="set-hint">${t('快捷键需要实体键盘；触屏设备连接键盘后可用')}</p>` : null}
+    <${HotkeySection} keys=${s.keys} />
+  <//>` : null}`;
 }
 
 /**

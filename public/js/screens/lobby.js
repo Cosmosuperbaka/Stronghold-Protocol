@@ -1017,6 +1017,7 @@ export function LobbyScreen() {
           <${SweepPlate} onClick=${() => setSweepOpen(true)} />
           <${LoadoutButton} from="lobby" size="lg" class="hub-plate hub-plate--loadout" label=${t('干员调配')} />
         </div>
+        <${HubTile} icon="chart" label=${t('统计数据')} en="LOCAL RECORDS" onClick=${openStats} />
       </aside>
 
       <section class="hub-entries" aria-label=${t('模拟方式')}>

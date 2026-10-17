@@ -693,3 +693,9 @@ operator's runtime ability graph. Mixed-letter banks are skipped. Preserve `mixO
 an older PR's full JSON, preserving JP voices and current operators. See DESIGN §28.17.
 
 The 40th local token model is the original champagne bomb (`token_10031_swire2_gdtrap`, §29.5), extracted from the official `btl_pfb_tokens_0.ab` through `TOKEN_SPINES`. Its web fallback is retained. Failed board-pack/image requests can retry after connectivity/visibility recovers; a failed three.js module gets at most two fresh-URL retries per page because browser module failures are cached. Successful resources remain cached.
+
+### 分包阶段进度（2026-10-17）
+
+`packProgress` 的 download 提供 loaded / totalBytes 与约 200ms 采样的 speedBytesPerSecond；切换镜像重新计速。
+ZIP 流读完后进入 verify 校验整包 SHA-1，不制造百分比；通过才进入 import，显示 done / totalFiles。
+成功、失败或取消均清除活动分包进度，原有镜像重试及逐文件回退继续生效，缓存只接收已验证文件。

@@ -22,7 +22,7 @@ import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { PHASE } from '../../../shared/constants.js';
 import { html, Icon, Tooltip } from './components.js';
 import { PlayerAvatar, LpTower, GIcon, LocalSprite } from './gameComponents.js';
-import { EmoteBubble } from './emotes.js';
+import { AvatarMessage } from './matchCommunication.js';
 import { STATUS_META, sortedPlayers, teamFrameIds } from './gameLogic.js';
 import { MissTag, uniteRemaining } from './hud.js';
 import { localAsset } from '../data.js';
@@ -200,7 +200,7 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
           ${back ? html`<button type="button" class="btn btn--secondary btn--sm team__back"
             onClick=${() => observe.onBack()}><span class="btn__label">${t('返回战场')}</span></button>` : null}
         </div>
-        ${bubble ? html`<${EmoteBubble} key=${bubble.seq} id=${bubble.id} class="team__bubble" />` : null}
+        <${AvatarMessage} playerId=${p.playerId} emote=${bubble} />
       </div>`;
     })}
   </aside>`;

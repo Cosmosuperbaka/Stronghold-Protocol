@@ -349,7 +349,7 @@ function App() {
   return html`<div class="app-root">
     <div class="app-bg" aria-hidden="true"></div>
     ${error ? html`<${ScreenCrashed} error=${error} reset=${resetError} />` : html`<${Screen} key=${route} />`}
-    <${ChatPanel} />
+    ${route !== 'game' ? html`<${ChatPanel} />` : null}
     <${AnnouncementBanner} /><${AnnouncementHost} />
     <${TrustedNotice} />
     <${ConnectionBanner} />

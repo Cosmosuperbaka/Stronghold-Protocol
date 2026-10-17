@@ -325,10 +325,25 @@ async function preloadTransportPacks(store, packs, signal, onProgress) {
     if (!candidates.length || candidates.length < pack.files.length / 2) continue;
     try {
       const selectedPaths = new Set(candidates.map(({ row }) => resourcePath(row.url)));
+      let sampleAt = performance.now(), sampleBytes = 0, speed = 0;
       set({ packProgress: { phase: 'download', id: pack.id, loaded: 0, totalBytes: pack.size } });
-      const entries = await fetchTransportPack(pack, { signal, selectedPaths, onProgress: (loaded) =>
-        set({ packProgress: { phase: 'download', id: pack.id, loaded, totalBytes: pack.size } }) });
-      const outcome = await store.importTransportPack(entries.map(({ row, bytes }) => ({ file: current.get(resourcePath(row.url)), bytes })), { signal });
+      const entries = await fetchTransportPack(pack, { signal, selectedPaths,
+        onPhase: phase => {
+          if (phase === 'download') { sampleAt = performance.now(); sampleBytes = 0; speed = 0; }
+          set({ packProgress: { phase, id: pack.id, loaded: phase === 'verify' ? pack.size : 0, totalBytes: pack.size } });
+        },
+        onProgress: loaded => {
+          const now = performance.now(), elapsed = now - sampleAt;
+          if (loaded < sampleBytes) { sampleAt = now; sampleBytes = 0; speed = 0; }
+          else if (elapsed >= 200) {
+            speed = Math.max(0, (loaded - sampleBytes) * 1000 / elapsed); sampleAt = now; sampleBytes = loaded;
+          }
+          set({ packProgress: { phase: 'download', id: pack.id, loaded, totalBytes: pack.size, speedBytesPerSecond: speed } });
+        } });
+      set({ packProgress: { phase: 'import', id: pack.id, done: 0, totalFiles: entries.length } });
+      const outcome = await store.importTransportPack(entries.map(({ row, bytes }) => ({ file: current.get(resourcePath(row.url)), bytes })), {
+        signal, onProgress: p => set({ packProgress: { phase: 'import', id: pack.id, done: p.done, totalFiles: p.total } }),
+      });
       onProgress?.(outcome);
     } catch (error) {
       checkAbort(signal);

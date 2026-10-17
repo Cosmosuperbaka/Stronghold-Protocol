@@ -5,6 +5,22 @@ import { announcementFromMessage, announcementLive } from '../shared/announcemen
 import { startServer } from '../server/index.js';
 import { TestClient } from './helpers/wsClient.js';
 
+test('Markdown notices explicitly opt into 20k Unicode characters; legacy notices remain plain and limited to 500', () => {
+  const service = new SiteAnnouncements({ now: () => 1000 });
+  const value = { text: '字'.repeat(20000), format: 'markdown', level: 'info', startAt: 1000, endAt: 2000 };
+  try {
+    assert.deepEqual(service.set(value), { ok: true });
+    assert.equal(announcementFromMessage(service.frame()).format, 'markdown');
+    assert.ok(service.set({ ...value, text: '字'.repeat(20001) }).error);
+    assert.ok(service.set({ ...value, format: 'html' }).error);
+    assert.equal(announcementFromMessage({ announcement: { ...service.notice, format: 'html' } }), null);
+    assert.deepEqual(service.set({ ...value, text: '🙂'.repeat(20000) }), { ok: true });
+    assert.ok(service.set({ ...value, format: 'plain', text: 'a'.repeat(501) }).error);
+    assert.deepEqual(service.set({ ...value, format: undefined, text: '**原样** <script>' }), { ok: true });
+    assert.equal(Object.hasOwn(announcementFromMessage(service.frame()), 'format'), false);
+  } finally { service.dispose(); }
+});
+
 test('absolute start/end, invalid edits and withdrawal are independent of room time', () => {
   let now = 1000; const frames = [];
   const service = new SiteAnnouncements({ now: () => now, broadcast: m => frames.push(m) });

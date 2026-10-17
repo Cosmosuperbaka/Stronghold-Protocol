@@ -541,6 +541,13 @@ room and every match phase, independent of the official emote wheel. Its transpo
 follows room membership across route changes. The in-match entry sits below the ready controls and timer.
 Limits and frames: network §8, Room text chat.
 
+2026-10-17 修订：棋盘阶段文字聊天融合到表情「交流」，依据参考站公开源码保留左侧图标栏、共用表情 / 历史
+正文和底部单行输入，桌面宽 260px，触屏手机 220px。数据仍来自本库房间聊天，观战只读，保留 200 字上限、
+屏蔽词、输入法保护与失败草稿；等待室、开局说明、轮选、结算保留原聊天窗口。
+新玩家文字在对应头像旁复用表情气泡的圆角、颜色与默认 3 秒 pop/fade；长文截三行，历史中保留全文。
+不补播历史同步，主机消息只在历史中显示；消息提示关闭后重开不补播旧气泡。
+下面的可拖动入口预览规则继续用于原聊天窗口；棋盘阶段由头像气泡替代。
+
 Collapsed chat also previews newly received peer and host messages (owner request, 2026-10-17). The floating preview
 follows the draggable entry, stays inside the viewport, shows the latest two messages (three text lines each) and a
 count of further new messages. It fades after 6 seconds since the latest incoming message; hovering or keyboard focus
@@ -622,3 +629,14 @@ enters b.progress / b.result, and a tracked battle's result and rendered events 
 浏览器回归同时检查选中状态、实际 ticker 上限与回调频率，实际 FPS 可因设备性能低于上限。
 
 每回合统计补充（2026-10-16）：干员排行可在单回合与累计至指定回合之间切换；作战进行时，现有 `b.progress` 以有界字段广播各战场的当前干员伤害，面板以「进行中」回合显示实时数据（只读，不参与结算）。结算页的按钮复用同一面板，使用 `m.result.roundHistory`；首页「统计 → 对局记录」保存并恢复该字段，因此包含第 15 回合的完整结算数据。
+
+## 本库参考站工具界面适配（2026-10-17）
+
+大厅右栏「干员调配」下方提供「统计数据」入口，复用现有 HubTile 和 openStats，读取本库已有统计数据。
+结算自选立绘读取的 `seat-art` 目录随 `GAME_FILES` 在等待室预热，避免结算时才开始请求；缺失时继续走原回退。
+设置的快捷键表使用独立子弹窗；编辑时 Esc 仅取消捕获，普通 Esc 只关闭最上层弹窗并恢复入口焦点。
+移动设备保留实体键盘提示，使用本库既有界面比例和可滚动弹窗。键位、保存与冲突交换规则不变。
+资源分包管理依次显示 download（字节与采样速度）、verify（无百分比）、import（已处理 / 总文件数）。
+公告仅显式 `format: 'markdown'` 启用长文排版和 20000 字上限，缺省 / plain 保留 500 字与纯文本。
+Markdown 分词后生成固定 Preact 元素，不注入 HTML；只允许无凭据 HTTP(S) 与站内根路径链接，
+图片仅显示替代文字，嵌套 / 节点超限回退纯文本。代码与表格在自身区域横向滚动，正文不撑破弹窗。

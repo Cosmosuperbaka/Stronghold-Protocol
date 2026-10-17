@@ -1114,3 +1114,10 @@ queued. The original picture-only emote wheel is retained. No battle rules or go
 ## 本机扩展：逐回合记录与重启恢复
 
 2026-10-15 主机扩展为 `history` 增加漏怪来源明细、实际收入 / 支出与次数、激活盟约层数及档位；仅记录现有结算，不改战斗规则。旧记录缺失字段留空。用户确认重启恢复采用 rewind 的最近 PREP 自动效果前快照，保留当时机变，重打本回合，截断废弃回放；版本及规则指纹必须一致。原 token 重连，DIY、日程和主机规则保持原值，停机时间不计入对局。安全边界、存储和测试见 [LOCAL-DEV.md](LOCAL-DEV.md) §9。
+
+## 全站公告的可选长文格式（本库 2026-10-17）
+
+仅已鉴权本机控制台通过 `/api/action` 的 `announce` 编辑，仍无玩家 C2S 发布接口。
+`site.announcement.announcement` 可选 `format: 'markdown'`（最多 20000 个 Unicode 字符）；
+缺省或 plain 保持 500 字的纯文本与旧帧形状。格式未知或超限时拒绝并保留当前公告。
+绝对起止时间、级别、直到撤下、重连和广播规则不变；客户端仅在打开公告时延迟加载受限 Markdown 渲染器。

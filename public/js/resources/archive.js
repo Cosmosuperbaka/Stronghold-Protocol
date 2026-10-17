@@ -93,7 +93,7 @@ class PackStreamReader {
 }
 
 /** Stream the server-built stored ZIP: unpack entries as network chunks arrive, then authenticate the whole ZIP once. */
-export async function readTransportPack(response, pack, { signal, onProgress, selectedPaths = null } = {}) {
+export async function readTransportPack(response, pack, { signal, onProgress, onPhase, selectedPaths = null } = {}) {
   if (!response?.body?.getReader || !pack || !Number.isSafeInteger(pack.size) || pack.size <= 0
     || pack.size > RESOURCE_PACK_MAX_BYTES || !Array.isArray(pack.files)
     || !/^[0-9a-f]{40}$/.test(pack.sha1 || '')) throw new Error('资源分包缺少可校验的整包指纹或流');
@@ -166,6 +166,7 @@ export async function readTransportPack(response, pack, { signal, onProgress, se
     // The central directory and end record are authenticated by the package digest;
     // no individual entry digest/CRC pass is needed for these server-indexed packs.
     await source.drain();
+    onPhase?.('verify');
     if (source.bytes !== pack.size || source.hash.digest() !== pack.sha1) throw new Error('资源分包整包校验失败');
     return entries;
   } finally {

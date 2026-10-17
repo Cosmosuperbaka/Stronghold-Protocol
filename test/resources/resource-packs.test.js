@@ -269,7 +269,9 @@ test('Python pack builder keeps every pack below 16 MB and records verified reso
       assert.equal(requests, 3);
       assert.equal(mirrorRequests.length, 3);
       assert.equal(controller.resourceState().selectionComplete, true);
-      assert.ok(progress.some((p) => p.phase === 'download'));
+      assert.deepEqual([...new Set(progress.map(p => p.phase))], ['download', 'verify', 'import']);
+      assert.ok(progress.some(p => p.phase === 'import' && p.done === p.totalFiles && p.totalFiles > 0));
+      assert.equal(controller.resourceState().packProgress, null);
       assert.ok(await cache.match(`${origin}/assets/ui/a.png`));
       assert.ok(await cache.match(`${origin}/assets/ui/b.png`));
     } finally {

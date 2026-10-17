@@ -966,6 +966,16 @@
 .set-key.is-fixed small { font-family: inherit; font-size: calc(.12 * var(--t)); color: var(--text-dim); }
 .set-keys__note { min-height: 1.5em; font-size: calc(.14 * var(--t)); line-height: 1.5; color: var(--mint-400); }
 .set-keys__note.is-warn { color: var(--amber); }
+.set-shortcuts-open { grid-column: 2 / 4; justify-self: start; white-space: nowrap; }
+.settings-shortcuts-modal .set-keys { border-top: 0; padding-top: 0; }
+.settings-shortcuts-modal .modal__title { font-size: max(calc(.24 * var(--t)), 18px); }
+.settings-shortcuts-modal :is(.set-keys__name, .set-key, .set-row__label, .btn) { font-size: max(calc(.15 * var(--t)), 14px); line-height: 1.5; }
+.settings-shortcuts-modal :is(.set-hint, .set-keys__note) { font-size: max(calc(.14 * var(--t)), 12px); line-height: 1.6; }
+.settings-shortcuts-modal .set-key small { font-size: max(calc(.11 * var(--t)), 11px); }
+.settings-shortcuts-modal .set-key { height: auto; min-height: max(.36rem, 30px); padding-block: .04rem; }
+.settings-shortcuts-modal .set-keys__row { min-height: max(.42rem, 36px); }
+.settings-shortcuts-modal .btn { flex: none; width: auto; height: auto; min-height: 32px; padding: 4px 10px; white-space: nowrap; }
+.settings-shortcuts-modal .btn__icon { width: 1.15em; height: 1.15em; }
 .set-keys__more > summary { padding: .06rem 0; font-size: calc(.15 * var(--t)); color: var(--mint-400); cursor: pointer; }
 .set-keys__more[open] > summary { margin-bottom: .08rem; }
 @keyframes set-key-wait { to { box-shadow: 0 0 .12rem rgba(246, 163, 41, .45); } }

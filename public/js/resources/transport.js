@@ -3,7 +3,7 @@ import { readTransportPack } from './archive.js';
 import { isResourcePackUrl } from '../../../shared/resourcePackRoutes.js';
 
 /** Try each mirror once, authenticate the complete ZIP, then allow cache import. */
-export async function fetchTransportPack(pack, { signal, onProgress, selectedPaths,
+export async function fetchTransportPack(pack, { signal, onProgress, onPhase, selectedPaths,
   fetcher = globalThis.fetch, idleMs = 30000, timeoutMs = 180000 } = {}) {
   const key = (url) => new URL(url, globalThis.location?.origin || 'https://resources.invalid').href;
   const fallback = key(pack.url);
@@ -29,6 +29,7 @@ export async function fetchTransportPack(pack, { signal, onProgress, selectedPat
     const deadline = setTimeout(() => controller.abort(new Error('资源分包线路下载超时')), timeoutMs);
     try {
       onProgress?.(0);
+      onPhase?.('download');
       touch();
       const response = await fetcher(url, { cache: 'no-store', signal: controller.signal });
       if (!response.ok) {
@@ -36,7 +37,7 @@ export async function fetchTransportPack(pack, { signal, onProgress, selectedPat
         throw new Error(`资源分包 HTTP ${response.status}`);
       }
       touch();
-      return await readTransportPack(response, pack, { signal: controller.signal, selectedPaths,
+      return await readTransportPack(response, pack, { signal: controller.signal, selectedPaths, onPhase,
         onProgress: (loaded) => { touch(); onProgress?.(loaded); } });
     } catch (error) {
       // User/combat/scope cancellation stops the entire run; only route failures advance.
