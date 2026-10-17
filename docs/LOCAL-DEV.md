@@ -13,7 +13,7 @@
 - 合并上游新版本时从 `main` 开功能分支，完成适配与测试后再合并回 `main`。
 - 同步上游：`git fetch upstream` → `git merge upstream/master` → `npm install` → `npm run setup`（上游常会加素材）→ `node --test`。
 - 素材 `public/assets/`、`.cache/`、`.claude/` 都在 `.gitignore` 里，不进仓库。新机器 clone 后要先 `npm install && npm run setup`。
-- 当前版本为 `v0.3.1-extended.1`（正式版），基于上游 `v0.3.1`（`b3deebda`）。上一正式版为 `v0.3.0-extended.3`。接入 Forge、工作台、交互窗口、干员特质、规则开关、测试房间与上游规则修复，保留控制台、聊天、统计、回档、回放、联动与皮肤扩展。完整包包含 11 个官方战场场景（提取版本 4）、官方 FX、多语言语音、174 套皮肤和海报素材；lite 需按文档补齐。发布预检使用 `--require-local-art`。
+- 当前版本为 `v0.3.1-extended.2`（正式版），基于上游 `v0.3.1`（`b3deebda`）。上一正式版为 `v0.3.1-extended.1`。本版修复完整素材更新、皮肤海报、偏好校验和 Windows 子进程弹窗。接入 Forge、工作台、交互窗口、干员特质、规则开关、测试房间与上游规则修复，保留控制台、聊天、统计、回档、回放、联动与皮肤扩展。完整包包含 11 个官方战场场景（提取版本 4）、官方 FX、多语言语音、174 套皮肤和海报素材；lite 需按文档补齐。发布预检使用 `--require-local-art`。
 
 当前源码已整合上游 `v0.3.1`（`b3deebda`）；`package.json` / APP_VERSION 为基础版本 0.3.1；`server/release-version.js` 单独记录扩展标签。发布附件与公开状态以 Releases 为准。
 
@@ -339,11 +339,13 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 | `GET /api/settings` | 当前的休整期设置 `{ prep }`、设置文件路径，以及各同盟模式每回合的默认秒数 |
 | `POST /api/settings` | `{ prep }`：校验、写文件，然后生效 |
 | `GET /api/update` | 更新状态：当前 / 最新扩展标签、`versions`（`new/current/old`、附件及不可安装原因）、`hasMore`、网络配置、请求来源、下载字节数、错误和是否支持重启 |
-| `POST /api/update` | `open`：每个 updater 生命周期仅首次自动检查，只有首次调用返回新版 `notify`；`check`：刷新正式 Release 列表；`more`：获取下一页（每页 30）；`network`：保存 `{ network: { proxy, mirror } }`；`install`：按已查询的 `tag` 后台下载，旧版需 `allowDowngrade:true`，活动对局需 `force:true` |
+| `POST /api/update` | `open`：每个 updater 生命周期仅首次自动检查，只有首次调用返回新版 `notify`；`check`：刷新正式 Release 列表；`more`：获取下一页（每页 30）；`network`：保存 `{ network: { proxy, mirror } }`；`install`：按已查询的 `tag` 后台下载，旧版需 `allowDowngrade:true`，当前版修复需 `repairAssets:true`，活动对局需 `force:true` |
 
-首次打开行为由服务端消费，刷新和多页并发不会重复检查或提醒；检查请求并发合并。查询正式版本按数值排序，过滤草稿、预发布和无法识别的标签；当前版本没有远程附件时仍显示。当前版本不可重复安装，旧版回退和活动对局分别确认。网络配置保存在 `logs/release-network.json`；运行时使用 undici 的 HTTP/HTTPS `ProxyAgent`，兼容 Node 22.14，不依赖启动时环境变量。先代理 / 直连 GitHub，失败后绕过该代理直接访问镜像（默认复用素材工具的 `https://gh-proxy.com/` 前缀）。整个响应消费含 JSON、校验文本、流下载、SHA-256 与程序清单验证均可回退，更新忙碌或已有待安装包时拒绝修改网络配置。
+首次打开行为由服务端消费，刷新和多页并发不会重复检查或提醒；检查请求并发合并。查询正式版本按数值排序，过滤草稿、预发布和无法识别的标签；当前版本没有远程附件时仍显示。当前版本仅在显式 `repairAssets:true` 时允许重新安装，用于修复素材；旧版回退和活动对局分别确认。网络配置保存在 `logs/release-network.json`；运行时使用 undici 的 HTTP/HTTPS `ProxyAgent`，兼容 Node 22.14，不依赖启动时环境变量。先代理 / 直连 GitHub，失败后绕过该代理直接访问镜像（默认复用素材工具的 `https://gh-proxy.com/` 前缀）。整个响应消费含 JSON、校验文本、流下载、SHA-256 与程序清单验证均可回退，更新忙碌或已有待安装包时拒绝修改网络配置。
 
-更新只访问 `zhewang448/Stronghold-Protocol` 的正式 Release，优先 lite 附件，回退 assets 附件；不接受源码或增量包。先验证附件的 GitHub digest / `SHA256SUMS.txt`，再检查包内程序 `MANIFEST.json`，拒绝路径穿越、重名及清单外程序文件。原服务下载期间继续运行；安装器握手成功才安排优雅停服。替换前备份到 `logs/update-backups/`，复制失败恢复旧文件；恢复失败保留安装锁、阻止重启并提示备份路径。日志在 `logs/release-update-status.json`，直接重启的输出在 `logs/release-restart.log`。
+更新只访问 `zhewang448/Stronghold-Protocol` 的正式 Release，使用 assets 完整包；只有 lite 时显示不可安装，不接受源码或增量包。先验证附件的 GitHub digest / `SHA256SUMS.txt`，再检查包内程序 `MANIFEST.json`，拒绝路径穿越、重名及清单外程序文件。`release-art.js` 将经过整包验证的素材逐文件哈希记入内部暂存清单 `RELEASE-ART.json`，按本机哈希跳过相同文件；安装前后校验全部目标素材及三份素材清单的引用。变化的程序、素材和素材清单一起备份、替换与回滚；额外本机素材不删除。这是完整包下载、差异写入，不是差异下载。原服务下载期间继续运行；安装器握手成功才安排优雅停服。替换前备份到 `logs/update-backups/`，复制失败恢复旧文件；恢复失败保留安装锁、阻止重启并提示备份路径。日志在 `logs/release-update-status.json`，直接重启的输出在 `logs/release-restart.log`。
+
+解压、与本机素材逐文件比较及暂存校验由 `release-stage-worker.js` 工作线程执行，不占用服务主线程；线程退出后才允许安装或清理暂存目录。停服后的安装器仍会重新校验素材，发现期间被修改的文件时拒绝安装。
 
 **发布签名**（`server/release-signing.js`）：镜像（默认 `gh-proxy.com`）是第三方，可以同时换掉 Release 列表、`SHA256SUMS.txt` 和 ZIP，所以只靠 SHA-256 防不住镜像篡改。现在维护者用 Ed25519 私钥给 `SHA256SUMS.txt` 签名，附件 `SHA256SUMS.txt.sig` 是一行 base64。签名内容为 `stronghold-protocol-release\n<标签>\n` 加上校验文件原始字节，绑定标签，防止拿别的版本的签名冒充。公钥列在 `RELEASE_PUBLIC_KEYS`（SPKI DER base64）。
 
@@ -608,7 +610,7 @@ Windows 文件锁、既有资源缓存/标题链接断言。观战隐私断言�
 - 浏览器：`SP_E2E=1 node --test test/ui/admin-chat.e2e.test.js test/ui/admin-stats.e2e.test.js test/ui/next-features.e2e.test.js`；设 `CHROME_PATH`。监控墙真实 30 分钟验收另设 `SP_WALL_SOAK=1`，日常回归无需等待半小时。
 - 最终汇总见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md) 的 `v0.2.6-extended.5` 节；只在明确授权后提交。
 
-## 参考站工具界面适配（2026-10-17，未发布）
+## 参考站工具界面适配（2026-10-17，随 v0.3.0-extended.3 发布）
 
 设置点「修改快捷键」打开独立子弹窗；编辑时 Esc 取消，再按关闭子弹窗，设置继续打开。
 资源管理显示分包下载（字节 / 速度）、校验（状态）、导入（文件数），不改变下载与缓存配置。

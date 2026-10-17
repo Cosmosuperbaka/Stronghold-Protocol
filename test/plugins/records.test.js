@@ -76,7 +76,7 @@ test('SkillSpec exposes only the JSON subset, including nested attack fields and
 });
 test('checked-in schema equals the runtime schema and accepts/rejects the same structural fixtures', () => {
   const dest = path.join(os.tmpdir(), `records-schema-${process.pid}.json`);
-  const run = spawnSync(process.execPath, ['tools/records-schema.mjs', dest], { encoding: 'utf8' });
+  const run = spawnSync(process.execPath, ['tools/records-schema.mjs', dest], { encoding: 'utf8', windowsHide: true });
   assert.equal(run.status, 0, run.stderr);
   assert.deepEqual(JSON.parse(fs.readFileSync(dest, 'utf8')), RECORDS_SCHEMA);
   fs.unlinkSync(dest);

@@ -8,7 +8,7 @@ import { scriptFixture } from '../helpers/scriptFixtures.js';
 import { fixture } from '../helpers/contentFixtures.js';
 
 const run = (root, args, mode = '') => spawnSync(process.execPath, [path.join(ROOT, 'tools/plugin.mjs'), 'check', ...args, '--root', root],
-  { encoding: 'utf8', env: { ...process.env, SP_PLUGIN_SCRIPTS: mode } });
+  { encoding: 'utf8', env: { ...process.env, SP_PLUGIN_SCRIPTS: mode }, windowsHide: true });
 
 test('check uses the list/server script gate in text and JSON: off, sandbox, trusted pin and stale lock', t => {
   const f = scriptFixture(t, { mode: 'sandbox' });

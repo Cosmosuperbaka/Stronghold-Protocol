@@ -23,6 +23,17 @@ const SLOT = 'chess_char_5_diy1_a';
 const SIEGE = 'char_112_siege';
 const PICK = { charId: SIEGE, skillIndex: 2, uniEquipId: 'uniequip_002_siege' };
 
+async function openDiyTab(c) {
+  if (await c.page.$('.diy-slot')) return;
+  // The default card layout enters 自选编队 through the tier-5/6 甄选 card; the list layout keeps tabs.
+  const selector = await c.page.$('.lo .lo-tab[data-tab="diy"]')
+    ? '.lo .lo-tab[data-tab="diy"]' : '.lo-op--diy[data-diy-tier="5"]';
+  await c.page.waitForSelector(selector);
+  await c.page.$eval(selector, el => el.scrollIntoView({ block: 'nearest', inline: 'center' }));
+  await c.click(selector);
+  await c.page.waitForSelector('.diy-slot');
+}
+
 describe('自选编队 picker: reselecting retains the draft (real server, no art needed)', { skip: !UI_ENABLED && 'set SP_E2E=1 (and have Chrome)' }, () => {
   for (const slot of [SLOT, 'chess_char_6_diy1_a']) {
     test(`${slot}: same operator retains skill/module edits; cancel, confirm and reload keep their semantics`, { timeout: 90000 }, async () => {
@@ -52,7 +63,7 @@ describe('自选编队 picker: reselecting retains the draft (real server, no ar
         await c.open();
         await c.enter('自选配置回归');
         await c.click('.lobby-screen [data-testid="loadout-open"]');
-        await c.click('.lo .lo-tab[data-tab="diy"]');
+        await openDiyTab(c);
         await open();
         await c.page.$eval(operator, e => e.scrollIntoView({ block: 'nearest' }));
         await c.page.click(operator);
@@ -91,7 +102,7 @@ describe('自选编队 picker: reselecting retains the draft (real server, no ar
         await c.page.reload({ waitUntil: 'domcontentloaded' });
         await c.page.waitForSelector('.lobby-screen', { timeout: 20000 });
         await c.click('.lobby-screen [data-testid="loadout-open"]');
-        await c.click('.lo .lo-tab[data-tab="diy"]');
+        await openDiyTab(c);
         await open();
         assert.deepEqual(await choices(), { skill: '1', module: 'uniequip_003_siege' });
         assert.deepEqual(await saved(), changed, 'confirm persists the current draft across reload');
@@ -119,8 +130,7 @@ describe('自选编队 picker: Esc closes only the picker (real server, no art n
       await c.open();
       await c.enter('自选取消');
       await c.click('.lobby-screen [data-testid="loadout-open"]');
-      await c.page.waitForSelector('.lo .lo-tab[data-tab="diy"]', { visible: true, timeout: 15000 });
-      await c.click('.lo .lo-tab[data-tab="diy"]');
+      await openDiyTab(c);
       const before = await saved();
       for (const [slot, search] of [[SLOT, false], ['chess_char_6_diy1_a', true]]) {
         await c.page.waitForSelector(`.diy-slot[data-slot="${slot}"] .diy-slot__fill`, { visible: true, timeout: 15000 });
@@ -169,8 +179,7 @@ describe('0.2.0 自选编队 — a slotted operator in the own shop and battle (
       await c.enter('自选');
       // 1) 干员调配 → 自选编队: fill the first tier-5 slot (real clicks), synced with the server, persisted in the browser
       await c.click('.lobby-screen [data-testid="loadout-open"]');
-      await c.page.waitForSelector('.lo .lo-tab[data-tab="diy"]', { visible: true, timeout: 15000 });
-      await c.click('.lo .lo-tab[data-tab="diy"]');
+      await openDiyTab(c);
       await c.page.waitForSelector(`.diy-slot[data-slot="${SLOT}"] .diy-slot__fill`, { visible: true, timeout: 15000 });
       const slots = await c.page.evaluate(() => [...document.querySelectorAll('.diy-slot')].map((el) => el.dataset.slot));
       assert.deepEqual(slots, ['chess_char_5_diy1_a', 'chess_char_5_diy2_a', 'chess_char_6_diy1_a', 'chess_char_6_diy2_a']);
@@ -245,7 +254,8 @@ describe('0.2.0 自选编队 — a slotted operator in the own shop and battle (
       for (const at of [0.72, 0.4, 0.88]) {
         const p = await c.piecePoint(piece.uid, at);
         if (!p) continue;
-        await c.page.mouse.click(p.x, p.y, { button: 'right' });
+        // The extension uses right click for pings; left click opens the operator detail.
+        await c.page.mouse.click(p.x, p.y);
         detail = await c.page.waitForSelector('.dpanel .dtag-diy', { timeout: 2500 }).then(() => c.page.evaluate(() => ({
           tag: document.querySelector('.dpanel .dtag-diy')?.textContent || '',
           name: document.querySelector('.dpanel .dhead__name')?.textContent || '',

@@ -854,7 +854,7 @@ test('independent re-derivation of every chess and enemy stat from the raw offic
 test('offline rebuild reproduces data/ byte-for-byte (data/ is not stale)', { skip: (!HAS_CACHE && 'no .cache/gamedata') || (process.env.DATA_DIR && 'DATA_DIR set') }, (t) => {
   const out = mkdtempSync(join(tmpdir(), 'sp-data-'));
   try {
-    const r = spawnSync(process.execPath, [join(ROOT, 'tools', 'build-data.mjs'), '--offline', '--quiet', '--out', out, '--report', join(out, 'report.json')], { encoding: 'utf8', timeout: 120_000 });
+    const r = spawnSync(process.execPath, [join(ROOT, 'tools', 'build-data.mjs'), '--offline', '--quiet', '--out', out, '--report', join(out, 'report.json')], { encoding: 'utf8', timeout: 120_000, windowsHide: true });
     if (r.status !== 0 && /missing cached file/.test(r.stderr)) { t.skip('partial .cache/gamedata (run node tools/build-data.mjs once online)'); return; }
     assert.equal(r.status, 0, `build failed: ${r.stderr}`);
     for (const f of FILES) {
@@ -867,7 +867,7 @@ test('offline rebuild reproduces data/ byte-for-byte (data/ is not stale)', { sk
 
 test('build CLI rejects unknown options and missing values without writing anything', () => {
   for (const args of [['--bogus'], ['--out'], ['--out', '--offline'], ['--refresh', '--offline']]) {
-    const r = spawnSync(process.execPath, [join(ROOT, 'tools', 'build-data.mjs'), ...args], { encoding: 'utf8', timeout: 30_000 });
+    const r = spawnSync(process.execPath, [join(ROOT, 'tools', 'build-data.mjs'), ...args], { encoding: 'utf8', timeout: 30_000, windowsHide: true });
     assert.equal(r.status, 2, `${args.join(' ')}: exit ${r.status}`);
     assert.match(r.stderr, /usage:/);
   }

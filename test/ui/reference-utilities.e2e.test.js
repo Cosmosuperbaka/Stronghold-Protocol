@@ -64,6 +64,8 @@ test('reference utilities: long announcements, plain compatibility and staged re
         return { left: b.left, right: b.right, top: b.top, bottom: b.bottom, scroll: body.scrollWidth, client: body.clientWidth };
       });
       assert.ok(bounds.left >= -1 && bounds.right <= width + 1 && bounds.top >= -1 && bounds.bottom <= height + 1, JSON.stringify(bounds));
+      const expectedWidth = await page.evaluate(() => Math.min(10.8 * parseFloat(getComputedStyle(document.documentElement).fontSize), innerWidth - 32));
+      assert.ok(Math.abs(bounds.right - bounds.left - expectedWidth) < 1, 'announcement uses the wider reference layout within viewport margins');
       assert.ok(bounds.scroll <= bounds.client + 1, 'only code/table areas may scroll horizontally');
       await page.screenshot({ path: path.join(OUT, `reference-announcement-${width}.png`) });
     }

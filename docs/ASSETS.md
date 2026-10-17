@@ -34,6 +34,8 @@ sources and manual browser-cache preloading.
 其中 `all` 保持原来的中日范围。`/assets/local/fx/` 官方战斗特效属于可选资源组。部署时可生成经过整包 SHA-1 校验的
 16 MB 资源分包，浏览器优先使用分包并在失败时回退到逐文件下载；分包是传输优化，不改变文件哈希身份。
 可通过 `SP_RESOURCE_PACK_ROUTES` 配置镜像，`SP_ASSETS_CDN` / `SP_DATA_CDN` 配置可选 CDN，均默认关闭。
+自定义表情由代码生成的地址与预载清单共用 `shared/cdn.js` 的 `assetUrl`，转到 CDN 时去掉内容哈希路径段；
+未配置 CDN 保留本站路径，绝对 URL 不重复改写（2026-10-18 参考站修复适配）。
 
 工具 node tools/build-resource-manifest.mjs 扫描 public/assets 与 public/fonts，用 SHA-1 的前 12 位校验 ZIP / 预载内容，同时记录现有哈希 URL 使用的 SHA-256 前 16 位 assetHash。输出 data/resource-manifest.json 是被忽略的机器文件；npm run setup 自动生成，HTTP 服务首次读取时也会懒生成本机库存。更换素材后重新生成并重启服务器。不会修改 data/assets.json 或任何官方数据表。
 

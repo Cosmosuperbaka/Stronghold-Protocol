@@ -8,10 +8,10 @@ test('closing an exited browser releases stderr even when a helper inherited its
   const child = spawn(process.execPath, ['-e', `
     const { spawn } = require('node:child_process');
     const helper = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 5000)'],
-      { stdio: ['ignore', 'ignore', 2], detached: true });
+      { stdio: ['ignore', 'ignore', 2], detached: true, windowsHide: true });
     helper.unref();
     process.send({ pid: helper.pid }, () => process.exit(0));
-  `], { stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
+  `], { stdio: ['ignore', 'pipe', 'pipe', 'ipc'], windowsHide: true });
   const exited = once(child, 'exit');
   let helperPid;
   try {

@@ -437,6 +437,22 @@ describe('皮肤: the client never sends more than the wire accepts', () => {
     assert.ok(isSkinSelection(net.sent[0].skins), 'a payload the server stores instead of refusing (BAD_MSG)');
     assert.equal(target.get()[SKINS_SYNC_KEY], 'synced');
   });
+
+  test('one malformed saved choice cannot prevent the other operators from syncing', async () => {
+    const valid = { [OPERATOR]: SKIN, char_x_custom: 'outfit-1' };
+    const raw = { ...valid, chess_char_1_01_a: SKIN, char_003_kalts: '../bad', char_002_amiya: 'x'.repeat(65) };
+    const target = createStore({ [SKINS_KEY]: raw, [SKINS_SYNC_KEY]: 'idle' });
+    const sent = [];
+    const net = { status: 'online', on: () => () => {}, request: async (_t, body) => {
+      assert.ok(isSkinSelection(body.skins), 'the actual wire payload must pass server validation');
+      sent.push(body.skins);
+    } };
+    const sync = installSkinsSync({ net, target });
+    try { await sync.flush(); } finally { sync.dispose(); }
+    assert.deepEqual(sent, [valid]);
+    assert.equal(target.get()[SKINS_SYNC_KEY], 'synced');
+    assert.deepEqual(target.get()[SKINS_KEY], raw, 'preparing a message never rewrites saved preferences');
+  });
 });
 
 describe('皮肤: the install channel is not in this branch', () => {

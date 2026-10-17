@@ -127,7 +127,7 @@ const loopSetup = marker => `export default () => { const p = global['pro' + 'ce
 /** A trial bench whose children get this probe ceiling (SP_SCRIPT_PROBE_MS); every child it forks lands in `leaders`. */
 function loopBench(t, f, probeMs, timeoutMs, leaders) {
   const bench = createTrialBench({ registry: f.registry, files: createPluginFiles(f.pluginsDir),
-    spawn: (entry, args, opts) => { const leader = fork(entry, args, { ...opts, env: { ...process.env, SP_SCRIPT_PROBE_MS: String(probeMs) } }); leaders.push(leader); return leader; },
+    spawn: (entry, args, opts) => { const leader = fork(entry, args, { ...opts, env: { ...process.env, SP_SCRIPT_PROBE_MS: String(probeMs) }, windowsHide: true }); leaders.push(leader); return leader; },
     limits: { ...TRIAL_LIMITS, timeoutMs } });
   t.after(() => bench.close());
   return bench;

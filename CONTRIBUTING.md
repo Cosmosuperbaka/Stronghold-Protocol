@@ -36,6 +36,8 @@ npm run lint && npm run check:imports && npm run typecheck       # 代码检查�
 类型；第一步失败就停下并打印每步结果和耗时。`--keep-going` 失败后继续，`--only lint,test` 只跑指定步骤，`--list` 列出步骤。
 不包含 `npm ci`（依赖请自己装），也不跑 Node 版本 × 系统的矩阵。
 
+Windows 下测试、CI 及其调用的命令行子进程统一使用 `windowsHide: true`，输出和退出码仍交给当前终端。新增 Node、Python、Git 或 shell 子进程时也要保留这一选项，避免批量测试反复弹出 CMD 窗口；正常测试夹具不作为独立脚本运行。
+
 浏览器测试默认不跑，需要本机 Chrome（路径不标准时设置 `CHROME_PATH`），用环境变量打开：
 
 ```bash

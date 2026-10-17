@@ -245,10 +245,10 @@ export function binPath(pkg, name, root = ROOT) {
   return path.join(dir, rel);
 }
 
-/** Run `node <args>` in ROOT with inherited stdio; resolves to the exit code (1 when killed by a signal). */
+/** Run in the current terminal without a new Windows console; keep output and exit codes. */
 function node(args, env) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, args, { cwd: ROOT, env, stdio: 'inherit' });
+    const child = spawn(process.execPath, args, { cwd: ROOT, env, stdio: 'inherit', windowsHide: true });
     child.on('error', (e) => { console.error(e.message); resolve(1); });
     child.on('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0)));
   });
@@ -287,7 +287,7 @@ async function smoke(env) {
   // [ASSUMED] HOST=127.0.0.1 instead of the unset-HOST default (::): the requests go to 127.0.0.1 either way, and
   // listening only on loopback spares a firewall prompt on Windows / macOS.
   const child = spawn(process.execPath, ['server/index.js'], {
-    cwd: ROOT, env: { ...env, PORT: String(port), HOST: '127.0.0.1' }, stdio: ['ignore', 'pipe', 'pipe'],
+    cwd: ROOT, env: { ...env, PORT: String(port), HOST: '127.0.0.1' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
   });
   servers.add(child);
   let log = '';

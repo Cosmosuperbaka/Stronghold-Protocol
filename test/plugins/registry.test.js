@@ -261,7 +261,7 @@ test('the server: GET /plugins/index.json (never cached, the vanilla hash), a la
 test('tools/plugin.mjs: list names every class and the vanilla hash; check exits 1 on a problem, --strict on a warning', () => {
   const root = exampleRoot();
   try {
-    const run = (...args) => spawnSync(process.execPath, [path.join(ROOT, 'tools/plugin.mjs'), ...args, '--root', root], { encoding: 'utf8' });
+    const run = (...args) => spawnSync(process.execPath, [path.join(ROOT, 'tools/plugin.mjs'), ...args, '--root', root], { encoding: 'utf8', windowsHide: true });
     const list = run('list');
     assert.equal(list.status, 0, list.stderr);
     assert.match(list.stdout, /^vanilla content: [0-9a-f]{64} \(\d+ code files, \d+ data files\)$/m);
@@ -316,7 +316,7 @@ test('cross-plugin: a second overlay names the plugin that won, and a shared slo
 test('plugin check reports a second overlay and a shared slot; list follows SP_PLUGIN_SCRIPTS', () => {
   const root = tmpdir('cross');
   const run = (args, env = {}) => spawnSync(process.execPath, [path.join(ROOT, 'tools/plugin.mjs'), ...args, '--root', root], {
-    encoding: 'utf8', env: { ...process.env, ...env },
+    encoding: 'utf8', env: { ...process.env, ...env }, windowsHide: true,
   });
   try {
     put(root, 'public/i18n/en.json', { _meta: { name: 'English', complete: true }, 开始: 'Start' });
@@ -376,7 +376,7 @@ test('plugin check reports a second overlay and a shared slot; list follows SP_P
 
 test('plugins/: ignored by git except its readme and templates, which the release zips ship', () => {
   const ignored = (rel) => {
-    try { execFileSync('git', ['check-ignore', '-q', '--no-index', rel], { cwd: ROOT, stdio: 'ignore' }); return true; } catch (e) { return e && e.status === 1 ? false : null; }
+    try { execFileSync('git', ['check-ignore', '-q', '--no-index', rel], { cwd: ROOT, stdio: 'ignore', windowsHide: true }); return true; } catch (e) { return e && e.status === 1 ? false : null; }
   };
   for (const [rel, want] of [['plugins/marathon/plugin.json', true], ['plugins/config.json', true], ['plugins/README.md', false], ['plugins/_template/content/plugin.json', false]]) {
     const v = ignored(rel);

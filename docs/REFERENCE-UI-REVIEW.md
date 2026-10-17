@@ -5,6 +5,20 @@
 原始文件、URL、SHA-256 与对照说明保存在维护者本机 `E:\暂存文件夹\github_data\stronghold-ui-source-20261017`。
 仓库只存本库适配代码和此文档，不复制整个站点或新增游戏美术。
 
+## 后续跟进与私有归档
+
+归档仓库：[zhewang448/stronghold-ui-site-archive](https://github.com/zhewang448/stronghold-ui-site-archive)（私有，需仓库访问权限）。
+参考站：[weishuxieyi.xiaolubao.com](https://weishuxieyi.xiaolubao.com/)；公开源码上游：
+[xinhai-ai/Stronghold-Protocol](https://github.com/xinhai-ai/Stronghold-Protocol)。线上部署与 GitHub 提交可能不同，应分别比较。
+
+1. 更新本机公开上游 checkout `stronghold-ui-upstream-archive-source`。
+2. 在私有归档库目录运行 `python tools/capture.py --upstream ../stronghold-ui-upstream-archive-source`；若上游目录放在其他位置，替换参数路径。
+3. 查看 `changes.json`、`manifest.json` 和 `git diff -- live/ upstream-frontend/`：`live/` 为线上文件，`upstream-frontend/` 为 GitHub 补充；`changes.upstream` 单列上游文件增删和变化。
+4. 按需将变化适配到本库，完成验证后再提交；归档快照的提交与上传也按维护者当次授权执行。
+
+不可获取路径及撤去文件以当次清单为准，磁盘保留的旧文件不代表仍在线。归档只包含可获取的公开前端，
+不包含私有后端、游戏素材或用户数据；目前没有自动定时抓取。
+
 ## 已移植：交流面板
 
 以 [原组件](https://weishuxieyi.xiaolubao.com/js/ui/emotes.js) 和

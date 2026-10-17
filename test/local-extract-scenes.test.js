@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const TOOL = fileURLToPath(new URL('../tools/local-extract', import.meta.url));
-const PY = ['python3', 'python'].find((bin) => spawnSync(bin, ['--version']).status === 0);
+const PY = ['python3', 'python'].find((bin) => spawnSync(bin, ['--version'], { windowsHide: true }).status === 0);
 
 function py(code) {
   const src = `import sys, json, copy
@@ -28,7 +28,7 @@ def result(rows):
     kept = s.drop_duplicate_renderers(rows, logs.append)
     return {'kept': [r['id'] for r in kept], 'logs': logs}
 ${code}`;
-  const r = spawnSync(PY, ['-I', '-B', '-c', src], { encoding: 'utf8' });
+  const r = spawnSync(PY, ['-I', '-B', '-c', src], { encoding: 'utf8', windowsHide: true });
   assert.equal(r.status, 0, r.stderr);
   return JSON.parse(r.stdout);
 }

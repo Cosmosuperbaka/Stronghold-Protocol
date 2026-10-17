@@ -18,21 +18,21 @@ import { VENDOR_FILES } from '../../tools/vendor.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const TOOL = path.join(ROOT, 'tools/local-extract');
 const ENV = { ...process.env, PYTHONDONTWRITEBYTECODE: '1' };
-const PY = ['python3', 'python'].find((bin) => spawnSync(bin, ['--version']).status === 0);
-const HAS_PIL = !!PY && spawnSync(PY, ['-c', 'import PIL'], { env: ENV }).status === 0;
-const HAS_WEBP = HAS_PIL && spawnSync(PY, ['-c', "import sys; from PIL import features; sys.exit(0 if features.check('webp') else 1)"], { env: ENV }).status === 0;
+const PY = ['python3', 'python'].find((bin) => spawnSync(bin, ['--version'], { windowsHide: true }).status === 0);
+const HAS_PIL = !!PY && spawnSync(PY, ['-c', 'import PIL'], { env: ENV, windowsHide: true }).status === 0;
+const HAS_WEBP = HAS_PIL && spawnSync(PY, ['-c', "import sys; from PIL import features; sys.exit(0 if features.check('webp') else 1)"], { env: ENV, windowsHide: true }).status === 0;
 const manifest = (() => { try { return JSON.parse(readFileSync(path.join(ROOT, 'data/local-assets.json'), 'utf8')); } catch { return null; } })();
 
 function py(code) {
   const src = `import sys, json\nsys.path.insert(0, ${JSON.stringify(TOOL)})\nimport extract as e\n${code}`;
-  const r = spawnSync(PY, ['-c', src], { encoding: 'utf8', env: ENV });
+  const r = spawnSync(PY, ['-c', src], { encoding: 'utf8', env: ENV, windowsHide: true });
   assert.equal(r.status, 0, r.stderr);
   return JSON.parse(r.stdout);
 }
 
 describe('extract.py board jobs', { skip: !PY && 'no python3' }, () => {
   test('job table: gate effects, blower texture and water maps; derived maps for the theme', () => {
-    const r = spawnSync(PY, [path.join(TOOL, 'extract.py'), '--print-jobs'], { encoding: 'utf8', env: ENV });
+    const r = spawnSync(PY, [path.join(TOOL, 'extract.py'), '--print-jobs'], { encoding: 'utf8', env: ENV, windowsHide: true });
     assert.equal(r.status, 0, r.stderr);
     const { jobs, derived } = JSON.parse(r.stdout);
     const by = Object.fromEntries(jobs.map((j) => [j.sub, j]));
@@ -91,7 +91,7 @@ print(json.dumps({'bc5': px(e.derive_normal_rg(bc5)), 'nm': px(e.derive_normal_r
   });
 
   test('WebP copies: exactly the board textures the renderer downloads; normal and data maps stay lossless', () => {
-    const r = spawnSync(PY, [path.join(TOOL, 'extract.py'), '--print-jobs'], { encoding: 'utf8', env: ENV });
+    const r = spawnSync(PY, [path.join(TOOL, 'extract.py'), '--print-jobs'], { encoding: 'utf8', env: ENV, windowsHide: true });
     assert.equal(r.status, 0, r.stderr);
     const { webp } = JSON.parse(r.stdout);
     assert.deepEqual(webp.map((w) => `${w.sub}/${w.name}`).sort(), Object.values(PACK_IMAGES).map(([g, n]) => `${g}/${n}`).sort());

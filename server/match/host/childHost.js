@@ -7,7 +7,7 @@ export const INSTALL_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 export function scriptMode(env = process.env) { return env.SP_PLUGIN_SCRIPTS === 'sandbox' ? 'sandbox' : 'off'; }
 
 export function forkSandbox(entry, { memoryMb = 768 } = {}) {
-  return fork(entry, [], { ...sandboxProcessOptions(memoryMb), serialization: 'json', stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
+  return fork(entry, [], { ...sandboxProcessOptions(memoryMb), serialization: 'json', stdio: ['ignore', 'ignore', 'pipe', 'ipc'], windowsHide: true });
 }
 
 /** Shared by match hosts and the disposable sandbox registration probe. */

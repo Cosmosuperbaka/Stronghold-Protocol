@@ -1,6 +1,6 @@
 # 卫戍协议：盟约 · Stronghold Protocol: Alliance
 
-![扩展版本](https://img.shields.io/badge/version-0.3.1--extended.1-blue)
+![扩展版本](https://img.shields.io/badge/version-0.3.1--extended.2-blue)
 ![上游基础版本](https://img.shields.io/badge/version-0.3.1-2ea44f)
 ![许可](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)
 
@@ -11,11 +11,11 @@ A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance
 
 [下载正式版](https://github.com/zhewang448/Stronghold-Protocol/releases/latest) · [开始运行](#开始运行) · [和朋友一起玩](#和朋友一起玩) · [更新记录](docs/LOCAL-CHANGELOG.md) · [玩法指南](docs/PLAYING.md) · [反馈问题](https://github.com/zhewang448/Stronghold-Protocol/issues)
 
-> 当前版本为 **`v0.3.1-extended.1`**（基础版本 `0.3.1`）。提供完整素材包与轻量包，跟进上游 Forge、工作台、测试房间、交互窗口与规则修复，保留本库主机工具、交流统计、回档回放与外观扩展。新版内容见[扩展更新记录](docs/LOCAL-CHANGELOG.md)，上游变化见 [CHANGELOG.md](CHANGELOG.md)。
+> 当前版本为 **`v0.3.1-extended.2`**（基础版本 `0.3.1`）。修复控制台更新遗漏完整素材、皮肤海报重复显示及 Windows 测试弹窗，提供完整素材包与轻量包。新版内容见[扩展更新记录](docs/LOCAL-CHANGELOG.md)，上游变化见 [CHANGELOG.md](CHANGELOG.md)。
 >
 > 非官方、非商业同人项目，与《明日方舟》官方无隶属或授权关系。游戏名称、美术、音频、文本与数据的权利归原权利人，仅供学习和个人非商业使用。
 
-新版附件、升级步骤与已知限制见[发布说明](docs/RELEASE-CANDIDATE.md)。
+新版附件、升级步骤与已知限制见[发布说明](docs/RELEASE-CANDIDATE.md)。**从旧版控制台首次升级后，请在更新页面选择当前版本，再执行一次「修复素材并重启」；也可直接使用新完整包。**
 
 ## 仓库索引
 
@@ -24,6 +24,7 @@ A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance
 | [本库 · Stronghold-Protocol](https://github.com/zhewang448/Stronghold-Protocol) | 主机管理与联机体验扩展；本 README、整合包与问题反馈对应此仓库 |
 | [原项目 · sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol) | 上游玩法、确定性模拟与官方数据适配来源 |
 | [UI 设计上游 · xinhai-ai/Stronghold-Protocol](https://github.com/xinhai-ai/Stronghold-Protocol) | 本库 Hub 大厅、同盟等待室、干员调配与对局界面的 UI 设计及后续适配参考；原始界面作者与移植来源见 [NOTICE.md](NOTICE.md) |
+| [参考站前端归档 · stronghold-ui-site-archive（私有）](https://github.com/zhewang448/stronghold-ui-site-archive) | 保存参考站公开前端快照、来源和哈希，供后续跟进 UI 变化；需仓库访问权限，更新方法见 [源码对照文档](docs/REFERENCE-UI-REVIEW.md#后续跟进与私有归档) |
 | [Stronghold-Protocol-Forge-Mods](https://github.com/XiaMo233M/Stronghold-Protocol-Forge-Mods) | Forge 工坊包与成品索引；配套下方 Forge 宿主使用 |
 | [Stronghold-Protocol-Forge](https://github.com/XiaMo233M/Stronghold-Protocol-Forge) | Forge-Mods 对应的游戏宿主与 MOD API |
 | [RyantArgnisan/Stronghold-Protocol](https://github.com/RyantArgnisan/Stronghold-Protocol) | 社区扩展分支，本库文字聊天参考来源，署名见 [NOTICE.md](NOTICE.md) |

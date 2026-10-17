@@ -72,6 +72,10 @@ skins so the other-player switch restores loaded units when re-enabled, includin
 without restarting playback or changing the sim / BattleSpec. Resolve every surface's skin from the effective
 operator body (official `activity_table` `charShopChessDatas.backupCharId` for stand-ins, the pick for DIY slots).
 Outfits following that body and live refresh timing are cosmetic UI assumptions; gameplay and golden results stay unchanged.
+Installed skins reuse available local `seat-art` posters in the picker and enlarged preview. Asset generation resolves
+those optional files to URL strings; missing posters retain the upstream default-picture fallback.
+Stored skin selections are filtered per entry using the wire's ID validators before synchronization. Malformed pairs
+cannot reject valid choices for other operators; well-formed unavailable plugin choices remain stored.
 
 **Studio test console (0.3.1).**
 
@@ -784,6 +788,8 @@ enters b.progress / b.result, and a tracked battle's result and rendered events 
 
 ## 本库参考站工具界面适配（2026-10-17）
 
+2026-10-18 跟进：自定义表情与预载清单共用 CDN URL 规则，保留本库无哈希 CDN 磁盘路径；
+公告弹窗设计宽度为 10.8rem，最大宽度为视口减 32px，沿用安全区域和正文滚动。
 大厅右栏「干员调配」下方提供「统计数据」入口，复用现有 HubTile 和 openStats，读取本库已有统计数据。
 结算自选立绘读取的 `seat-art` 目录随 `GAME_FILES` 在等待室预热，避免结算时才开始请求；缺失时继续走原回退。
 设置的快捷键表使用独立子弹窗；编辑时 Esc 仅取消捕获，普通 Esc 只关闭最上层弹窗并恢复入口焦点。

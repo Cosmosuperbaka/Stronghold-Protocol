@@ -56,7 +56,7 @@ function runComposition(dirs, ids, probeMs = 1000) {
   // (the probe's ceiling, SP_SCRIPT_PROBE_MS, at probeMs — 1 s unless a test needs more: the hang case returns quickly;
   // the default is 5 s)
   const env = {...process.env, SP_SCRIPT_PROBE_MS: String(probeMs)}; delete env.NODE_TEST_CONTEXT;
-  const child = spawn(process.execPath,['--input-type=module','-e',source],{env,stdio:['ignore','pipe','pipe'],timeout:probeMs+7000,killSignal:'SIGKILL'});
+  const child = spawn(process.execPath,['--input-type=module','-e',source],{env,stdio:['ignore','pipe','pipe'],timeout:probeMs+7000,killSignal:'SIGKILL', windowsHide: true});
   let stdout = '', stderr = '';
   child.stdout.on('data',b => {stdout+=b;}); child.stderr.on('data',b => {stderr+=b;});
   return new Promise((resolve,reject) => {

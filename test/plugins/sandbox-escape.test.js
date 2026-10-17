@@ -27,7 +27,7 @@ test('eval control requires successful evaluation, not just Compartment construc
     const c=createPluginCompartment({});
     try {console.log(JSON.stringify({value:c.evaluate('1+1')}));}catch(e){console.log(JSON.stringify({error:e.name}));}`;
   for(const flags of [[],['--disallow-code-generation-from-strings']]) {
-    const r=spawnSync(process.execPath,[...flags,'--input-type=module','-e',source],{encoding:'utf8',timeout:5000});
+    const r=spawnSync(process.execPath,[...flags,'--input-type=module','-e',source],{encoding:'utf8',timeout:5000, windowsHide: true});
     assert.equal(r.status,0,r.stderr);
     assert.deepEqual(JSON.parse(r.stdout),flags.length?{error:'EvalError'}:{value:2});
   }

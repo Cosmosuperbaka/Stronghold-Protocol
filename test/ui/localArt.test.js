@@ -9,10 +9,29 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { EMOTES, EMOTE_CATALOG, emoteArtPath, emoteArtGroup, emoteInfo } from '../../shared/constants.js';
+import { EMOTES, EMOTE_CATALOG, ALL_EMOTE_CATALOG, emoteArtPath, emoteArtGroup, emoteInfo } from '../../shared/constants.js';
+import { assetUrl, rewriteAssetPaths } from '../../shared/cdn.js';
 import { GUIDE_PAGES } from '../../tools/assets/plan.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+
+test('custom emotes use the same CDN cache URL as hashed preload manifest entries', async () => {
+  const { emoteArtUrls } = await import('../../public/js/ui/emotes.js');
+  for (const entry of ALL_EMOTE_CATALOG.filter(e => e.custom)) {
+    const url = emoteArtPath(entry.id);
+    const preload = { url: url.replace('/assets/', '/assets/~0123456789abcdef/') };
+    rewriteAssetPaths(preload, 'https://cdn.example/game/');
+    assert.deepEqual(emoteArtUrls(entry.id, 'https://cdn.example/game/'), [preload.url]);
+    assert.deepEqual(emoteArtUrls(entry.id, ''), [url]);
+    assert.equal(preload.url, 'https://cdn.example/game' + url);
+  }
+  const hashed = '/assets/~0123456789abcdef/ui/x.png';
+  assert.equal(assetUrl(hashed, ''), hashed, 'same-origin URLs retain their hash');
+  for (const url of ['https://other.example/assets/x.png', '/data/a.json', '/fonts/a.woff2', null]) {
+    assert.equal(assetUrl(url, 'https://cdn.example'), url);
+  }
+  assert.deepEqual(emoteArtUrls('unknown', 'https://cdn.example'), []);
+});
 
 const manifest = {
   version: 1,

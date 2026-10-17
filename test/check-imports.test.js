@@ -101,10 +101,10 @@ test('this repo: only the Node data loader crosses the sim boundary', () => {
 });
 
 test('the CLI lists hits and fails only with --strict', () => {
-  const loose = spawnSync(process.execPath, ['tools/check-imports.mjs'], { cwd: ROOT, encoding: 'utf8' });
+  const loose = spawnSync(process.execPath, ['tools/check-imports.mjs'], { cwd: ROOT, encoding: 'utf8', windowsHide: true });
   assert.equal(loose.status, 0);
   assert.match(loose.stdout, /server\/sim\/nodeData\.js:11: node:fs \[sim-node\]/);
-  const strict = spawnSync(process.execPath, ['tools/check-imports.mjs', '--strict'], { cwd: ROOT, encoding: 'utf8' });
+  const strict = spawnSync(process.execPath, ['tools/check-imports.mjs', '--strict'], { cwd: ROOT, encoding: 'utf8', windowsHide: true });
   assert.equal(strict.status, 1);
   assert.match(strict.stdout, /node:fs/);
 });

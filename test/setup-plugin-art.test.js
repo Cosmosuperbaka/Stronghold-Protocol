@@ -35,7 +35,7 @@ test('operator discovery reuses W5 references, excludes the shipped roster, and 
   f.put('plugins/traversal/plugin.json', { operators: ['../../outside.json'] });
   assert.deepEqual(installedArtReferences(f.root), ids);
   assert.ok(!installedFxReferences(f.root).includes('char_9006_test'), 'effect discovery keeps exact ids');
-  const cli = spawnSync(process.execPath, ['tools/local-extract/plugin-art.mjs', f.root], { encoding: 'utf8' });
+  const cli = spawnSync(process.execPath, ['tools/local-extract/plugin-art.mjs', f.root], { encoding: 'utf8', windowsHide: true });
   assert.equal(cli.status, 0, cli.stderr);
   assert.deepEqual(JSON.parse(cli.stdout), ids);
 });
@@ -94,7 +94,7 @@ test('art discovery caps distinct table-backed operators across plugins, after d
   f.put('plugins/b/plugin.json', { assets: { chars: Object.fromEntries(ids.map(id => [id, { ref: id }])) } });
   const found = installedArtReferences(f.root);
   assert.deepEqual(found, ids.slice(1, 257));
-  const cli = spawnSync(process.execPath, ['tools/local-extract/plugin-art.mjs', f.root], { encoding: 'utf8' });
+  const cli = spawnSync(process.execPath, ['tools/local-extract/plugin-art.mjs', f.root], { encoding: 'utf8', windowsHide: true });
   assert.equal(cli.status, 0, cli.stderr);
   assert.deepEqual(JSON.parse(cli.stdout), found);
 });

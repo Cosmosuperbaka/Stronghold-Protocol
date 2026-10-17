@@ -160,13 +160,13 @@ async function main() {
   if (applyPendingUpdate(ROOT).state === 'failed') return 1;
 
   if (o.setup) {
-    const r = spawnSync(process.execPath, [path.join(ROOT, 'tools', 'setup.mjs'), '--quiet', ...o.setupArgs], { cwd: ROOT, stdio: 'inherit' });
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'tools', 'setup.mjs'), '--quiet', ...o.setupArgs], { cwd: ROOT, stdio: 'inherit', windowsHide: true });
     if (r.status !== 0) { console.error(`${mark.err} 准备步骤失败（见上方）。`); return r.status || 1; }
   }
 
   const env = serverEnv(o);
   warnTestMode(o, env);
-  const child = spawn(process.execPath, [path.join(ROOT, 'server', 'index.js')], { cwd: ROOT, env, stdio: 'inherit' });
+  const child = spawn(process.execPath, [path.join(ROOT, 'server', 'index.js')], { cwd: ROOT, env, stdio: 'inherit', windowsHide: true });
   const forward = (sig) => { if (child.exitCode === null) { try { child.kill(sig); } catch { /* gone */ } } };
   // SIGINT reaches the server straight from the terminal (same process group / console); forwarding it too would make
   // the server's second-signal path force-exit. Other signals (service managers, `kill`) are forwarded.

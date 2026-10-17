@@ -96,12 +96,12 @@ for (const format of ['parts', 'records', 'patches']) test(`${format}: registry,
   assert.equal(set.data.stages[stageId].tiles.r.buildable, 'ALL');
   for (const lang of ['zh', 'en']) {
     const args = [path.join(ROOT, 'tools/plugin.mjs'), 'check', dir, '--lang', lang, '--json'];
-    const run = spawnSync(process.execPath, args, { encoding: 'utf8' });
+    const run = spawnSync(process.execPath, args, { encoding: 'utf8', windowsHide: true });
     assert.equal(run.status, 0, run.stdout + run.stderr);
     const report = JSON.parse(run.stdout);
     assert.equal(report.problems, 0); assert.equal(report.warnings, 1);
     assert.equal(report.folders[0].issues[0].code, CODE);
-    const strict = spawnSync(process.execPath, [...args, '--strict'], { encoding: 'utf8' });
+    const strict = spawnSync(process.execPath, [...args, '--strict'], { encoding: 'utf8', windowsHide: true });
     assert.equal(strict.status, 1, strict.stdout + strict.stderr);
   }
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, format === 'parts' ? 'stages.json' : 'data.json'))), files[format === 'parts' ? 'stages.json' : 'data.json']);

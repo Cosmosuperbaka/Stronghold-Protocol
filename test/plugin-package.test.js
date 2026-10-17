@@ -42,7 +42,7 @@ test('stage guard allows the exact harness but rejects private plugin and extra 
   for (const file of ['plugins/config.json', 'plugins/mine/plugin.json', 'test/helpers/extra.js']) assert.ok(problems.includes(`refused: ${file} is in the stage`));
 });
 
-const hasZip = !spawnSync('zip', ['-v']).error || /bsdtar/.test(spawnSync('tar', ['--version'], { encoding: 'utf8' }).stdout || '');
+const hasZip = !spawnSync('zip', ['-v'], { windowsHide: true }).error || /bsdtar/.test(spawnSync('tar', ['--version'], { encoding: 'utf8', windowsHide: true }).stdout || '');
 test('offline release stage runs plugin CLI, native author harness and sandbox trials; mounted plugins do not hide templates',
   { skip: !hasZip && 'no zip / bsdtar', timeout: 120000 }, t => {
     const out = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-author-release-'));
@@ -61,7 +61,7 @@ test('offline release stage runs plugin CLI, native author harness and sandbox t
     delete env.NODE_TEST_CONTEXT;
     delete env.SP_PLUGIN_RESOURCES;
     const run = args => {
-      const r = spawnSync(process.execPath, args, { cwd: stage, env, encoding: 'utf8', timeout: 90000, maxBuffer: 4 * 1024 * 1024 });
+      const r = spawnSync(process.execPath, args, { cwd: stage, env, encoding: 'utf8', timeout: 90000, maxBuffer: 4 * 1024 * 1024, windowsHide: true });
       assert.equal(r.status, 0, `${args.join(' ')}\n${r.stdout}\n${r.stderr}`);
       return r.stdout;
     };

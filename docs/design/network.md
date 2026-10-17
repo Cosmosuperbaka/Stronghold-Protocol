@@ -440,3 +440,5 @@ are entirely native and require consent [ASSUMED]; trusted classes cannot load i
 same-origin native script responses before import; all gameplay battle simulations run in Workers.
 
 Test-room admission requires `testAck:true` for both join and spectate; otherwise `TEST_CONFIRM` precedes any membership/state delivery. `g.test bond` accepts `{id,layers,count?}` (count is 0–99 extra members). All host attempts consume their per-command rate bucket, including malformed args. `[test-input ROOM]` init/call/timer JSON lines and `[test-audit ROOM]` results use the server logger. Test results have null titles and zero trophies/rewards and never enter browser records.
+
+Console release updates use the authenticated full release archive. Program files and changed art/manifests are staged, verified, backed up and rolled back together; matching art is retained and extra local art is not deleted. Missing references or modified retained files prevent installation. A same-version repair requires explicit `repairAssets:true`; active-match and downgrade gates still apply. This downloads a full archive, not a network delta.

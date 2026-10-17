@@ -91,6 +91,7 @@ test('console 联防 layers: save, undo, reload, failure recovery and desktop/mo
     await page.setViewport({ width: 1440, height: 900 });
     await page.goto(admin.url, { waitUntil: 'domcontentloaded' });
     const open = async () => { await page.click('[data-tab="settings"]'); await page.waitForSelector('#unite-layers-enabled'); };
+    page.setDefaultTimeout(10000);
     const checked = () => page.$eval('#unite-layers-enabled', (el) => el.checked);
     await open();
     assert.equal(await page.$eval('#rooms', (el) => el.getBoundingClientRect().height), 0, 'other tabs stay hidden');

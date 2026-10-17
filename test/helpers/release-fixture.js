@@ -34,9 +34,11 @@ export function storedZip(entries) {
 export const tag = RELEASE_TAG.startsWith(`v${APP_VERSION}-`)
   ? RELEASE_TAG.replace(/\d+$/, revision => String(Number(revision) + 1)) : `v${APP_VERSION}-extended.1`;
 export const files = { 'package.json': JSON.stringify({ version: APP_VERSION, type: 'module' }), 'server/index.js': '// new server', 'server/new.js': '// new file' };
-export const archive = (extra = []) => storedZip([...Object.entries({ ...files, 'MANIFEST.json': manifest(files) }).map(([name, body]) => [`Stronghold-Protocol/${name}`, body]), ...extra]);
+export const archive = (extra = []) => storedZip([...Object.entries({ ...files, 'MANIFEST.json': manifest(files),
+  ...(!extra.some(([name]) => name === 'Stronghold-Protocol/data/assets.json') ? { 'data/assets.json': '{}' } : {}),
+}).map(([name, body]) => [`Stronghold-Protocol/${name}`, body]), ...extra]);
 export function releaseFor(zip = archive(), version = tag) {
-  const name = `Stronghold-Protocol-${version}-lite.zip`;
+  const name = `Stronghold-Protocol-${version}-assets.zip`;
   const url = `https://github.com/zhewang448/Stronghold-Protocol/releases/download/${version}`;
   return { tag_name: version, name: version, assets: [{ name, size: zip.length, digest: `sha256:${sha(zip)}`, browser_download_url: `${url}/${name}` }] };
 }

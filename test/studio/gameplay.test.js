@@ -27,13 +27,13 @@ export function makePlugin(f, template, id, options = {}) {
 }
 for (const template of TEMPLATES.filter(t => t.build)) test(`new ${template.id} -> strict check -> pack -> content composition`, t => {
   const f = fixture(t), id = `studio-${template.id}`;
-  const result = spawnSync(process.execPath, ['tools/plugin.mjs', 'new', template.id, id, '--dir', path.join(f.dir, 'plugins')], { encoding: 'utf8' });
+  const result = spawnSync(process.execPath, ['tools/plugin.mjs', 'new', template.id, id, '--dir', path.join(f.dir, 'plugins')], { encoding: 'utf8', windowsHide: true });
   assert.equal(result.status, 0, result.stderr);
   const dir = path.join(f.dir, 'plugins', id);
   const check = checkPluginFolder(dir);
   f.registry.rescan();
   const set = template.class === 'content' ? buildContentSet({ registry: f.registry, ids: [id] }) : null;
-  const cliCheck = spawnSync(process.execPath, ['tools/plugin.mjs', 'check', dir, '--strict'], { encoding: 'utf8' });
+  const cliCheck = spawnSync(process.execPath, ['tools/plugin.mjs', 'check', dir, '--strict'], { encoding: 'utf8', windowsHide: true });
   assert.equal(cliCheck.status, 0, cliCheck.stdout + cliCheck.stderr);
   assert.deepEqual(check.problems, []); assert.deepEqual(check.warnings, []);
   assert.equal(packPlugin(dir).wrote, true);
@@ -85,7 +85,7 @@ test('numeric fields mirror default skills; wizard revision protects external ed
 test('generated script harness runs with tools/plugin.mjs test, with SDK registrations preloaded', { timeout: 30000 }, t => {
   const f = fixture(t); makePlugin(f, 'script', 'harness-demo');
   for (const name of ['data', 'test', 'server', 'shared']) symlinkSync(path.resolve(name), path.join(f.dir, name));
-  const run = spawnSync(process.execPath, ['tools/plugin.mjs', 'test', 'harness-demo', '--root', f.dir], { encoding: 'utf8', timeout: 25000 });
+  const run = spawnSync(process.execPath, ['tools/plugin.mjs', 'test', 'harness-demo', '--root', f.dir], { encoding: 'utf8', timeout: 25000, windowsHide: true });
   assert.equal(run.status, 0, run.stdout + run.stderr);
   assert.match(run.stdout, /ℹ pass 1\b/); // the spec report on every Node version (Node 22's default here would be TAP)
 });

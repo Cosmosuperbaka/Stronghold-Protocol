@@ -894,14 +894,14 @@ function drawReleaseUpdate() {
     idle: '首次打开控制台会自动检查更新，也可手动刷新版本列表。', checking: '正在获取 Release 版本列表…',
     available: '发现新版本，请选择要安装的版本。', 'up-to-date': '未发现比当前版本更新的正式 Release。可选择旧版本回退。',
     downloading: `正在下载安装包…${d.received ? ` ${(d.received / 1048576).toFixed(1)} / ${(d.size / 1048576).toFixed(1)} MB` : ''}`,
-    verifying: '正在校验程序文件…', 'active-matches': '有正在进行的对局，安装前需要确认结束对局。',
+    verifying: '正在校验程序与素材，比较本机已有文件…', 'active-matches': '有正在进行的对局，安装前需要确认结束对局。',
     scheduled: '更新已校验，服务器即将重启。恢复连接后此页面会自动刷新。',
     reconnecting: '正在安装并等待服务器恢复…',
   };
   host.innerHTML = `<h2>版本更新</h2>
     <p><label><input type="checkbox" id="auto-update" ${d.automatic?.enabled ? 'checked' : ''} ${updateRequest ? 'disabled' : ''}> 空闲时自动安装新版本</label> <button data-auto-update-save ${updateRequest ? 'disabled' : ''}>保存自动更新设置</button></p>
     <p class="meta" role="status">自动更新：${esc(({ disabled: '已关闭', idle: '等待检查', waiting: '等待全部对局结束', announcing: '已公告，等待一分钟', installing: '正在安装', error: '失败', 'up-to-date': '暂无新版' })[d.automatic?.state] || '已关闭')} ${esc(d.automatic?.error || '')} ${d.automatic?.lastCheck ? ' · 上次检查 ' + esc(new Date(d.automatic.lastCheck).toLocaleString()) : ''} ${esc(d.automatic?.target || '')}</p>
-    <p class="meta">从 ${esc(d.repository || 'zhewang448/Stronghold-Protocol')} 下载正式 Release。保留本机素材、主机设置和对局记录；替换前备份程序文件，安装完成后自动重启。</p>
+    <p class="meta">从 ${esc(d.repository || 'zhewang448/Stronghold-Protocol')} 下载正式 Release 完整包，补齐缺失或变更的素材及清单，已有相同素材跳过写入。保留额外素材、主机设置和对局记录；替换前备份程序与素材，完成后自动重启。选择当前版本可修复素材。</p>
     <div class="row"><span>当前版本：<strong>${esc(d.currentVersion || '读取中…')}</strong></span>
       ${d.latestVersion ? `<span>最新版本：<strong>${esc(d.latestVersion)}</strong></span>` : ''}</div>
     <p><label for="release-version-select">选择版本</label><br><select id="release-version-select" ${busy || d.state === 'reconnecting' ? 'disabled' : ''}>
@@ -912,7 +912,7 @@ function drawReleaseUpdate() {
     <p id="release-update-state" role="status" aria-live="polite" ${d.error ? 'class="bad"' : 'class="meta"'}>${esc(d.error ? `更新失败：${d.error}。可重新检查后重试。` : messages[d.state] || '')}</p>
     <div class="row"><button data-update-check ${busy || d.state === 'reconnecting' || d.state === 'active-matches' ? 'disabled' : ''}>检查更新</button>
       ${d.hasMore ? `<button data-update-more ${busy ? 'disabled' : ''}>加载更早版本</button>` : ''}
-      <button class="primary" data-update-install ${busy || d.state === 'reconnecting' || !d.canInstall || !selected?.installable ? 'disabled' : ''}>${selected?.relation === 'old' ? '回退并重启' : d.state === 'active-matches' ? '继续安装并重启' : '下载并安装'}</button></div>
+      <button class="primary" data-update-install ${busy || d.state === 'reconnecting' || !d.canInstall || !selected?.installable ? 'disabled' : ''}>${d.state === 'active-matches' ? '继续安装并重启' : selected?.relation === 'current' ? '修复素材并重启' : selected?.relation === 'old' ? '回退并重启' : '下载并安装'}</button></div>
     ${d.canInstall === false ? '<p class="meta">当前启动方式不支持自动重启，请通过启动脚本或 npm start 启动服务器。</p>' : ''}
     ${d.source ? `<p class="meta">最近请求：${{ direct: 'GitHub 直连', proxy: '通过配置的代理访问 GitHub', mirror: '镜像站（GitHub 访问失败后自动切换）' }[d.source]}</p>` : ''}
     <details class="stats" ${networkExpanded ? 'open' : ''}><summary>更新网络配置</summary>
@@ -1017,7 +1017,8 @@ async function updateRelease(action, force = false, allowDowngrade = false) {
   if (action === 'check' || action === 'more') releaseUpdate = { ...releaseUpdate, state: 'checking', error: undefined };
   drawReleaseUpdate();
   try {
-    releaseUpdate = await api('/api/update', { action, tag: selectedRelease, force, allowDowngrade });
+    releaseUpdate = await api('/api/update', { action, tag: selectedRelease, force, allowDowngrade,
+      repairAssets: action === 'install' && releaseUpdate.versions?.find((r) => r.tag === selectedRelease)?.relation === 'current' });
     if (releaseUpdate.state === 'active-matches' && action === 'install' && !force) {
       updateRequest = false;
       drawReleaseUpdate();
@@ -1178,7 +1179,7 @@ function arrangeSettings() {
 
 async function loadRecovery() {
   const d = await api('/api/recovery');
-  $('#recovery-content').innerHTML = `<p>恢复至最近休整期开始，保留当时的机变；作战中重启需重打本回合。版本指纹不一致时保留文件供检查。</p><label><input id="recovery-enabled" type="checkbox" ${d.enabled ? 'checked' : ''} ${d.unavailable ? 'disabled' : ''}> 启用恢复</label> <button data-recovery-save ${d.unavailable ? 'disabled' : ''}>保存恢复设置</button>${d.unavailable ? '<p>当前启动方式未启用恢复管理。</p>' : ''}${d.issues.map(x=>`<p>${esc(x.id)}：${esc(x.error)} <button class="danger" data-recovery-delete="${esc(x.id)}">删除恢复文件</button></p>`).join('')}`;
+  $('#recovery-content').innerHTML = `<p>恢复至最近休整期开始，保留当时的机变；作战中重启需重打本回合。版本指纹不一致时保留文件供检查。</p><label><input id="recovery-enabled" type="checkbox" ${d.enabled ? 'checked' : ''} ${d.unavailable ? 'disabled' : ''}> 启用恢复</label> <button data-recovery-save ${d.unavailable ? 'disabled' : ''}>保存恢复设置</button>${d.unavailable ? '<p>当前启动方式未启用恢复管理。</p>' : ''}${(d.issues || []).map(x=>`<p>${esc(x.id)}：${esc(x.error)} <button class="danger" data-recovery-delete="${esc(x.id)}">删除恢复文件</button></p>`).join('')}`;
 }
 async function changeRecovery(button) {
   const id = button.dataset.recoveryDelete, enabled = $('#recovery-enabled').checked;

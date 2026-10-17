@@ -65,7 +65,7 @@ if (!(await freePort(PORT))) {
 
 const children = [];
 const server = spawn(process.execPath, [path.join(ROOT, 'server', 'index.js')], {
-  cwd: ROOT, env: { ...process.env, PORT: String(PORT) }, stdio: ['ignore', 'pipe', 'pipe'],
+  cwd: ROOT, env: { ...process.env, PORT: String(PORT) }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
 });
 children.push(server);
 lines(server, (l) => l.trim() && log(c.ok('[server]'), l));
@@ -79,7 +79,7 @@ if (!(await waitHealthy(server))) {
 
 let tunnelUrl = null;
 if (TUNNEL) {
-  const cf = spawn(cloudflaredPath(), ['tunnel', '--no-autoupdate', '--url', `http://localhost:${PORT}`], { stdio: ['ignore', 'pipe', 'pipe'] });
+  const cf = spawn(cloudflaredPath(), ['tunnel', '--no-autoupdate', '--url', `http://localhost:${PORT}`], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   children.push(cf);
   cf.on('error', (e) => { log(c.err('[tunnel]'), `cloudflared 启动失败：${e.message}（winget install Cloudflare.cloudflared）`); printShare(null); });
   cf.on('exit', (code) => log(c.err('[tunnel]'), `cloudflared 已退出 (code ${code})，公网地址失效`));

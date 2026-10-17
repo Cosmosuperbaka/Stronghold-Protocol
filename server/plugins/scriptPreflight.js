@@ -31,7 +31,7 @@ export function preflightScripts(registry, scripts, hashInput) {
         ...processOptions,
         input:JSON.stringify({scripts:[script],hashInput:{plugins:[part],settings:{[script.id]:settings}}}),
         encoding:'utf8',timeout:SCRIPT_PROBE_TIMEOUT_MS,killSignal:'SIGKILL',
-        maxBuffer:8*1024*1024,stdio:['pipe','ignore','pipe','pipe'],
+        maxBuffer:8*1024*1024,stdio:['pipe','ignore','pipe','pipe'], windowsHide: true,
       });
       // spawnSync waits/reaps the child before returning, including after timeout's SIGKILL.
       // A report written before a later hang is not success: status/error/signal must agree.

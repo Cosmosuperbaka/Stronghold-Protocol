@@ -465,7 +465,7 @@ async function main() {
   const installedSkins = Object.values(installedManifest?.chars || {}).flatMap((c) => Object.keys(c.skins || {}));
   if (installedSkins.length) {
     const research = await readJson('docs/research/operator-skins.json');
-    const skinPlan = buildSkinPlan(research, installedSkins);
+    const skinPlan = buildSkinPlan(research, installedSkins, await readJson('data/seat-art.json').catch(() => null));
     for (const [id, c] of Object.entries(skinPlan.template.chars)) if (plan.template.chars[id]) plan.template.chars[id].skins = c.skins;
     for (const [id, m] of skinPlan.models) plan.models.set(id, m);
   }

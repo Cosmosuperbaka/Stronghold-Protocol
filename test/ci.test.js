@@ -159,10 +159,10 @@ test('the eslint and tsc entry points come from their package.json bin; a missin
 });
 
 test('node tools/ci.mjs --list and a bad option run without npm (exit 0 / 2)', () => {
-  const list = spawnSync(process.execPath, ['tools/ci.mjs', '--list'], { cwd: ROOT, encoding: 'utf8' });
+  const list = spawnSync(process.execPath, ['tools/ci.mjs', '--list'], { cwd: ROOT, encoding: 'utf8', windowsHide: true });
   assert.equal(list.status, 0, list.stderr);
   for (const s of STEPS) assert.match(list.stdout, new RegExp(`^${s.id} `, 'm'));
-  const bad = spawnSync(process.execPath, ['tools/ci.mjs', '--only', 'nope'], { cwd: ROOT, encoding: 'utf8' });
+  const bad = spawnSync(process.execPath, ['tools/ci.mjs', '--only', 'nope'], { cwd: ROOT, encoding: 'utf8', windowsHide: true });
   assert.equal(bad.status, 2);
   assert.match(bad.stderr, /unknown step "nope"/);
 });

@@ -11,9 +11,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  ASSET_PACK_README, AUTHOR_TEST_FILES, FOLDER, REFUSE, RUNTIME_RESEARCH, assetPackName, assetPackPlan, assetPackReadme, entryProblems,
+  ASSET_PACK_README, AUTHOR_TEST_FILES, FOLDER, GITHUB_REPO, REFUSE, RUNTIME_RESEARCH, assetPackName, assetPackPlan, assetPackReadme, entryProblems,
   importableArt, isRefused, packageOutIsUnsafe, parseArgs, plan, playerPackageJson, rewritePlayerDoc, resolveSpecifier, scanFiles,
-  selectTracked,
+  selectTracked, releaseTag,
 } from '../tools/package.mjs';
 import { hash16 } from '../server/http/assetIndex.js';
 import { rewriteManifest } from '../server/http/assetViews.js';
@@ -93,7 +93,7 @@ test('the real tracked tree: runtime in, the rest out; every shipped import, npm
   for (const f of got) if (!AUTHOR_TEST_FILES.includes(f)) assert.ok(!/^(?:test|handoff|\.github|types|public\/dev|docs\/design|docs\/history)\//.test(f)
     && (!f.startsWith('docs/img/') || f.startsWith('docs/img/features/')), f);
   // A player reading the packaged README must get its screenshots, local guides and tunnel launchers.
-  const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
+  const readme = rewritePlayerDoc(fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8'), 'README.md', got, p.version);
   for (const [, href] of readme.matchAll(/\]\(([^)\s]+)\)/g)) {
     if (/^(?:[a-z]+:|#)/i.test(href)) continue;
     assert.ok(got.has(href.split('#')[0]), `README link missing from the release: ${href}`);
@@ -186,13 +186,13 @@ function fakeCheckout() {
     'spine/token/token_x': { 'token_x.skel': { path: '/assets/local/spine/token/token_x/token_x.skel' } } } }));
   put('.cache/assets-report.json', '{}');
   put('pv/clip.txt', 'promo');
-  const git = (...args) => spawnSync('git', ['-C', dir, ...args], { encoding: 'utf8' });
+  const git = (...args) => spawnSync('git', ['-C', dir, ...args], { encoding: 'utf8', windowsHide: true });
   assert.equal(git('init', '-q').status, 0);
   assert.equal(git('add', '-A').status, 0);
   return { dir, put, rm: (rel) => fs.rmSync(path.join(dir, rel), { force: true }) };
 }
 
-const runTool = (args) => spawnSync(process.execPath, [TOOL, ...args], { encoding: 'utf8', env: { ...process.env, ...ENV }, maxBuffer: 16 * 1024 * 1024 });
+const runTool = (args) => spawnSync(process.execPath, [TOOL, ...args], { encoding: 'utf8', env: { ...process.env, ...ENV }, maxBuffer: 16 * 1024 * 1024, windowsHide: true });
 const listed = (stdout) => stdout.split('\n').filter((l) => l.startsWith('file ')).map((l) => l.slice(5));
 
 const SHIPPED_TRACKED = ['CHANGELOG.md', 'LICENSE', 'NOTICE.md', 'README.md', 'THIRD-PARTY-NOTICES.md', 'data/assets.json', 'data/chess.json',
@@ -286,9 +286,9 @@ test('scans and guards: home paths and the account name in shipped files (art to
 });
 
 // tools/package.mjs zips with `zip`, else with a bsdtar `tar --format zip` (Windows 10+, macOS; GNU tar cannot)
-const hasZipTool = !spawnSync('zip', ['-v'], { encoding: 'utf8' }).error
-  || /bsdtar/.test(spawnSync('tar', ['--version'], { encoding: 'utf8' }).stdout || '');
-const hasUnzip = !spawnSync('unzip', ['-h'], { encoding: 'utf8' }).error;
+const hasZipTool = !spawnSync('zip', ['-v'], { encoding: 'utf8', windowsHide: true }).error
+  || /bsdtar/.test(spawnSync('tar', ['--version'], { encoding: 'utf8', windowsHide: true }).stdout || '');
+const hasUnzip = !spawnSync('unzip', ['-h'], { encoding: 'utf8', windowsHide: true }).error;
 
 test('a --no-install build of the temporary checkout zips exactly the plan in one Stronghold-Protocol/ folder', { skip: !hasZipTool && 'no zip / tar' }, () => {
   const { dir } = fakeCheckout();
@@ -300,7 +300,7 @@ test('a --no-install build of the temporary checkout zips exactly the plan in on
     assert.ok(fs.statSync(zip).size > 0);
     assert.deepEqual(fs.readdirSync(out), [path.basename(zip)], 'the stage is removed after zipping');
     if (hasUnzip) {
-      const entries = spawnSync('unzip', ['-Z1', zip], { encoding: 'utf8' }).stdout.split('\n').filter((l) => l && !l.endsWith('/'));
+      const entries = spawnSync('unzip', ['-Z1', zip], { encoding: 'utf8', windowsHide: true }).stdout.split('\n').filter((l) => l && !l.endsWith('/'));
       // and MANIFEST.json, written after npm ci (server/update.js; test/update-package.test.js checks its content)
       assert.deepEqual(entries.sort(), [...SHIPPED_TRACKED, ...ART, 'MANIFEST.json'].map((f) => `${FOLDER}/${f}`).sort());
     }
@@ -319,7 +319,7 @@ test('a --no-install build of the temporary checkout zips exactly the plan in on
 test('content packs ship: every committed pack of both layouts, never one only on this machine; the stage gets packs/index.json listing exactly them', { skip: !hasZipTool && 'no zip / tar' }, () => {
   const { dir, put } = fakeCheckout();
   const out = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-package-out-'));
-  const git = (...args) => spawnSync('git', ['-C', dir, ...args], { encoding: 'utf8' });
+  const git = (...args) => spawnSync('git', ['-C', dir, ...args], { encoding: 'utf8', windowsHide: true });
   try {
     const PACK_FILES = ['public/i18n/en.json', 'public/i18n/qaa.json', 'data/i18n/qaa.json', 'packs/README.md', 'packs/qab/pack.json', 'packs/qab/ui.json'];
     put('public/i18n/en.json', JSON.stringify({ _meta: { name: 'English', complete: true }, 开始: 'Start' }));
@@ -367,7 +367,7 @@ test('the stage drops dishonest npm scripts and rewrites unshipped doc links', {
     const stagedPkg = JSON.parse(fs.readFileSync(path.join(stage, 'package.json'), 'utf8'));
     assert.deepEqual(Object.keys(stagedPkg.scripts).sort(), ['assets', 'doctor', 'launch', 'postinstall', 'setup', 'start', 'vendor']);
     assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).scripts.test, 'node --test');
-    const host = 'https://github.com/sganggs/Stronghold-Protocol';
+    const host = GITHUB_REPO;
     const got = fs.readFileSync(path.join(stage, 'README.md'), 'utf8');
     assert.equal(got, `# r\n\n[design](${host}/blob/v9.9.9/docs/DESIGN.md)\n[play](docs/PLAYING.md)\n[rel](${host}/releases/latest)\n![shot](${host}/raw/v9.9.9/docs/img/x.jpg)\n`);
     assert.equal(fs.readFileSync(path.join(dir, 'README.md'), 'utf8'), readme, 'the git checkout keeps its relative links');
@@ -442,7 +442,7 @@ function assetCheckout() {
   co.put('data/local-fx.json', JSON.stringify({ version: 1, format: 'fx-manifest', groups: { 'fx/prefabs': { hit: { path: '/assets/local/fx/prefabs/hit.json' } } } }));
   co.put('public/assets/local/fx/prefabs/hit.json', '{"hit":1}');
   co.put('public/assets/local/fx/prefabs/unused.json', '{"old":1}');                  // extracted, not listed
-  const git = (...args) => spawnSync('git', ['-C', co.dir, ...args], { encoding: 'utf8' });
+  const git = (...args) => spawnSync('git', ['-C', co.dir, ...args], { encoding: 'utf8', windowsHide: true });
   assert.equal(git('add', 'data/assets.json').status, 0);
   assert.equal(git('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qm', 'fake').status, 0);
   return co;
@@ -509,9 +509,9 @@ test('the README names the version, the manifests it matches, how to import, and
   assert.ok(text.startsWith('\ufeff卫戍协议：盟约 v0.3.0 素材包\n'), 'UTF-8 with a BOM');
   for (const s of ['data/assets.json、data/local-assets.json、data/local-fx.json', '「导入素材包」', '「选择 zip」', '「跳过 1 个」',
     'HTTPS', 'localhost', '"Import asset pack"', 'files that version does not list are skipped', '2 files (3.0 MB)',
-    'https://github.com/sganggs/Stronghold-Protocol/blob/v0.3.0/NOTICE.md']) assert.ok(text.includes(s), s);
+    `${GITHUB_REPO}/blob/${releaseTag('0.3.0')}/NOTICE.md`]) assert.ok(text.includes(s), s);
   const dev = assetPackReadme({ version: '0.3.1-dev', files: [], bytes: { art: 0 }, local: false, fx: false });
-  assert.ok(dev.includes('/blob/v0.3.1/NOTICE.md') && !dev.includes('local-fx.json'));
+  assert.ok(dev.includes(`/blob/${releaseTag('0.3.1-dev')}/NOTICE.md`) && !dev.includes('local-fx.json'));
 });
 
 /** The served manifests of `dir` as the server builds them (assetViews.js), with the real content hashes of its files. */
@@ -560,7 +560,7 @@ test('a --assets build zips exactly the plan and README.txt in one folder, and t
     const zip = path.join(out, `${name}.zip`);
     assert.deepEqual(fs.readdirSync(out), [`${name}.zip`], 'the stage is removed after zipping');
     if (hasUnzip) {
-      const entries = spawnSync('unzip', ['-Z1', zip], { encoding: 'utf8' }).stdout.split('\n').filter((l) => l && !l.endsWith('/'));
+      const entries = spawnSync('unzip', ['-Z1', zip], { encoding: 'utf8', windowsHide: true }).stdout.split('\n').filter((l) => l && !l.endsWith('/'));
       assert.deepEqual(entries.sort(), [...PACK_ART, ASSET_PACK_README].map((f) => `${name}/${f}`).sort());
     }
     const again = runTool(['--root', dir, '--assets', '--out', out]);
