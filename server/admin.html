@@ -199,7 +199,7 @@
 <main id="devtools" hidden>
   <section class="devtools-intro"><h2>开发者模式</h2><p class="meta">集中打开项目的模拟与预览页面。工具用于开发和排查，不会影响正式对局。</p></section>
   <section aria-label="开发工具"><ol class="devtools-list" id="devtools-list"></ol></section>
-  <section aria-label="对局模拟场景"><h2>直接打开模拟场景</h2><p class="meta">在新标签页打开。右侧中文面板可继续切换场景，按反引号键（`）收起面板。</p><div id="devtools-scenes" class="devtools-scenes"></div></section>
+  <section aria-label="对局模拟场景"><h2>直接打开模拟场景</h2><p class="meta">同类工具复用已打开的预览页；Ctrl / ⌘ 点击或中键可另开。右侧中文面板可继续切换场景，按反引号键（`）收起面板。</p><div id="devtools-scenes" class="devtools-scenes"></div></section>
 </main>
 <datalist id="chess-list"></datalist>
 <datalist id="item-list"></datalist>
@@ -221,6 +221,29 @@ const storedDevMode = () => { try { return localStorage.getItem(DEV_MODE_KEY) ==
 let devMode = storedDevMode();
 let servicePending = false, recoveryEnabled = false;
 let roomPoll;
+const devPreviews = new Map();
+
+function openDevPreview(e, link) {
+  if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+  const url = new URL(link.href);
+  if (url.origin !== location.origin || !url.pathname.startsWith('/dev/')) return;
+  let preview = devPreviews.get(url.pathname);
+  if (!preview || preview.closed) {
+    // Keep a handle for reuse, but sever opener access before loading the tool.
+    preview = window.open('about:blank', '_blank');
+    if (!preview) return; // Let the ordinary noopener link handle popup blockers.
+    preview.opener = null;
+    devPreviews.set(url.pathname, preview);
+  }
+  try {
+    if (preview.location.href !== url.href) preview.location.replace(url.href);
+    preview.focus();
+    e.preventDefault();
+  } catch {
+    // A preview navigated away from this origin: leave it alone and use the ordinary link.
+    devPreviews.delete(url.pathname);
+  }
+}
 
 async function drawDevTools() {
   const list = $('#devtools-list');
@@ -230,9 +253,9 @@ async function drawDevTools() {
     if (!Array.isArray(result.pages)) throw new Error(result.error || '页面清单无效');
     const available = new Set(result.pages.filter(p => p.available).map(p => p.file));
     list.innerHTML = DEV_PAGES.map(([file, name, description]) => `<li data-devtool="${esc(file)}"><div><h3>${esc(name)}</h3><p>${esc(description)}</p></div>
-      ${available.has(file) ? `<a href="/dev/${esc(file)}" target="_blank" rel="noopener noreferrer">打开${esc(name)} ↗</a>` : '<span class="meta">当前安装包未包含</span>'}</li>`).join('');
+      ${available.has(file) ? `<a data-dev-preview href="/dev/${esc(file)}" target="_blank" rel="noopener noreferrer">打开${esc(name)} ↗</a>` : '<span class="meta">当前安装包未包含</span>'}</li>`).join('');
     $('#devtools-scenes').innerHTML = available.has('game-mock.html') ? DEV_SCENES.map(([label, phase, variant]) =>
-      `<a href="${esc(devSceneUrl(phase, variant))}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`).join('') : '<p class="meta">当前安装包未包含对局模拟页面。</p>';
+      `<a data-dev-preview href="${esc(devSceneUrl(phase, variant))}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`).join('') : '<p class="meta">当前安装包未包含对局模拟页面。</p>';
   } catch (e) {
     list.innerHTML = `<li role="status">读取开发页面失败：${esc(e.message)} <button type="button" data-devtools-retry>重新读取</button></li>`;
     $('#devtools-scenes').textContent = '';
@@ -1469,6 +1492,8 @@ document.addEventListener('click', (e) => {
     setTab(devMode ? 'devtools' : 'rooms');
     return;
   }
+  const previewLink = e.target.closest('a[data-dev-preview]');
+  if (previewLink) { openDevPreview(e, previewLink); return; }
   if (e.target.closest('[data-devtools-retry]')) { drawDevTools(); return; }
   const tab = e.target.closest('button[data-tab]');
   if (tab) { setTab(tab.dataset.tab); return; }

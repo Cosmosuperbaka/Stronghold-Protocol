@@ -47,6 +47,13 @@ and battle Spine models only. This affects presentation only, never purchases or
 
 ## 9. Client rendering contract (public/js/render)
 
+Local host developer previews (owner request, 2026-10-18): ordinary console tool links reuse one preview per
+`/dev/` pathname for the lifetime of the console document. Reopening the current scene focuses it without resetting
+its state; selecting a different scene navigates the existing Game Mock preview. Different tools remain independent.
+Closed previews can reopen; changing console tabs preserves references, while reloading the console starts a new
+set. Modified clicks and middle clicks keep the browser's explicit new-tab behavior. New previews have no opener
+access; blocked or inaccessible previews fall back to the ordinary isolated link. See [LOCAL-DEV.md](../LOCAL-DEV.md).
+
 Local host service controls (owner request, 2026-10-14): the console toolbar offers restart and shutdown with
 explicit confirmation that all matches and connections end. Only the authenticated localhost console accepts
 these actions. Update and service operations exclude each other; duplicate requests cannot spawn another server.
