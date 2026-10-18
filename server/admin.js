@@ -42,6 +42,7 @@ import { createStaticHandler } from './http/static.js';
 import { getReplayConfig, setReplayConfig, replayRecord, recordReplayAdmin } from './match/replay.js';
 import { replayIdentity, saveReplay, readReplay, replayFiles, recordFiles, deleteRecordFiles, replayAdminLogs, REPLAY_ID } from './replay-store.js';
 import { liveState, liveIntent } from './admin-live.js';
+import { DEV_PAGES } from '../shared/devtools.js';
 import { sendSession } from './net.js';
 import { cleanChatText, getBlockedWords, normalizeBlockedWords, setBlockedWords, getChatSettings, normalizeChatSettings, setChatSettings, DEFAULT_CHAT_SETTINGS } from './chat.js';
 
@@ -759,12 +760,15 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
       if (req.method === 'GET' && url.pathname === '/live-viewer.js' && session(req)) {
         return send(200, fs.readFileSync(path.join(DIR, 'live-viewer.js'), 'utf8'), 'text/javascript; charset=utf-8');
       }
-      if (['GET', 'HEAD'].includes(req.method) && session(req) && /^\/(?:js\/|css\/|vendor\/|assets\/|fonts\/|data\/|shared\/|sim\/|packs\/|media\/|cs\/|vs\/|p\/|plugins\/|data\.js$)/.test(url.pathname)) {
+      if (['GET', 'HEAD'].includes(req.method) && session(req) && /^\/(?:dev\/|js\/|css\/|vendor\/|assets\/|fonts\/|data\/|shared\/|sim\/|packs\/|media\/|cs\/|vs\/|p\/|plugins\/|data\.js$)/.test(url.pathname)) {
         res.setHeader('X-Frame-Options', 'DENY');
         return await serveStatic(req, res, url.pathname, url.search.slice(1));
       }
       if (!url.pathname.startsWith('/api/')) return send(404, { error: 'not found' });
       if (!authed(req)) return send(403, { error: 'bad token' });
+      if (req.method === 'GET' && url.pathname === '/api/devtools') return send(200, {
+        pages: DEV_PAGES.map(([file]) => ({ file, available: fs.existsSync(path.join(root, 'public', 'dev', file)) })),
+      });
       if (req.method === 'GET' && url.pathname === '/api/wall') return send(200, await wallView(lobby, url.searchParams.get('room')));
       if (req.method === 'GET' && url.pathname === '/api/recovery') return send(200, lobby.recovery?.status() || { enabled: false, unavailable: true, issues: [] });
       if (req.method === 'POST' && url.pathname === '/api/recovery') {

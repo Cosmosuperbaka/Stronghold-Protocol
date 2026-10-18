@@ -40,9 +40,9 @@ test('all install and favicon assets ship independently of optional game art', (
 // hermetic scans: not this machine's account name, but a planted one
 const ENV = { SP_PACKAGE_SCAN_USER: '0', SP_PACKAGE_SCAN_NAMES: 'plantedname' };
 
-test('selection: runtime files in; tests, maintainer tools, other docs, dev pages, private and config files out', () => {
+test('selection: runtime files in; tests, maintainer tools, other docs, private and config files out; console developer pages in', () => {
   const { keep, drop } = selectTracked([
-    'server/index.js', 'server/sim/rng.js', 'shared/constants.js', 'public/index.html', 'public/js/main.js', 'public/i18n/en.json',
+    'server/index.js', 'server/sim/rng.js', 'shared/constants.js', 'public/index.html', 'public/dev/game-mock.html', 'public/js/main.js', 'public/i18n/en.json',
     'data/chess.json', 'data/i18n/en.json', 'tools/setup.mjs', 'tools/vendor.mjs', 'tools/fetch-assets.mjs', 'tools/doctor.mjs',
     'tools/build-resource-manifest.mjs', 'tools/crop-board-atlas.mjs', 'tools/install-skins.mjs', 'tools/assets/plan.mjs', 'tools/assets/local-enemy-spines.json', 'tools/assets/local-token-spines.json',
     'tools/local-extract/extract.py',
@@ -53,7 +53,7 @@ test('selection: runtime files in; tests, maintainer tools, other docs, dev page
     'test/version.test.js', 'tools/golden.mjs', 'tools/build-data.mjs', 'tools/check-imports.mjs', 'tools/package.mjs',
     'tools/i18n/fallback-remake.json', 'scripts/make-windows-bundle.mjs', 'docs/DESIGN.md', 'docs/WINDOWS.md', 'docs/ASSETS.md',
     'docs/img/combat.jpg', 'docs/research/00-INDEX.md', 'docs/research/01-core-data.json', 'docs/research/03-operators.md',
-    'docs/research/10-networking-hosting.md', 'public/dev/game-mock.html', 'public/assets/x.png', 'public/fonts/fonts.css',
+    'docs/research/10-networking-hosting.md', 'public/dev/mock.js', 'public/assets/x.png', 'public/fonts/fonts.css',
     'public/vendor/pixi.min.js', 'data/local-assets.json', 'handoff/HANDOFF.md', '.github/workflows/ci.yml', 'types/core.js',
     'eslint.config.js', 'jsconfig.json', 'Dockerfile', '.dockerignore', '.gitignore', '.gitattributes', 'AGENTS.md', '.env',
     'server/.env.production', 'pv/clip.mp4', '3，9，11回合情况/note.txt', 'review/a.md', '.cache/x', 'server/__pycache__/a.pyc',
@@ -64,7 +64,7 @@ test('selection: runtime files in; tests, maintainer tools, other docs, dev page
     'docs/research/07-assets.json', 'docs/SKINS.md', 'tools/install-skins.mjs', 'tools/build-resource-manifest.mjs', 'CHANGELOG.md']) {
     assert.ok(keep.includes(f), `keeps ${f}`);
   }
-  assert.equal(keep.length, 41, keep.join(' '));
+  assert.equal(keep.length, 42, keep.join(' '));
   assert.equal(drop.length, 40, drop.join(' '));
   assert.ok(!keep.some((f) => drop.includes(f)));
 });
@@ -85,12 +85,13 @@ test('the real tracked tree: runtime in, the rest out; every shipped import, npm
   assert.deepEqual(p.problems, []);
   const got = new Set(p.files);
   for (const f of ['server/index.js', 'tools/setup.mjs', 'tools/fetch-assets.mjs', 'scripts/start.sh', 'docs/PLAYING.md', 'docs/DEPLOY.md',
-    'package-lock.json', 'NOTICE.md', ...RUNTIME_RESEARCH]) assert.ok(got.has(f), f);
-  for (const f of ['tools/golden.mjs', 'tools/package.mjs', 'scripts/make-windows-bundle.mjs', 'docs/DESIGN.md', 'eslint.config.js', 'Dockerfile']) {
+    'package-lock.json', 'NOTICE.md', 'shared/devtools.js', 'public/dev/game-mock.html',
+    'public/dev/game-mock.js', 'public/dev/perf/index.json', 'public/dev/recordings/index.json', ...RUNTIME_RESEARCH]) assert.ok(got.has(f), f);
+  for (const f of ['tools/golden.mjs', 'tools/package.mjs', 'scripts/make-windows-bundle.mjs', 'docs/DESIGN.md', 'eslint.config.js', 'Dockerfile', 'public/dev/simcheck/node.mjs', 'public/dev/simcheck/data/reference.json']) {
     assert.ok(!got.has(f), f);
   }
   // the design document (the index docs/DESIGN.md and its parts in docs/design/, docs/history/) stays out too
-  for (const f of got) if (!AUTHOR_TEST_FILES.includes(f)) assert.ok(!/^(?:test|handoff|\.github|types|public\/dev|docs\/design|docs\/history)\//.test(f)
+  for (const f of got) if (!AUTHOR_TEST_FILES.includes(f)) assert.ok(!/^(?:test|handoff|\.github|types|docs\/design|docs\/history)\//.test(f)
     && (!f.startsWith('docs/img/') || f.startsWith('docs/img/features/')), f);
   // A player reading the packaged README must get its screenshots, local guides and tunnel launchers.
   const readme = rewritePlayerDoc(fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8'), 'README.md', got, p.version);

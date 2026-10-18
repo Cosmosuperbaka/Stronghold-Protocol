@@ -13,7 +13,7 @@
 - 合并上游新版本时从 `main` 开功能分支，完成适配与测试后再合并回 `main`。
 - 同步上游：`git fetch upstream` → `git merge upstream/master` → `npm install` → `npm run setup`（上游常会加素材）→ `node --test`。
 - 素材 `public/assets/`、`.cache/`、`.claude/` 都在 `.gitignore` 里，不进仓库。新机器 clone 后要先 `npm install && npm run setup`。
-- 当前版本为 `v0.3.1-extended.2`（正式版），基于上游 `v0.3.1`（`b3deebda`）。上一正式版为 `v0.3.1-extended.1`。本版修复完整素材更新、皮肤海报、偏好校验和 Windows 子进程弹窗。接入 Forge、工作台、交互窗口、干员特质、规则开关、测试房间与上游规则修复，保留控制台、聊天、统计、回档、回放、联动与皮肤扩展。完整包包含 11 个官方战场场景（提取版本 4）、官方 FX、多语言语音、174 套皮肤和海报素材；lite 需按文档补齐。发布预检使用 `--require-local-art`。
+- 当前版本为 `v0.3.1-extended.3`（正式版），基于上游 `v0.3.1`（`b3deebda`）。上一正式版为 `v0.3.1-extended.2`。本版新增控制台开发者模式、中文场景入口并修复策略入场动画定位。接入 Forge、工作台、交互窗口、干员特质、规则开关、测试房间与上游规则修复，保留控制台、聊天、统计、回档、回放、联动与皮肤扩展。完整包包含 11 个官方战场场景（提取版本 4）、官方 FX、多语言语音、174 套皮肤和海报素材；lite 需按文档补齐。发布预检使用 `--require-local-art`。
 
 当前源码已整合上游 `v0.3.1`（`b3deebda`）；`package.json` / APP_VERSION 为基础版本 0.3.1；`server/release-version.js` 单独记录扩展标签。发布附件与公开状态以 Releases 为准。
 
@@ -37,6 +37,14 @@
 各版上游合并、主机扩展与发布验证见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md)。
 
 ## 2. 本地新增了什么
+
+### 2026-10-18 控制台开发者模式
+
+控制台顶栏「开发者模式」开启后显示「模拟页面」，列出全部 6 个开发工具和 30 个中文对局场景。
+开关保存在当前浏览器的 `sp.admin.developer-mode`，退出后隐藏入口；不更改主机或对局设置。
+工具从当前控制台端口的新标签页打开，复用本机会话鉴权，无需填写游戏端口。本版完整 / 轻量包包含开发页面与录制、性能样例；旧包缺少
+`public/dev/` 时显示「当前安装包未包含」。模拟一致性校验仍需从源码生成参考数据。`shared/devtools.js` 共用中文工具、场景目录，
+模拟页右侧切换器和事件按钮也使用中文。验证见 `test/ui/admin-devtools.e2e.test.js`。
 
 ### 2026-10-16 控制台与组队界面修订
 

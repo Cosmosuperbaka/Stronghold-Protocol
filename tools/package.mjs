@@ -15,7 +15,7 @@
 //                          [--keep-stage] [--no-install] [--allow-dirty] [--allow-dev] [--require-local-art] [--root <dir>]
 //
 // The zips hold one folder, Stronghold-Protocol/, with only what a player runs — an allowlist over `git ls-files`, so
-// untracked work, caches, logs and per-machine config never get in: server/, shared/, data/, public/ (not public/dev/),
+// untracked work, caches, logs and per-machine config never get in: server/, shared/, data/, public/ (including the local console developer tools),
 // packs/ (the content packs that ship with the repository, docs/PACKS.md; a pack installed on this machine and not
 // committed stays out), plugins/ (only its readme, author guide and templates — docs/PLUGINS.md; a server's own plugins are git-ignored and
 // never ship), schemas/, the plugin author harness,
@@ -33,7 +33,7 @@
 // decides whether the full zip carries the Japanese voice dub too (default: yes), FULL_ZIP_OPTIONAL_VOICE the English,
 // Korean and own-language dubs (default: yes, so the 0.3.0 full zip ships them; about +180 MB, measured after download).
 // Left out: test/ except test/helpers/battleHarness.js, the maintainer tools (build-data, golden, botbench, i18n, check-imports, this file …),
-// scripts/make-windows-bundle.mjs, the other docs (DESIGN, SIM, the research notes, docs/img …), public/dev/, handoff/,
+// scripts/make-windows-bundle.mjs, the other docs (DESIGN, SIM, the research notes, docs/img …), handoff/,
 // .github/, types/, lint / editor / Docker files (Docker builds from a git clone). Extension screenshots under
 // docs/img/features/ ship in both zips; other docs/img art stays out.
 //
@@ -134,8 +134,8 @@ export const RUNTIME_DIRS = ['server/', 'shared/', 'data/', 'public/', 'packs/',
 export const GENERATED_PACK_INDEX = 'packs/index.json';
 /** Whether shipped files include a content pack (then the stage gets GENERATED_PACK_INDEX). @param {string[]} files */
 export const shipsPacks = (files) => files.some((f) => /^public\/i18n\/[^/]+\.json$/.test(f) || /^packs\/[^/]+\/pack\.json$/.test(f));
-/** Never from the tracked list: the dev pages, and what only the art plan adds (or npm ci writes). */
-const NOT_TRACKED_SHIP = ['public/dev/', 'public/assets/', 'public/fonts/', 'public/vendor/'];
+/** Never from the tracked list: what only the art plan adds (or npm ci writes). */
+const NOT_TRACKED_SHIP = ['public/assets/', 'public/fonts/', 'public/vendor/'];
 /** The npm scripts a player runs: each `node <file>` of them must ship. */
 export const PLAYER_NPM_SCRIPTS = ['start', 'setup', 'doctor', 'launch', 'postinstall', 'vendor', 'assets'];
 /** Markdown copied into the zip. Relative links to anything else are rewritten at stage time. */
@@ -185,7 +185,15 @@ export const FX_ART_PREFIX = 'public/assets/local/fx/';
  */
 export const REFUSE = ['pv', '3，9，11回合情况', 'review', 'docs/research/10-networking-hosting.md', '.cache', '.claude', '.git',
   'logs', 'test/e2e/out', 'scripts/service.env.cmd', '.env', 'handoff',
-  'test', '.github', 'AGENTS.md', 'public/dev', 'node_modules/.cache'];
+  'test', '.github', 'AGENTS.md', 'node_modules/.cache'];
+
+/** Browser tools exposed by the local console; generated simcheck data and Node-only helpers stay out. */
+export function isDevToolResource(rel) {
+  return /^public\/dev\/(?:game-mock|sim-check|render-demo|fx-viewer|battle-perf|uikit)\.(?:html|js)$/.test(rel)
+    || rel === 'public/dev/frame-stats.js'
+    || /^public\/dev\/simcheck\/(?:core|ui|stronghold)\.js$/.test(rel)
+    || /^public\/dev\/(?:recordings|perf)\/[^/]+\.json$/.test(rel);
+}
 
 /** Home-directory paths: macOS / Linux (case as the OS writes them) and Windows (any case; / or \, JSON-escaped too). */
 const HOME_POSIX = /\/Users\/[A-Za-z]|\/home\/[A-Za-z]/;
@@ -202,6 +210,7 @@ export function isRefused(rel) {
   const base = parts[parts.length - 1];
   if (base === '.env' || base.startsWith('.env.')) return true;
   if (parts.some((s) => s.startsWith('.venv'))) return true;
+  if (p.startsWith('public/dev/') && !isDevToolResource(p)) return true;
   if (p.startsWith('plugins/') && !isPluginResource(p)) return true;
   if (AUTHOR_TEST_FILES.includes(p)) return false;
   return REFUSE.some((r) => p === r || p.startsWith(`${r}/`));

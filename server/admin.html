@@ -59,6 +59,20 @@
   .scroll { max-height: 280px; overflow: auto; }
   .on { color: var(--mint); }
   .note { color: var(--warn); font-size: 12px; margin: 4px 0 0; }
+  #devtools { max-width: 1000px; margin: 0 auto; width: 100%; }
+  .devtools-intro { margin-bottom: 16px; }
+  .devtools-intro h2 { font-size: 22px; }
+  .devtools-intro p { margin-top: 6px; }
+  .devtools-list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+  .devtools-list li { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 4px; border-bottom: 1px solid var(--line); }
+  .devtools-list li > div { min-width: 0; }
+  .devtools-list h3 { margin: 0; font-size: 15px; }
+  .devtools-list p { margin: 3px 0 0; color: var(--dim); }
+  .devtools-list a { flex: none; color: var(--mint); text-underline-offset: 3px; }
+  .devtools-scenes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 0 24px; }
+  .devtools-scenes a { padding: 10px 0; color: var(--mint); text-underline-offset: 3px; border-bottom: 1px solid var(--line); }
+  #devmode-toggle[aria-pressed="true"] { border-color: var(--mint); color: var(--mint); }
+  @media (max-width: 600px) { .devtools-list li { align-items: flex-start; flex-direction: column; gap: 8px; } }
   input.small { width: 64px; }
   nav { display: flex; gap: 4px; }
   nav button[aria-pressed="true"] { border-color: var(--mint); color: var(--mint); }
@@ -126,7 +140,7 @@
   [hidden] { display: none !important; }
   header { flex-wrap: wrap; }
   header > .meta { flex: 1 1 380px; font-size: 12px; }
-  nav { flex-wrap: wrap; }
+  nav { flex-wrap: wrap; max-width: 100%; }
   nav a { font: inherit; color: var(--text); background: #1e2421; border: 1px solid var(--line); border-radius: 4px; padding: 3px 8px; text-decoration: none; }
   nav a:hover { border-color: var(--mint); }
   .status-bar { padding: 8px 20px; border-bottom: 1px solid var(--line); color: var(--dim); font-variant-numeric: tabular-nums; }
@@ -153,7 +167,7 @@
 <body>
 <header>
   <h1>主机控制台</h1>
-  <nav aria-label="页面"><button data-tab="rooms" aria-pressed="true">房间</button><button data-tab="records" aria-pressed="false">对局记录</button><button data-tab="settings" aria-pressed="false">设置</button><button data-tab="server" aria-pressed="false">服务器</button><a href="/resources" target="_blank" rel="noopener">资源 ↗</a></nav>
+  <nav aria-label="页面"><button data-tab="rooms" aria-pressed="true">房间</button><button data-tab="records" aria-pressed="false">对局记录</button><button data-tab="settings" aria-pressed="false">设置</button><button data-tab="server" aria-pressed="false">服务器</button><button data-tab="devtools" aria-pressed="false" hidden>模拟页面</button><button id="devmode-toggle" type="button" aria-pressed="false">开发者模式</button><a href="/resources" target="_blank" rel="noopener">资源 ↗</a></nav>
   <span class="meta">只能在这台电脑上打开 · 修改直接生效、不扣金币；只有「加层」「补发机变卡」「装备」会触发游戏效果</span>
   <span id="status" aria-live="polite"></span>
 </header>
@@ -182,6 +196,11 @@
 <main id="rooms"></main>
 <main id="records" hidden></main>
 <main id="settings" hidden></main>
+<main id="devtools" hidden>
+  <section class="devtools-intro"><h2>开发者模式</h2><p class="meta">集中打开项目的模拟与预览页面。工具用于开发和排查，不会影响正式对局。</p></section>
+  <section aria-label="开发工具"><ol class="devtools-list" id="devtools-list"></ol></section>
+  <section aria-label="对局模拟场景"><h2>直接打开模拟场景</h2><p class="meta">在新标签页打开。右侧中文面板可继续切换场景，按反引号键（`）收起面板。</p><div id="devtools-scenes" class="devtools-scenes"></div></section>
+</main>
 <datalist id="chess-list"></datalist>
 <datalist id="item-list"></datalist>
 <datalist id="equip-list"></datalist>
@@ -189,6 +208,7 @@
 <div id="msg" role="status" aria-live="polite"></div>
 <script type="module">
 import { drawRoundChart, drawUnitRounds } from '/js/ui/roundChart.js';
+import { DEV_PAGES, DEV_SCENES, devSceneUrl } from '/shared/devtools.js';
 const chartBonds = await fetch('/data/bonds.json').then((r) => r.ok ? r.json() : {}).catch(() => ({}));
 import { showReleaseNotes, showReleaseUpdatePrompt } from "/js/ui/releaseNotes.js";
 const TOKEN = '__TOKEN__';
@@ -196,8 +216,32 @@ const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const api = (p, body) => fetch(p, { method: body ? 'POST' : 'GET', headers: { 'X-Admin-Token': TOKEN, 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) })
   .then((r) => r.json());
+const DEV_MODE_KEY = 'sp.admin.developer-mode';
+const storedDevMode = () => { try { return localStorage.getItem(DEV_MODE_KEY) === '1'; } catch { return false; } };
+let devMode = storedDevMode();
 let servicePending = false, recoveryEnabled = false;
 let roomPoll;
+
+async function drawDevTools() {
+  const list = $('#devtools-list');
+  list.innerHTML = '<li class="meta" role="status">正在读取开发页面…</li>';
+  try {
+    const result = await api('/api/devtools');
+    if (!Array.isArray(result.pages)) throw new Error(result.error || '页面清单无效');
+    const available = new Set(result.pages.filter(p => p.available).map(p => p.file));
+    list.innerHTML = DEV_PAGES.map(([file, name, description]) => `<li data-devtool="${esc(file)}"><div><h3>${esc(name)}</h3><p>${esc(description)}</p></div>
+      ${available.has(file) ? `<a href="/dev/${esc(file)}" target="_blank" rel="noopener noreferrer">打开${esc(name)} ↗</a>` : '<span class="meta">当前安装包未包含</span>'}</li>`).join('');
+    $('#devtools-scenes').innerHTML = available.has('game-mock.html') ? DEV_SCENES.map(([label, phase, variant]) =>
+      `<a href="${esc(devSceneUrl(phase, variant))}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`).join('') : '<p class="meta">当前安装包未包含对局模拟页面。</p>';
+  } catch (e) {
+    list.innerHTML = `<li role="status">读取开发页面失败：${esc(e.message)} <button type="button" data-devtools-retry>重新读取</button></li>`;
+    $('#devtools-scenes').textContent = '';
+  }
+}
+
+function saveDevMode() {
+  try { localStorage.setItem(DEV_MODE_KEY, devMode ? '1' : '0'); } catch { /* The mode remains usable for this page view. */ }
+}
 async function loadService() {
   try {
     const state = await api('/api/service');
@@ -1419,6 +1463,13 @@ document.addEventListener('click', (e) => {
   }
   const serviceButton = e.target.closest('button[data-service]');
   if (serviceButton && !serviceButton.disabled) { controlService(serviceButton.dataset.service); return; }
+  if (e.target.closest('#devmode-toggle')) {
+    devMode = !devMode;
+    saveDevMode();
+    setTab(devMode ? 'devtools' : 'rooms');
+    return;
+  }
+  if (e.target.closest('[data-devtools-retry]')) { drawDevTools(); return; }
   const tab = e.target.closest('button[data-tab]');
   if (tab) { setTab(tab.dataset.tab); return; }
   const recoveryButton = e.target.closest('[data-recovery-save], [data-recovery-delete]');
@@ -1552,14 +1603,19 @@ let tabRequest = 0;
 async function setTab(name) {
   const request = ++tabRequest;
   for (const b of document.querySelectorAll('button[data-tab]')) b.setAttribute('aria-pressed', String(b.dataset.tab === name));
+  $('[data-tab="devtools"]').hidden = !devMode;
+  const devToggle = $('#devmode-toggle');
+  devToggle.setAttribute('aria-pressed', String(devMode));
+  devToggle.textContent = devMode ? '退出开发者模式' : '开发者模式';
 
   // Keep the current panel visible while the target panel fetches its data. Hiding all
   // panels before these awaits leaves a blank frame on every navigation.
   if (name === 'records') await showRecords();
   else if (name === 'settings') await showSettings();
   else if (name === 'rooms') { lastJson = ''; await refresh(true); }
+  else if (name === 'devtools') await drawDevTools();
   if (request !== tabRequest) return;
-  for (const id of ['rooms', 'records', 'settings', 'server']) $(`#${id}`).hidden = name !== id;
+  for (const id of ['rooms', 'records', 'settings', 'server', 'devtools']) $(`#${id}`).hidden = name !== id;
 }
 document.addEventListener('change', (e) => {
   const el = e.target;
@@ -1618,6 +1674,7 @@ roomPoll = setInterval(refresh, 1500);
 loadService();
 openUpdateConsole();
 api('/api/release-notes').then((n) => showReleaseNotes(n, { storageKey: 'sp.admin.release-notes' })).catch(() => {});
+if (devMode) setTab('devtools');
 </script>
 </body>
 </html>
