@@ -15,7 +15,10 @@ describe('Modal keyboard focus', { skip: !ENABLED && 'set SP_E2E=1 and have Chro
     srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
     browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', '--no-proxy-server'] });
   });
-  after(async () => { await browser?.close(); await srv?.close(); });
+  after(async () => {
+    const timer = setTimeout(() => browser?.process()?.kill(), 5000);
+    try { await browser?.close(); } finally { clearTimeout(timer); await srv?.close(); }
+  });
   const active = (page) => page.evaluate(() => document.activeElement.id);
   const tab = async (page, reverse = false) => {
     if (reverse) await page.keyboard.down('Shift');
@@ -61,6 +64,8 @@ describe('Modal keyboard focus', { skip: !ENABLED && 'set SP_E2E=1 and have Chro
       await fixture(page);
       await page.click('#open');
       await page.waitForFunction(() => document.activeElement.id === 'first');
+      await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, isComposing: true })));
+      assert.ok(await page.$('.modal'), 'IME Escape does not close the dialog');
       await tab(page, true);
       assert.equal(await active(page), 'last', 'hidden, disabled, inert and negative-tabindex controls are excluded');
       await tab(page);
@@ -158,8 +163,10 @@ describe('Modal keyboard focus', { skip: !ENABLED && 'set SP_E2E=1 and have Chro
       await page.waitForSelector('.title-settings');
       await page.click('.title-settings');
       await page.waitForFunction(() => document.querySelector('.modal__box')?.contains(document.activeElement));
-      const assertInside = async () => assert.equal(await page.evaluate(() => document.querySelector('.modal__box').contains(document.activeElement)), true);
+      const assertInside = async () => assert.equal(await page.evaluate(() => [...document.querySelectorAll('.modal__box')].at(-1).contains(document.activeElement)), true);
       for (const reverse of [false, true]) for (let i = 0; i < 25; i++) { await tab(page, reverse); await assertInside(); }
+      await page.click('.set-shortcuts-open');
+      await page.waitForSelector('.settings-shortcuts-modal');
       await page.focus('.set-key[data-action="retreat"]');
       await page.keyboard.press('Enter');
       await page.waitForSelector('.set-key.is-waiting');
@@ -174,6 +181,9 @@ describe('Modal keyboard focus', { skip: !ENABLED && 'set SP_E2E=1 and have Chro
       await page.waitForSelector('.set-key.is-waiting', { hidden: true });
       assert.ok(await page.$('.modal'), 'capture consumes the first Esc');
       await page.keyboard.press('Escape');
+      await page.waitForSelector('.settings-shortcuts-modal', { hidden: true });
+      assert.ok(await page.$('.settings-modal'), 'closing shortcuts keeps settings');
+      await page.keyboard.press('Escape');
       await page.waitForSelector('.modal', { hidden: true });
       assert.equal(await page.evaluate(() => document.activeElement.matches('.title-settings')), true);
       assert.ok(await page.$('.title-screen'), 'the background start button was not activated');
@@ -183,9 +193,11 @@ describe('Modal keyboard focus', { skip: !ENABLED && 'set SP_E2E=1 and have Chro
   test('settings lets the higher guide keep keyboard focus and resumes after it closes', async () => {
     const page = await browser.newPage();
     try {
+      await page.setViewport({ width: 1280, height: 720 });
       page.setDefaultTimeout(5000);
       await page.goto(srv.url, { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('.title-settings');
+      await page.waitForFunction(() => !document.querySelector('.title-settings').getAnimations().some(a => a.playState === 'running'));
       await page.click('.title-settings');
       await page.waitForSelector('.set-guide');
       await page.waitForFunction(() => !document.querySelector('.modal__box').getAnimations().some((a) => a.playState === 'running'));

@@ -1067,7 +1067,7 @@
 
 /* 大厅背景 dialog */
 .bgset { display: flex; flex-direction: column; gap: .16rem; }
-.bgset__themes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .1rem; }
+.bgset__themes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, max(1.08rem, calc(.78 * var(--t)))), 1fr)); gap: .1rem; }
 .bgset__theme { display: flex; flex-direction: column; align-items: flex-start; gap: .05rem; min-width: 0; padding: .06rem; color: var(--text-hi);
   background: rgba(223, 230, 226, .04); border: 1px solid rgba(223, 230, 226, .14); cursor: pointer; text-align: left;
   transition: border-color var(--t-fast), box-shadow var(--t-fast); }
@@ -1082,7 +1082,7 @@
 .bgset__swatch .sw-beacon { fill: var(--beacon); }
 .bgset__swatch--custom { display: grid; place-items: center; background: #0b1110 center / cover no-repeat; outline: 1px dashed rgba(223, 230, 226, .2); outline-offset: -1px; }
 .bgset__plus { font-size:calc(.34 * var(--t)); line-height: 1; color: rgba(223, 230, 226, .5); }
-.bgset__name { font-size:calc(.15 * var(--t)); font-weight: 800; white-space: nowrap; }
+.bgset__name { max-width: 100%; font-size:calc(.15 * var(--t)); font-weight: 800; white-space: normal; overflow-wrap: anywhere; }
 .bgset__en { font: 700 .09rem/1 ui-monospace, Consolas, monospace; letter-spacing: .14em; color: var(--text-dim); white-space: nowrap; }
 .bgset__custom { display: flex; flex-direction: column; gap: .1rem; padding: .12rem; border: 1px solid rgba(223, 230, 226, .1); background: rgba(223, 230, 226, .03); }
 .bgset__row { display: flex; gap: .1rem; }
@@ -2020,7 +2020,8 @@ button.ally-card:disabled { filter: grayscale(.7) brightness(.7); cursor: defaul
 .proto-list .pcard { animation: tr-right 400ms var(--tr-ease) backwards; animation-delay: calc(240ms + var(--n, 0) * 60ms); }
 .proto-list .pcard:nth-child(2) { --n: 1; } .proto-list .pcard:nth-child(3) { --n: 2; } .proto-list .pcard:nth-child(4) { --n: 3; } .proto-list .pcard:nth-child(5) { --n: 4; }
 .proto-foot { animation: tr-rise 400ms var(--tr-ease) 440ms backwards; }
-.ally-card--create { animation: tr-right 420ms var(--tr-ease) 240ms backwards; }
+/* Keep the optional key field and create card together throughout the entrance. */
+.ally-create { animation: tr-right 420ms var(--tr-ease) 240ms backwards; }
 .ally-links { animation: tr-right 420ms var(--tr-ease) 310ms backwards; }
 .ally-card--join { animation: tr-right 420ms var(--tr-ease) 380ms backwards; }
 .ally-guide { animation: tr-rise 380ms var(--tr-ease) 450ms backwards; }

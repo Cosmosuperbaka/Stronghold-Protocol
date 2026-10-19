@@ -6,11 +6,14 @@ import vm from 'node:vm';
 import { createStore } from '../../public/js/store.js';
 import { createDataStore } from '../../public/js/data.js';
 import { createCosmeticLayers } from '../../public/js/assets.js';
-import { installContent, catalog, personal, setPersonalPlugin, cosmeticPlugins, isPersonalCosmetic, personalSet, loadPluginOrder, pluginName, installedCount } from '../../public/js/content.js';
+import { installContent, loadCatalog, catalog, personal, setPersonalPlugin, cosmeticPlugins, isPersonalCosmetic, personalSet, loadPluginOrder, pluginName, installedCount } from '../../public/js/content.js';
 import { noticeView, markSeen } from '../../shared/plugins/notices.js';
 import { resolveThemeVars, themeVarsOf } from '../../shared/plugins/theme.js';
 
-const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+const settle = async () => {
+  await loadCatalog(); // Includes the asynchronous load-order module, even on a cold module cache.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+};
 
 test('personal theme switches apply by id, restore the previous winner and defaults, and send nothing', async () => {
   const previousDoc = globalThis.document;

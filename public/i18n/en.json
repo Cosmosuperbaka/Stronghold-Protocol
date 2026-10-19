@@ -1,4 +1,8 @@
 {
+  "显示帧率": "Show FPS",
+  "在对局延迟旁显示实际渲染帧率。": "Show the actual rendering frame rate beside in-match latency.",
+  "当前帧率不可用": "Frame rate unavailable",
+  "当前帧率 {fps} FPS": "Current frame rate: {fps} FPS",
   "随机装备皮肤": "Randomize Outfits",
   "恢复全部调配与皮肤为默认配置？": "Restore all loadout and skin choices to defaults?",
   "已导入皮肤选择": "Skin choices imported",

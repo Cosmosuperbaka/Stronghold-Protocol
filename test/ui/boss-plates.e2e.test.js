@@ -9,7 +9,7 @@
 
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const ENABLED = process.env.SP_E2E === '1' && existsSync(CHROME);
@@ -29,19 +29,20 @@ describe('leader plates and endings (headless Chrome)', { skip: !ENABLED && 'set
   });
 
   after(async () => {
-    await browser?.close();
-    await srv?.close();
+    const timer = setTimeout(() => browser?.process()?.kill(), 5000);
+    try { await browser?.close(); } finally { clearTimeout(timer); await srv?.close(); }
   });
 
   /**
    * The mock at PREP in a fresh context, past the service worker (its own fetches would skip the interception);
    * `noart` fails /assets/ui/ (the CI view), `reduce` asks for reduced motion.
    */
-  async function open({ noart = false, reduce = false } = {}) {
+  async function open({ noart = false, reduce = false, width = 1920, height = 1080, textSize = 'sm' } = {}) {
     const context = await browser.createBrowserContext();
     const page = await context.newPage();
     await page.setBypassServiceWorker(true);
-    await page.setViewport({ width: 1920, height: 1080 });
+    await page.setViewport({ width, height });
+    await page.evaluateOnNewDocument(size => localStorage.setItem('sp.pref.settings', JSON.stringify({ textSize: size })), textSize);
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error' && !(noart && /Failed to load resource/.test(m.text()))) problems.push(`console: ${m.text()}`); });
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
@@ -147,4 +148,44 @@ describe('leader plates and endings (headless Chrome)', { skip: !ENABLED && 'set
     assert.deepEqual(problems, []);
     await context.close();
   });
+
+  for (const [width, height, textSize] of [[640, 360, 'sm'], [640, 360, 'xl'], [844, 390, 'sm'], [1280, 720, 'sm']]) {
+    for (const reduce of [false, true]) {
+      test(`首领弹窗几何 ${width}px / ${textSize} / ${reduce ? 'reduce' : 'motion'}`, async () => {
+        const { page, problems, context } = await open({ width, height, textSize, reduce });
+        try {
+          await page.evaluate(() => document.fonts.ready);
+          await setPhase(page, 'FINAL_ASSAULT');
+          await page.waitForSelector('.bpl--final');
+          await sleep(reduce ? 100 : 1800);
+          const layout = await page.$eval('.bpl--final', root => {
+            const centre = e => { const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; };
+            const panel = root.querySelector('.bpl__panel').getBoundingClientRect();
+            const lines = [...root.querySelectorAll('.fa__line')];
+            return { node: centre(root.querySelector('.fa__node')), rings: [...root.querySelectorAll('.fa__ring')].map(centre), words: centre(root.querySelector('.fa__words')),
+              rows: [...root.querySelectorAll('.fa__row')].map((row, i) => {
+                const line = lines[i], point = line.getPointAtLength(0).matrixTransform(line.getScreenCTM());
+                return { avatarY: centre(row.querySelector('.fa__ava')).y, lineY: point.y };
+              }), fits: panel.x >= 0 && panel.right <= innerWidth + 1 && panel.top >= 0 && panel.bottom <= innerHeight + 1 };
+          });
+          assert.equal(layout.fits, true);
+          for (const ring of layout.rings) {
+            assert.ok(Math.abs(ring.x - layout.node.x) < 1 && Math.abs(ring.y - layout.node.y) < 1, 'rings remain concentric with the LP node');
+          }
+          assert.ok(Math.abs(layout.words.x - layout.node.x) < 1, 'words align with the LP node');
+          for (const row of layout.rows) assert.ok(Math.abs(row.avatarY - row.lineY) < 1, 'survivor portraits meet their connecting lines');
+          mkdirSync('.cache/ui-audit', { recursive: true });
+          await (await page.$('.bpl__panel')).screenshot({ path: `.cache/ui-audit/boss-final-${width}-${textSize}-${reduce}.png` });
+          await setPhase(page, 'HIDDEN_CORE');
+          await page.waitForSelector('.bpl--core');
+          await sleep(reduce ? 100 : 700);
+          const warnings = await page.$$eval('.core__warn', es => es.map(e => ({ clip: getComputedStyle(e).clipPath, background: getComputedStyle(e).backgroundColor, loaded: e.naturalWidth > 0 })));
+          assert.equal(warnings.length, 3);
+          for (const warning of warnings) assert.deepEqual(warning, { clip: 'none', background: 'rgba(0, 0, 0, 0)', loaded: true }, 'the official warning sprite is not clipped or painted over');
+          await (await page.$('.bpl__panel')).screenshot({ path: `.cache/ui-audit/boss-core-${width}-${textSize}-${reduce}.png` });
+          assert.deepEqual(problems, []);
+        } finally { await context.close(); }
+      });
+    }
+  }
 });

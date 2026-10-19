@@ -15,6 +15,7 @@
 
 import { useMemo, useState } from '../../vendor/hooks.module.js';
 import { html, Icon, Modal, roman } from '../ui/components.js';
+import { useLeave } from '../ui/transitions.js';
 import { Img, RichText, GIcon } from '../ui/gameComponents.js';
 import { bondIconUrl, bandIconUrl, enemyIconUrl, factionIconUrl, chessAvatarUrl } from '../ui/assetUrls.js';
 import { attackInterval, fmtNum } from '../ui/gameLogic.js';
@@ -393,6 +394,7 @@ function handbookPage() {
  * The report overlay. @param {{ onClose: () => void }} props
  */
 export function SweepReport({ onClose }) {
+  const [leaving, leave] = useLeave(onClose);
   const ready = useData('bonds', 'bands', 'bosses', 'factions', 'enemies', 'chess', 'assets');
   useData('local');
   const m = data.get('assets');
@@ -429,11 +431,11 @@ export function SweepReport({ onClose }) {
 
   // the codex is the report's sibling, not its child: the report's body lifts its children over the backdrop
   // (position: relative), which would pull a nested Modal out of its fixed layer
-  return html`<${Modal} open=${true} onClose=${onClose} class="sw" closeOnBackdrop=${false}>
+  return html`<${Modal} open=${true} onClose=${leave} class=${cx('sw', leaving && 'is-leaving')} veilClass=${cx('sw-veil', leaving && 'is-leaving')} closeOnBackdrop=${false}>
     <div class="sw__bg" aria-hidden="true"><i class="sw__mist"></i><i class="sw__lines"></i></div>
     <header class="sw-top">
       <div class="sw-top__left">
-        <button type="button" class="sw-back" onClick=${onClose} aria-label=${t('返回')} title=${t('返回 (Esc)')}>
+        <button type="button" class="sw-back" onClick=${leave} aria-label=${t('返回')} title=${t('返回 (Esc)')}>
           <${Icon} name="chevronLeft" /><span class="sw-back__mark">S.W.E.E.P.</span>
         </button>
         <button type="button" class="sw-info" onClick=${() => openGuide(handbookPage())} aria-label=${t('进阶图鉴')} title=${t('进阶图鉴：敌人类型、盟约、策略与轮选')}><${Icon} name="info" /></button>

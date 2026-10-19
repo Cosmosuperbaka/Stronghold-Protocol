@@ -721,8 +721,11 @@ describe('keyboard & settings', () => {
   });
   test('sanitizeSettings', () => {
     assert.deepEqual(sanitizeSettings(null), { ...DEFAULT_SETTINGS });
+    assert.equal(sanitizeSettings({ fpsLimit: 30 }).showFps, true, 'older profiles receive the enabled FPS default');
+    assert.equal(sanitizeSettings({ showFps: false }).showFps, false, 'an explicit opt-out is preserved');
+    assert.equal(sanitizeSettings({ showFps: 'false' }).showFps, true, 'invalid saved values use the default');
     assert.deepEqual(sanitizeSettings({ bgm: 3, sfx: -1, voice: 2, muted: 'yes', damageNumbers: false, quality: 'ultra' }),
-      { bgm: 1, sfx: 0, voice: 1, voiceLang: 'cn', voiceNative: false, voiceOverrides: {}, muted: false, damageNumbers: false, officialDamageNumbers: false, ammoEnergyCount: false, combatMetrics: true, chatBubbles: true, deploymentZoom: false, quality: 'high', officialFx: 'auto', otherSkins: true, textSize: 'sm', fpsLimit: 0, preload: false, preloadOptional: false, preloadVoiceLang: ['cn', 'jp'], keys: { ...DEFAULT_SETTINGS.keys } },
+      { bgm: 1, sfx: 0, voice: 1, voiceLang: 'cn', voiceNative: false, voiceOverrides: {}, muted: false, damageNumbers: false, officialDamageNumbers: false, ammoEnergyCount: false, combatMetrics: true, chatBubbles: true, deploymentZoom: false, quality: 'high', officialFx: 'auto', otherSkins: true, textSize: 'sm', fpsLimit: 0, showFps: true, preload: false, preloadOptional: false, preloadVoiceLang: ['cn', 'jp'], keys: { ...DEFAULT_SETTINGS.keys } },
 
       'a saved profile without `keys` (before 0.2.0) gets the default key map (test/ui/feedback5-hotkeys.test.js)');
     // 显示其他玩家的皮肤 (docs/SKINS.md): on by default, and off only when the profile says so

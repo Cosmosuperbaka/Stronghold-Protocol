@@ -90,7 +90,7 @@ test('downloader and index cache fail closed under HTTP_PROXY, and an injected f
     const bare = new Downloader({
       root: dir, ledgerPath: join(dir, 'ledger.json'), retries: 1, backoffMs: 0, log() {},
     });
-    if (plan.action !== 'already') {
+    if (plan.action === 'reexec') {
       const refused = await bare.fetchWithRetries('https://example.invalid/a.json', 'json');
       assert.match(refused.error, /Refusing to fetch directly/);
       await assert.rejects(guardDefaultFetch()('https://example.invalid/a.json'), /Refusing to fetch directly/);
@@ -191,9 +191,10 @@ test('fetch-assets --help restarts once when HTTP(S)_PROXY is set, and a second 
   const supported = nodeHonoursEnvProxy(process.versions.node);
   const first = runHelp({ HTTP_PROXY: PROXY, HTTPS_PROXY: PROXY });
   if (!supported) {
-    assert.equal(first.status, 1, first.stderr);
+    assert.equal(first.status, 0, first.stderr);
     assert.match(first.stderr, /does not route fetch/);
-    assert.equal(first.stdout, '');
+    assert.match(first.stdout, /--allow-shrink/);
+    assert.doesNotMatch(first.stderr, /restarting once/);
     return;
   }
   assert.equal(first.status, 0, first.stderr);

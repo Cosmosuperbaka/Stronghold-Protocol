@@ -34,6 +34,17 @@ Custom alliance keys (§29.15): the co-op lobby's create section has an optional
 otherwise require four ASCII letters or digits, uppercase the input, and preserve invalid characters / excess length
 so an unintended key is never silently created. Show the format hint, disable creation for invalid input, and report
 occupied keys through the existing localized error toast. The solo create flow omits this field and the custom code.
+The key field and create card enter together as one animated section, using the existing alliance entrance timing
+and reduced-motion preference.
+The alliance selector and hub dialogs reuse the shared modal focus lifecycle: initial focus, Tab containment,
+nested-dialog priority and opener restoration. IME composition does not trigger Escape or alliance-key submission.
+The S.W.E.E.P. report stays mounted during its 300 ms exit (immediate with reduced motion), then restores focus.
+
+Stage plate layout (local fix, 2026-10-19): `match-popups.css` owns round / joint-defense plate sizing. The pair of
+joint-defense faces uses the entire art frame, with equal face sizes and a centred combined bounding box.
+Legacy drawn boss plates in `game.css` scope their `fa__*` / `core__*` rules to `.bplate`; official sprite plates
+(`.bpl`, `boss-plates.css`) keep their LP node, rings, connecting lines and title aligned, and warning sprites uncut.
+Both motion modes and the joint-defense missing-art fallback preserve this layout.
 
 Local optional cosmetic extension (owner request, 2026-10-10): roster and DIY operator details select outfits
 by charId, persisted separately from gameplay loadouts. A roster toolbar action randomizes all supported operators'
@@ -789,7 +800,15 @@ enters b.progress / b.result, and a tracked battle's result and rendered events 
 
 帧率上限（本库回归核对，2026-10-16）：不限 / 30 / 60 / 120 通过玩家设置即时应用于 Pixi ticker，
 影响同一 ticker 驱动的单位、特效与棋盘绘制；持久化并在重载后重新应用，不改变战斗 runner 的独立时钟。
+设置「显示帧率」(`showFps`) 位于帧率上限之后，默认开启；旧配置自动开启，显式关闭与刷新恢复保留。
+对局左上角延迟旁展示实际渲染器 `stats().fps`，每秒更新一次，窄屏在延迟下方排列；关闭后停止采样。
+渲染器加载中、简化棋盘及后台页面显示 `-- FPS`，不使用独立 RAF 频率冒充棋盘帧率。
 浏览器回归同时检查选中状态、实际 ticker 上限与回调频率，实际 FPS 可因设备性能低于上限。
+选中项沿用设置按钮的高亮样式；手机端帧率按钮独占一行，触控目标至少 44×44px，互不覆盖。
+触摸设备（包括带触屏的桌面）上，设置中的选项按钮至少高 44px，隐形点击范围限制在按钮自身，
+语音语言等分行选项不能覆盖相邻行。
+窄屏语音选项排成两列，保留特大字号可读性；屏幕边距调节行沿用标签、减号、滑杆、加号、数值的五列，
+不受普通设置行的响应式列数覆盖。大厅背景卡片按可用宽度与字号自动换行，主题名称允许换行，不能溢出卡片。
 
 每回合统计补充（2026-10-16）：干员排行可在单回合与累计至指定回合之间切换；作战进行时，现有 `b.progress` 以有界字段广播各战场的当前干员伤害，面板以「进行中」回合显示实时数据（只读，不参与结算）。结算页的按钮复用同一面板，使用 `m.result.roundHistory`；首页「统计 → 对局记录」保存并恢复该字段，因此包含第 15 回合的完整结算数据。
 

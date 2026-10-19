@@ -8,7 +8,7 @@
 
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const ENABLED = process.env.SP_E2E === '1' && existsSync(CHROME);
@@ -28,13 +28,19 @@ describe('round / phase plates (headless Chrome)', { skip: !ENABLED && 'set SP_E
   });
 
   after(async () => {
-    await browser?.close();
-    await srv?.close();
+    const timer = setTimeout(() => browser?.process()?.kill(), 5000);
+    try { await browser?.close(); } finally { clearTimeout(timer); await srv?.close(); }
   });
 
-  async function open(variant = '') {
+  async function open(variant = '', { width = 1920, height = 1080, textSize = 'sm', motion = 'no-preference', missingArt = false } = {}) {
     const page = await browser.newPage();
-    await page.setViewport({ width: 1920, height: 1080 });
+    await page.setViewport({ width, height });
+    await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: motion }]);
+    await page.evaluateOnNewDocument(size => localStorage.setItem('sp.pref.settings', JSON.stringify({ textSize: size })), textSize);
+    if (missingArt) {
+      await page.setRequestInterception(true);
+      page.on('request', request => /trans_coop[34]/.test(request.url()) ? request.abort() : request.continue());
+    }
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
@@ -109,4 +115,37 @@ describe('round / phase plates (headless Chrome)', { skip: !ENABLED && 'set SP_E
     assert.deepEqual(problems, []);
     await page.close();
   });
+
+  for (const [width, height, textSize, missingArt = false] of [[640, 360, 'sm'], [640, 360, 'xl'], [844, 390, 'sm'], [1280, 720, 'sm'], [1920, 1080, 'sm'], [1280, 720, 'sm', true]]) {
+    for (const motion of ['no-preference', 'reduce']) {
+      test(`联防图标居中 ${width}px / ${textSize} / ${motion}${missingArt ? ' / missing art' : ''}`, async () => {
+        const { page } = await open('', { width, height, textSize, motion, missingArt });
+        try {
+          await page.evaluate(() => document.fonts.ready);
+          await page.evaluate(() => globalThis.__MOCK__.setPhase('UNITE'));
+          await page.waitForSelector('.mpop__bot--faces');
+          await sleep(650); // both entrance animations have finished
+          const layout = await page.$eval('.mpop__panel', panel => {
+            const rect = e => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, width: r.width, height: r.height }; };
+            const art = panel.querySelector('.mpop__art');
+            return { panel: rect(panel), art: rect(art), group: rect(art.querySelector('.mpop__bot')),
+              faces: [...art.querySelectorAll('.mpop__face')].map(rect),
+              fallback: art.querySelectorAll('.mpop__face--css').length };
+          });
+          assert.equal(layout.faces.length, 2);
+          assert.ok(Math.abs(layout.group.width - layout.art.width) < 1, 'the pair uses the entire decoration frame');
+          assert.ok(Math.abs((layout.faces[0].x + layout.faces[1].right) / 2 - (layout.art.x + layout.art.width / 2)) < 1, 'pair is horizontally centred');
+          assert.ok(Math.abs(layout.faces[0].width - layout.faces[1].width) < 1, 'faces retain equal widths');
+          for (const face of layout.faces) {
+            assert.ok(face.x >= layout.art.x && face.right <= layout.art.right, 'face stays within the frame');
+            assert.ok(face.y >= layout.art.y && face.bottom <= layout.art.bottom, 'face stays within the frame vertically');
+          }
+          assert.ok(layout.panel.x >= 0 && layout.panel.right <= width + 1, 'plate fits the viewport');
+          assert.equal(layout.fallback, missingArt ? 2 : 0, 'exercise both actual sprites and CSS fallbacks');
+          mkdirSync('.cache/ui-audit', { recursive: true });
+          await (await page.$('.mpop__panel')).screenshot({ path: `.cache/ui-audit/unite-${width}-${textSize}-${motion}${missingArt ? '-fallback' : ''}.png` });
+        } finally { await page.close(); }
+      });
+    }
+  }
 });

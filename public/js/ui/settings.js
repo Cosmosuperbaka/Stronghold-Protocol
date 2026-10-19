@@ -517,7 +517,7 @@ export function SettingsModal({ open, onClose }) {
 
       <div class="set-row">
         <span class="set-row__label">${t('画面质量')}<${MicroLabel}>QUALITY<//></span>
-        <div class="set-seg" role="radiogroup">
+        <div class="set-seg" role="radiogroup" aria-label=${t('画面质量')} data-testid="quality">
           ${QUALITY.map(([id, label]) => html`<button key=${id} type="button" role="radio" aria-checked=${s.quality === id ? 'true' : 'false'}
             class=${s.quality === id ? 'is-on' : ''} onClick=${() => updateSettings({ quality: id })}>${t(label)}</button>`)}
         </div>
@@ -538,12 +538,15 @@ export function SettingsModal({ open, onClose }) {
         </div>
       </div>
       <p class="set-hint set-textsize-note">${t('调整界面文字大小，棋盘保持原比例。')}</p>
-      <div class="set-row">
+      <div class="set-row set-row--fps">
         <span class="set-row__label">${t('帧率上限')}<${MicroLabel}>FPS LIMIT<//></span>
-        <div class="set-seg" role="radiogroup" aria-label=${t('帧率上限')} data-testid="fps-limit">
-          ${FRAME_RATES.map((fps) => html`<button type="button" role="radio" aria-checked=${s.fpsLimit === fps ? 'true' : 'false'} onClick=${() => updateSettings({ fpsLimit: fps })}>${fps || t('不限')}</button>`)}
+        <div class="set-seg set-seg--fps" role="radiogroup" aria-label=${t('帧率上限')} data-testid="fps-limit">
+          ${FRAME_RATES.map((fps) => html`<button key=${fps} type="button" role="radio" aria-checked=${s.fpsLimit === fps ? 'true' : 'false'}
+            class=${s.fpsLimit === fps ? 'is-on' : ''} onClick=${() => updateSettings({ fpsLimit: fps })}>${fps || t('不限')}</button>`)}
         </div>
       </div>
+      <${Toggle} label=${t('显示帧率')} micro="SHOW FPS" value=${s.showFps} onChange=${(v) => updateSettings({ showFps: v })} />
+      <p class="set-hint">${t('在对局延迟旁显示实际渲染帧率。')}</p>
       <${ScreenFitSection} />
       <div class="set-row">
         <span class="set-row__label">${t('快捷键')}<${MicroLabel}>HOTKEYS<//></span>

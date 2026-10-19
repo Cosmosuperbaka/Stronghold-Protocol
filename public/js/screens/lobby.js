@@ -27,7 +27,7 @@ import { ResumeMatchButton } from '../ui/resumeMatch.js';
 import { useEffect, useLayoutEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS, ROOM_CODE_LEN, MAX_SEATS, MAX_SPECTATORS, modeIdFor, ERR, ERR_TEXT } from '../../../shared/constants.js';
 import { RANDOM_MODE } from '../../../shared/randomMode.js';
-import { html, confirmDialog, Button, Icon, MicroLabel, Panel, TextField, PingPill, AvatarFrame, Tooltip, Spinner, DifficultyIcon, doctorNo } from '../ui/components.js';
+import { html, confirmDialog, useDialogFocus, Button, Icon, MicroLabel, Panel, TextField, PingPill, AvatarFrame, Tooltip, Spinner, DifficultyIcon, doctorNo } from '../ui/components.js';
 
 import { toast, toastError } from '../ui/toasts.js';
 import { GuideButton, openGuide } from '../ui/guide.js';
@@ -430,17 +430,17 @@ function HubTile({ icon, label, en, onClick, children }) {
 
 /** Shared frame of the hub's two dialogs (the start sheet, 密钥加入). */
 function HubDialog({ open, micro, title, onClose, wide = false, children }) {
+  const boxRef = useRef(null);
+  useDialogFocus(open, boxRef, onClose);
   useEffect(() => {
     if (!open) return undefined;
-    const onKey = (e) => { if (e.key === 'Escape') onClose?.(); };
-    addEventListener('keydown', onKey);
     // the lobby chat (z 180, ui/communityChat.js) sits above modals: it steps aside while a hub dialog is open
     document.body.classList.add('hub-dialog-open');
-    return () => { removeEventListener('keydown', onKey); document.body.classList.remove('hub-dialog-open'); };
+    return () => { document.body.classList.remove('hub-dialog-open'); };
   }, [open]);
   if (!open) return null;
   return html`<div class="modal hub-dialog" role="presentation" onMouseDown=${(e) => { if (e.target === e.currentTarget) onClose?.(); }}>
-    <div class=${`modal__box hub-dialog__box brackets${wide ? ' hub-dialog__box--wide' : ''}`} role="dialog" aria-modal="true">
+    <div ref=${boxRef} class=${`modal__box hub-dialog__box brackets${wide ? ' hub-dialog__box--wide' : ''}`} role="dialog" aria-modal="true" aria-label=${title} tabindex="-1">
       <div class="modal__stripe" aria-hidden="true"></div>
       <header class="hub-dialog__head">
         <${MicroLabel} tone="mint">${micro}<//>
@@ -613,14 +613,14 @@ function ProtocolSelect({ card, roomMode, random, variant, difficulty, onDifficu
  */
 function AllianceSelect({ customCode, onCustomCode, customCodeOk, onClose, code, onCode, codeOk, recent, online, maint, busy, onCreate, onJoin, onSpectate, onBrowse, onSearch, recruiting = 0, difficulty }) {
   const [leaving, leave] = useLeave(onClose);
+  const pageRef = useRef(null);
+  useDialogFocus(true, pageRef, leave);
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('.modal, .guide')) leave(); };
-    addEventListener('keydown', onKey);
     document.body.classList.add('hub-dialog-open');
-    return () => { removeEventListener('keydown', onKey); document.body.classList.remove('hub-dialog-open'); };
+    return () => { document.body.classList.remove('hub-dialog-open'); };
   }, []);
   const joining = busy === 'create' ? t('正在建立同盟') : busy === 'join' ? t('正在加入同盟') : busy === 'spectate' ? t('正在进入观战') : null;
-  return html`<div class=${`proto ally${leaving ? ' is-leaving' : ''}`} role="dialog" aria-label=${t('选择同盟方式')}>
+  return html`<div ref=${pageRef} class=${`proto ally${leaving ? ' is-leaving' : ''}`} role="dialog" aria-modal="true" aria-label=${t('选择同盟方式')} tabindex="-1">
     <div class="proto__bg ally__bg" aria-hidden="true"></div>
     <header class="proto-top">
       <button type="button" class="proto-back" onClick=${leave} title=${t('返回大厅 (Esc)')} aria-label=${t('返回大厅')}>
@@ -653,7 +653,7 @@ function AllianceSelect({ customCode, onCustomCode, customCodeOk, onClose, code,
           <span class="ally-card__art"><${JoinArt} /></span>
           <label class="ally-key"><${Icon} name="search" />
             <input type="text" value=${code} placeholder=${t('输入同盟密钥')} maxlength="64" autocomplete="off" spellcheck="false"
-              onInput=${(e) => onCode(e.currentTarget.value)} onKeyDown=${(e) => { if (e.key === 'Enter') onJoin(); }} />
+              onInput=${(e) => onCode(e.currentTarget.value)} onKeyDown=${(e) => { if (e.key === 'Enter' && !e.isComposing) onJoin(); }} />
             ${codeOk ? html`<button type="button" class="ally-key__spec" disabled=${!online || busy === 'spectate'} onClick=${onSpectate}
               title=${t('以观战者身份进入：不占博士席位，只能观看（每个同盟最多 {MAX_SPECTATORS} 名，模拟进行中也可进入）', { MAX_SPECTATORS })}><${Icon} name="eye" />${t('观战')}</button>` : null}
           </label>
