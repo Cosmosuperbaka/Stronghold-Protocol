@@ -139,6 +139,8 @@
   width: 3.13rem;
 }
 .ewheel__dialog .ewheel__panel { position: relative; left: auto; bottom: auto; margin: 0 auto; }
+.ewheel__dialog[data-hud-docked] { position: fixed; bottom: auto; overflow: auto; overscroll-behavior: contain; touch-action: pan-y; }
+.ewheel__dialog[data-hud-docked] .ewheel__panel { scale: 1; }
 .ewheel__dialog.has-chat {
   --ewheel-cell-size: 44px;
   display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: stretch;

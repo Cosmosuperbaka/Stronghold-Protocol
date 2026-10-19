@@ -1,5 +1,22 @@
 # 参考站点 UI 源码对照（2026-10-17）
 
+## 手机适配以参考站为基础（2026-10-19）
+
+维护者要求：通用 UI 尽量继承参考站源码；本库独有功能才额外适配，普通电脑布局保持原样。
+本次只移植已经在首页构建 CSS 中交叉核对的规则，不把公开仓库与线上部署当作同一版本。
+
+| 来源 | SHA-256（公开响应文本，UTF-8） | 本库落点 |
+| --- | --- | --- |
+| `https://weishuxieyi.xiaolubao.com/css/utility-mobile.css` | `3b8c4c3731effe81719c5cad3d8ef7746f9f26a035ec48d0dae154a732fbb762` | `public/css/reference-mobile.css` 的顶部 HUD 紧凑、房间可视高度、顶底栏、滚动及热区规则 |
+| `https://weishuxieyi.xiaolubao.com/css/screens/room.css` | `b0ff6091bbfb5f531765d5dc866281740420ffc9401f1afd15fdad2e1aba501a` | 小屏卡片的 1:2 比例、contain、非收缩姓名板 |
+
+- 首页仍使用 `index-D9C2T8_u.js`、`index-C36VqNSA.css`；构建中存在上述卡片规则和顶部紧凑规则。
+- 参考站实际房间采用 `.seats/.topbar/.room-bar`，本库为 `.rs-seats/.rs-top/.rs-foot`；适配文件明确映射，保留本库账号名片、皮肤、AI 控制、聊天和协议，不整体替换组件。
+- 只在宽度 ≤1000px 或高度 ≤600px 启用，超窄 ≤560px 两列；普通桌面不改变。`theme.css` 全局 rem 和战场镜头均不调整。
+- 公开 GitHub 提交 `e01036ae62acf1be17a118e6a6ef116cbb747b13` 已有 `managementScale.js` / `--ui-unit` 迁移；线上仍没有，故本次不混入这套尚未部署的实现。
+- 标点为本库扩展：保留默认展开与折叠记忆，可见尺寸在小屏按 rem 缩到最低 30px，独立热区 44px；拖动、坐标记忆及重置复用聊天 hook，不引入新协议。
+- 原文件和房间测量截图存于忽略目录 `.cache/upstream-mobile-audit/`；本次新增验证为 `test/ui/reference-mobile.e2e.test.js`。
+
 参考：https://weishuxieyi.xiaolubao.com/ 。本次通过公开 HTTP 获取原始 JS / CSS，并与首页实际加载的
 `index-B7-t61a7.js`、`index-CCQriwzN.css` 交叉核对交流组件结构和关键样式。未读取私有后端或加入线上房间。
 原始文件、URL、SHA-256 与对照说明保存在维护者本机 `E:\暂存文件夹\github_data\stronghold-ui-source-20261017`。

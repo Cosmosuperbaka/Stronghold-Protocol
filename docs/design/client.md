@@ -49,6 +49,12 @@ Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 同一面板内切换「每回合曲线 / 干员伤害排行」。排行复用控制台实现，按回合与玩家筛选、
 默认前 10 并可展开全部，显示干员/玩家、伤害、伤害条、击杀和占本人伤害比例；切换分页保留选择。
 曲线与排行在实时刷新时保留筛选控件节点及焦点，指标选项变化在失焦后同步，选择栏不因刷新收起。
+2026-10-19 手机适配：宽度 ≤1000px 或高度 ≤600px 的主触屏采用紧凑 rem 间距、32px 关闭按钮和
+30px 操作按钮，原生选择框保留 16px 字体；标题、标签和关闭入口不随正文滚走。曲线按正文实际宽度
+重画而非整体缩放 SVG，坐标文字至少 12px，横轴刻度随可用宽度减少并保留首末回合；所有数据点仍保留。
+小屏使用完整玩家图例与点按数值提示，省去重复末端姓名，触屏松手后提示仍可阅读。排行/表格保留
+数值，正文纵向滚动、列过多时内部横向滚动。旋转与文字大小变化重排，筛选与焦点继续保留。
+普通桌面及控制台保持原 720×260 SVG 和字号/布局规则；不修改全局 rem、战场和服务器记录。
 主机设置 `roundCharts` 默认开启，保存后全房间立即生效并持久化；关闭时隐藏入口、关闭已打开面板，
 不停止历史记录。两处图表的盟约选项均排除数据标记 `noStack` 的盟约（含旧记录）；控制台的这类
 盟约保留人数/档位信息，省略层数及加层/设层输入。
@@ -718,9 +724,35 @@ with two expanding ground rings and a pointer stem. Short screens use a shorter 
 and a static ground ring. Six distinct synthesized cues use the existing AudioManager SFX/mute buses, require an
 unlocked visible page, and suppress bursts within 180 ms. Only newly received pings on the currently shown field sound;
 switching fields never replays old cues. No audio assets or downloads are required.
-The 44 px controls sit above the bottom-left communication/settings corner, away from the shop's refresh/freeze buttons.
-Hidden while the emote wheel is open, in the enemy pen, during dragging/facing, and for spectator seats (they still
-see/hear markers). Text uses all language packs. Changes of phase/round/room clear recent markers.
+The palette starts expanded on both desktop and mobile. Its explicit collapse/expand choice is kept in this browser
+(`sp.pref.pingsCollapsed`, default false); sending never changes it. Collapsing cancels pending placement and removes
+the palette's hit area. Temporary hiding during other HUD tasks never writes the preference. Hidden while the
+communication, detail, bond, information, settings or statistics panels are open, during choices, in the enemy pen,
+during dragging/facing, and for spectator seats (they still see/hear markers).
+Desktop keeps the bottom-left dock and six-button row with an added collapse control. Constrained HUDs intersect
+the actual safe/inset HUD with the visual viewport, measure existing controls, and prefer an unobstructed slot outside
+the board, bench and temporary row. A limited slot narrows the horizontally scrollable palette rather than its 44 px
+controls; compact visual buttons use `max(.44rem, 30px)` while separated 44px pointer areas preserve touch input.
+The desktop 44px visuals stay unchanged. A localized swipe hint exposes the remaining choices. It reserves no full-width camera band. Temporary
+communication panels dock above the complete wrapped corner; narrow detail cards also clear its measured top.
+Below 768px on primary-touch screens, local utility extensions share a horizontal 44px scroll row instead of
+overlapping invisible hit areas in three wrapped rows. The corner width also respects the shop's actual left edge
+after screen-fit; when too tight for its art, communication uses a compact text entry. Desktop uses display:contents
+for the utility group and preserves its original flex geometry.
+Statistics and floating chat use the same visible bounds, including screen-fit and browser/keyboard viewport changes.
+Only panel bodies scroll; their close controls remain available. Text uses all language packs. Changes of
+phase/round/room clear recent markers. This owner-requested presentation behavior is [ASSUMED]; gameplay is unchanged.
+The collapse arrow also uses the existing chat pointer-drag lifecycle: drag moves the whole palette without toggling
+or sending, normalized browser-local `sp.pref.pingPosition` restores its position across mounts/refreshes.
+Orientation/safe-area changes clamp the saved position to the visible HUD. Arrow keys move it; reset returns to the
+automatic dock. Manual folding and position remain independent. Pointer cancellation restores the previous position.
+
+Compact room presentation (owner request, 2026-10-19) reuses the reference site's `utility-mobile.css` and
+`screens/room.css` in `reference-mobile.css`: retained 1:2 artwork with contain, a scrollable card grid and wrapping
+chrome, mapped from the site's `.seats/.topbar/.room-bar` to this fork's `.rs-seats/.rs-top/.rs-foot`.
+Only width <=1000px or height <=600px activates these rules; ordinary desktop presentation stays unchanged.
+Do not import repository-only management-unit changes as if they were deployed-site code. Source details and hashes:
+[reference review](../REFERENCE-UI-REVIEW.md#手机适配以参考站为基础2026-10-19).
 
 ### Optional stored-energy count (§32.14.28)
 

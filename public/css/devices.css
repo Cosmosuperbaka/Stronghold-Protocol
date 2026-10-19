@@ -124,16 +124,30 @@ html:not(.sp-in-match) .toast-host { margin-top: var(--sa-t); }
    desktop bottom (1.02rem) it hid ⚙ / 📖 / ⛶. (gameLogic panelSlots keeps the taller desktop slot: conservative.) */
 @media (max-width: 767px) {
   .gm__corner { flex-wrap: wrap-reverse; align-content: flex-start; width: max(72px, calc(3 * .56rem + .2rem)); }
-  .dpanel:not(.dpanel--right) { bottom: calc(.44rem + max(1.51rem, 72px) * 55 / 151 + .56rem); }
+  .dpanel:not(.dpanel--right) { bottom: max(var(--hud-corner-clearance, 0px), calc(.44rem + max(1.51rem, 72px) * 55 / 151 + .56rem)); }
 }
 @media (max-width: 767px) and (pointer: coarse), (max-width: 767px) and (any-pointer: coarse) {
   .gm__corner { width: max(96px, calc(3 * max(.56rem, 34px) + .2rem)); }
-  .dpanel:not(.dpanel--right) { bottom: calc(.44rem + max(1.51rem, 96px) * 55 / 151 + max(.56rem, 34px)); }
+  .dpanel:not(.dpanel--right) { bottom: max(var(--hud-corner-clearance, 0px), calc(.44rem + max(1.51rem, 96px) * 55 / 151 + max(.56rem, 34px))); }
 }
 /* With the shop folded (收起) no bar covers the corner: one row again, so the folded shop's prep camera, which keeps the
    bench above the corner's hit areas (ui/fieldHost.js hudBands), grows the board on narrow phones too (public issue #5). */
 @media (max-width: 767px) {
   .gm.is-collapsed .gm__corner { flex-wrap: nowrap; width: auto; }
+}
+/* Local extensions no longer squeeze three rows of overlapping 44px hit areas into the shop's left margin.
+   Keep the existing communication entry and expose all utility buttons in one touch-scrollable row. */
+@media (max-width: 767px) and (pointer: coarse) {
+  .gm:not(.is-collapsed) .gm__corner { flex-direction: column-reverse; flex-wrap: nowrap; align-items: flex-start; width: var(--corner-available-width, 110px); }
+  .gm:not(.is-collapsed) .gm__corner-actions { display: flex; gap: 4px; width: 100%; padding: 0;
+    overflow-x: auto; overscroll-behavior-x: contain; touch-action: pan-x; scrollbar-width: thin;
+    scrollbar-color: var(--mint-700) var(--bg-1); scroll-snap-type: x proximity; }
+  .gm:not(.is-collapsed) .gm__corner-actions > * { flex: 0 0 44px; min-width: 44px; height: 44px; scroll-snap-align: start; }
+  .gm:not(.is-collapsed) .gm__corner-actions .gm__gear::before { inset: 0; width: 100%; height: 100%; transform: none; }
+  .gm__corner[data-tight] .ewheel { width: 100%; }
+  .gm__corner[data-tight] .ewheel__btn { width: 100%; min-width: 0; height: 44px; padding: 0;
+    background: rgba(8, 11, 10, .85); border: 1px solid var(--line-2); }
+  .gm__corner[data-tight] .ewheel__label { position: static; display: grid; place-items: center; width: 100%; height: 100%; font-size: 14px; }
 }
 
 /* Short landscape phones (≤ 460 CSS px tall, 1rem = 40 px): the lobby's two columns are compressed so the

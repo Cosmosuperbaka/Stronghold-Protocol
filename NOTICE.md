@@ -93,3 +93,8 @@ under GPL-3.0-or-later. Adaptation keeps the current room API, four-player rules
 [xinhai-ai/Stronghold-Protocol](https://github.com/xinhai-ai/Stronghold-Protocol) 与其站点当日公开源码，
 保留 GPL-3.0-or-later；具体本库适配见 `docs/REFERENCE-UI-REVIEW.md`。
 公告 Markdown 分词使用 [Marked](https://github.com/markedjs/marked) 17.0.4（MIT），浏览器文件保留其许可头。
+
+2026-10-19 手机适配继续参考该站公开的 `css/utility-mobile.css`（SHA-256 记录在
+`docs/REFERENCE-UI-REVIEW.md`）及 `css/screens/room.css`：
+`public/css/reference-mobile.css` 按本库 `.rs-*` 房间结构映射立绘比例、滚动、顶底栏和触摸范围规则，
+并沿用其顶部 HUD 紧凑规则。仅在小屏作用，不整体替换本库业务组件。保留上述 GPL-3.0-or-later 与来源致谢。

@@ -77,7 +77,7 @@
 // phase). Its pill reads 观战中, never "你已被淘汰"; its exit only leaves the seat (ui/matchChrome.js ExitModal).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
-import { PHASE, GEO, PING_KINDS, PING_TTL_MS } from '../../../shared/constants.js';
+import { PHASE, GEO, PING_TTL_MS } from '../../../shared/constants.js';
 import { ruleOption } from '../../../shared/plugins/rules.js';
 
 import { html, Spinner, PhaseBanner, ResultDialog, Icon, Button, confirmDialog, closeAllDialogs, useTicker } from '../ui/components.js';
@@ -107,7 +107,9 @@ import { ExitModal, AwayOverlay, awayStore } from '../ui/matchChrome.js';
 import { RoundPopup, PhasePopup, phasePopupOf, roundsToBoss, preloadPopupArt } from '../ui/matchPopups.js';
 import { openGuide } from '../ui/guide.js';
 import { actions, onRefreshBusy } from '../ui/gameActions.js';
-import { PING_LABELS, PingIcon, activePings, pingTileAt } from '../ui/fieldPings.js';
+import { PingIcon, activePings, pingTileAt } from '../ui/fieldPings.js';
+import { PingTools } from '../ui/pingTools.js';
+import { useHudMeasure } from '../ui/hudDock.js';
 import { FacingWheel, holdPiece, setPieceDir, syncPieceDirs, showRange, useTileScreen } from '../ui/facingWheel.js';
 import { Underframe, underframeRect, TempRowNotice } from '../ui/underframe.js';
 import { StandInTags } from './game/standInTags.js';
@@ -133,7 +135,7 @@ import { ResultScreen } from './settle.js';
 import { ProtocolBoot, preloadBootArt, bootArtReady, BOOT_LEAVE_MS } from '../ui/protocolBoot.js';
 
 import { net } from '../net.js';
-import { store, useStore, shallowEqual, serverNow, isSpectating } from '../store.js';
+import { store, useStore, shallowEqual, serverNow, isSpectating, loadPref, savePref } from '../store.js';
 import { openAnnouncement } from '../ui/announcement.js';
 import { battleRunner } from '../battle/runner.js';
 import '../ui/pluginFrame.js';
@@ -255,6 +257,20 @@ function MatchScreen() {
   const hostRef = useRef(null);
   const barRef = useRef(null);
   const hudElRef = useRef(null);                         // .gm__hud (inside the safe-area insets: the panels' frame)
+  useHudMeasure(hudElRef, () => {
+    const hud = hudElRef.current, corner = hud?.querySelector('.gm__corner');
+    if (!hud || !corner) return;
+    // Account for manual screen-fit as well as the window: at the rem floor the shop stops shrinking.
+    const compact = innerWidth < 768 && document.documentElement.classList.contains('sp-coarse');
+    const shop = hud.querySelector('.shopbar__row');
+    if (compact && shop) {
+      const available = Math.max(44, Math.min(110, shop.getBoundingClientRect().left - corner.getBoundingClientRect().left - 6));
+      corner.style.setProperty('--corner-available-width', `${available}px`);
+      corner.toggleAttribute('data-tight', available < 96);
+    } else { corner.style.removeProperty('--corner-available-width'); corner.removeAttribute('data-tight'); }
+    const rect = hud.getBoundingClientRect(), controls = corner.getBoundingClientRect();
+    hud.style.setProperty('--hud-corner-clearance', `${Math.max(0, rect.bottom - controls.top + 8)}px`);
+  }, []);
   const { view, kind: viewKind } = useFieldView(hostRef);
 
   const [watching, setWatching] = useState(null);        // fieldId the player chose to watch (null = home)
@@ -284,6 +300,9 @@ function MatchScreen() {
   const [emoteOpen, setEmoteOpen] = useState(false);
   const [pingKind, setPingKind] = useState('attention');
   const [pingArmed, setPingArmed] = useState(false);
+  // [ASSUMED] Owner's issue #10: manual preference survives refresh; temporary HUD suppression never writes it.
+  const [pingsCollapsed, setPingsCollapsed] = useState(() => loadPref('pingsCollapsed', false) === true);
+  const collapsePings = value => { setPingsCollapsed(value); savePref('pingsCollapsed', value); setPingArmed(false); };
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exitOpen, setExitOpen] = useState(false);
   const [drag, setDrag] = useState(null);                // { uid, kind, id } while dragging a piece
@@ -1661,7 +1680,10 @@ function MatchScreen() {
   const pingFieldId = combat ? (field?.fieldId || watchingNow) : (watching || ownFieldId(myId));
   useEffect(() => { setPingArmed(false); }, [pingFieldId, phase, pen, spectator]);
   const pingAvailable = !!pingFieldId && !spectator && !pen && !drag && !facing
-    && (combat || phase === PHASE.ROUND_START || phase === PHASE.SP_DRAFT || phase === PHASE.PREP);
+    && !sp && !hasPersonalChoice && !offerBlocksPrep(pub?.offers)
+    && (combat || phase === PHASE.ROUND_START || phase === PHASE.PREP);
+  const pingToolsVisible = pingAvailable && !emoteOpen && !metricsOpen && !historyOpen && !settingsOpen && !exitOpen && !detail && !drawer && !bondOpen;
+  useEffect(() => { if (!pingToolsVisible) setPingArmed(false); }, [pingToolsVisible]);
   const placePing = (e) => {
     e.preventDefault();
     if (e.button !== 0 && e.button !== 2) return;
@@ -1697,12 +1719,12 @@ function MatchScreen() {
   const dSide = (() => {
     if (ufShown) {
       const { rem, vp } = panelFrame();
-      return panelSide(underframeRect(ufGeo, rem), panelSlots(vp, rem, { shopOpen }));
+      return panelSide(underframeRect(ufGeo, rem), panelSlots(vp, rem, { shopOpen, cornerTop: hudElRef.current?.querySelector('.gm__corner')?.getBoundingClientRect().top }));
     }
     if (mergeGeo && resolved) {
       const { rem, vp } = panelFrame();
       const half = (mergeGeo.s > 0 ? mergeGeo.s : 64) * 1.05; // the tile diamond's box (underframeRect's)
-      return panelSide({ left: mergeGeo.x - half, right: mergeGeo.x + half, top: mergeGeo.y - half, bottom: mergeGeo.y + half }, panelSlots(vp, rem, { shopOpen }));
+      return panelSide({ left: mergeGeo.x - half, right: mergeGeo.x + half, top: mergeGeo.y - half, bottom: mergeGeo.y + half }, panelSlots(vp, rem, { shopOpen, cornerTop: hudElRef.current?.querySelector('.gm__corner')?.getBoundingClientRect().top }));
     }
     return 'left';
   })();
@@ -1755,7 +1777,7 @@ function MatchScreen() {
       data-camera=${pen ? 'pen' : camKind}>
     <div class="gm__field" ref=${hostRef} onContextMenu=${(e) => e.preventDefault()}></div>
     <${PingLayer} pings=${pings} fieldId=${pingFieldId} view=${view} />
-    ${pingAvailable && pingArmed ? html`<div class="gm__ping-target" onPointerDown=${placePing} onContextMenu=${(e) => e.preventDefault()}></div>` : null}
+    ${pingToolsVisible && pingArmed ? html`<div class="gm__ping-target" onPointerDown=${placePing} onContextMenu=${(e) => e.preventDefault()}></div>` : null}
     ${viewKind === 'loading' ? html`<div class="gm__loading"><${Spinner} label="LOADING FIELD" /></div>` : null}
     <div class="gm__vignette" aria-hidden="true"></div>
     ${tempNotice ? html`<${TempRowNotice} view=${view} count=${temp.count} items=${temp.items} label=${!drag && !facing}
@@ -1827,15 +1849,13 @@ function MatchScreen() {
       <div class="ui-slot gm__ui-slot" data-ui-slot="hud.right" aria-label=${t('界面插件')} dangerouslySetInnerHTML=${{ __html: '' }}></div>
 
       <div class="gm__corner">
-        ${pingAvailable && !emoteOpen ? html`<div class="gm__ping-tools" role="group" aria-label=${t('战场标点')}>
-          <span class="gm__ping-hint">${pingArmed ? t('点击格子发送标点') : t('选择标记，或右键地面')}</span>
-          <div class="gm__ping-buttons">
-            ${PING_KINDS.map((kind) => html`<button key=${kind} type="button" class=${cx('gm__ping-btn', pingKind === kind && 'is-on', `gm__ping-btn--${kind}`)} aria-label=${t(PING_LABELS[kind])} aria-pressed=${pingKind === kind && pingArmed} title=${t(PING_LABELS[kind])} onClick=${() => { setPingKind(kind); setPingArmed(!pingArmed || pingKind !== kind); }}><${PingIcon} kind=${kind} /></button>`)}
-          </div>
-        </div>` : null}
+        ${pingToolsVisible ? html`<${PingTools} collapsed=${pingsCollapsed} onCollapse=${collapsePings} kind=${pingKind}
+          armed=${pingArmed} view=${view} rect=${combat ? field?.rect || GEO.NORMAL_RECT : GEO.NORMAL_RECT} prep=${!combat}
+          onDrag=${() => setPingArmed(false)} onSelect=${kind => { setPingKind(kind); setPingArmed(!pingArmed || pingKind !== kind); }} />` : null}
         ${showMetrics && metricsOpen ? html`<${CombatMetricsPanel} myId=${myId} onClose=${() => setMetricsOpen(false)} />` : null}
         ${showHistory && historyOpen ? html`<${RoundHistoryPanel} history=${pub.roundHistory} players=${pub.players} onClose=${() => setHistoryOpen(false)} />` : null}
         <${MatchCommunication} open=${emoteOpen} onToggle=${setEmoteOpen} onSend=${(id) => actions.emote(id)} disabled=${spectator || conn.status !== 'online'} />
+        <div class="gm__corner-actions" role="group" aria-label=${t('对局工具')}>
         ${showHistory ? html`<button type="button" class="gm__gear gm__metrics" aria-label=${t('每回合统计')} title=${t('每回合统计')}
           aria-expanded=${historyOpen} aria-controls="round-history-panel" onKeyDown=${(e) => { if (e.key === ' ') e.stopPropagation(); }}
           onClick=${() => { setHistoryOpen(!historyOpen); setMetricsOpen(false); setEmoteOpen(false); }}><${Icon} name="chart" /></button>` : null}
@@ -1855,6 +1875,7 @@ function MatchScreen() {
 
         <button type="button" class="gm__gear gm__guide" aria-label=${t('玩法说明')} title=${t('玩法说明')} onClick=${() => openGuide(0)}><${Icon} name="book" /></button>
         <${FullscreenButton} class="gm__gear gm__fs" />
+        </div>
       </div>
 
       ${drawer ? html`<${EnemyDrawer} tab=${drawer} onTab=${setDrawer} pub=${pub} priv=${priv} onClose=${() => setDrawer(null)}

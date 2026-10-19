@@ -27,16 +27,17 @@ export function panelSide(uf, slots) {
  *   and its client offset — the HUD sits inside the safe-area insets (css/devices.css), so on a notched phone the
  *   panels start `left` / `top` px further in than the viewport edge (default 0: the whole viewport)
  * @param {number} rem root font size (px)
- * @param {{ shopOpen?: boolean }} [o]
+ * @param {{ shopOpen?: boolean, cornerTop?: number }} [o]
  */
-export function panelSlots(vp, rem, { shopOpen = false } = {}) {
+export function panelSlots(vp, rem, { shopOpen = false, cornerTop } = {}) {
   const W = Number(vp?.width) || 1920;
   const H = Number(vp?.height) || 1080;
   const X = Number.isFinite(vp?.left) ? vp.left : 0;
   const Y = Number.isFinite(vp?.top) ? vp.top : 0;
   const R = rem > 0 ? rem : 100;
   const top = R * 2.1;
-  const leftH = Math.min(R * 8.4, H - top - R * 1.02);
+  const leftH = Math.min(R * 8.4, H - top - R * 1.02,
+    W < 768 && Number.isFinite(cornerTop) ? cornerTop - Y - top - 8 : Infinity);
   const rightBottom = H - R * (shopOpen ? PANEL_RIGHT_BOTTOM_SHOP : PANEL_RIGHT_BOTTOM);
   return {
     left: { left: X + R * 2.3, right: X + R * (2.3 + 4.9), top: Y + top, bottom: Y + top + leftH },

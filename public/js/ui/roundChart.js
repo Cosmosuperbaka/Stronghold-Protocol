@@ -35,11 +35,23 @@ export function niceScale(max) {
   return { top: Math.ceil(max / step) * step, step };
 }
 
+/** Only the compact in-game panel opts in. Console and desktop retain the original 720×260 plot. */
+export function roundChartLayout(width = 0, rounds = 1, fontSize = 12) {
+  if (!(width > 0)) return { width: 720, height: 260, left: 52, right: 96, top: 12, bottom: 30,
+    fontSize: 11, names: true, tickIndices: null };
+  const W = Math.max(240, Math.floor(width)), font = Math.max(12, fontSize);
+  const left = Math.max(48, Math.ceil(font * 4)), right = 16;
+  const count = Math.min(rounds, Math.max(2, Math.floor((W - left - right) / (font * 5)) + 1));
+  const tickIndices = Array.from({ length: count }, (_, i) => count === 1 ? 0 : Math.round(i * (rounds - 1) / (count - 1)));
+  return { width: W, height: Math.min(240, Math.max(180, Math.round(W * .34))),
+    left, right, top: 12, bottom: Math.ceil(font * 3), fontSize: font, names: false, tickIndices };
+}
+
 /**
  * A line chart of one metric by round, one line per player, drawn into `host`: legend, end labels, a crosshair with
  * one tooltip listing every player at that round, and a table view. `state` { metric, table } survives re-renders.
  */
-export function drawRoundChart(host, history, nameOf, state, { bondRecord = () => null, name = (s) => s } = {}) {
+export function drawRoundChart(host, history, nameOf, state, { bondRecord = () => null, name = (s) => s, width = 0, fontSize = 12 } = {}) {
   if (!history.length) { host.innerHTML = `<p class="meta">${esc(t('第一回合结算后开始记录。'))}</p>`; chartViews.delete(host); return; }
   const series = seriesOf(history, nameOf);
   const bonds = new Map();
@@ -57,7 +69,7 @@ export function drawRoundChart(host, history, nameOf, state, { bondRecord = () =
   }
   const { bar, content } = view;
   const select = bar.querySelector('select'), button = bar.querySelector('button');
-  const redraw = () => drawRoundChart(host, history, nameOf, state, { bondRecord, name });
+  const redraw = () => drawRoundChart(host, history, nameOf, state, { bondRecord, name, width, fontSize });
   syncSelectOptions(select, metrics, key);
   select.onchange = (e) => { state.metric = e.target.value; redraw(); };
   button.textContent = state.table ? t('看曲线') : t('看表格');
@@ -75,7 +87,8 @@ export function drawRoundChart(host, history, nameOf, state, { bondRecord = () =
     return;
   }
   const lines = series.map((s) => ({ ...s, pts: pointsOf(history, s.id, key) }));
-  const W = 720, H = 260, L = 52, R = 96, T = 12, B = 30;
+  const layout = roundChartLayout(width, rounds.length, fontSize);
+  const { width: W, height: H, left: L, right: R, top: T, bottom: B, fontSize: axisFont } = layout;
   const x0 = rounds[0], x1 = rounds[rounds.length - 1];
   const X = (r) => (x1 === x0 ? L + (W - L - R) / 2 : L + ((r - x0) / (x1 - x0)) * (W - L - R));
   const { top, step } = niceScale(Math.max(0, ...lines.flatMap((l) => l.pts.map((p) => p.v))));
@@ -83,11 +96,11 @@ export function drawRoundChart(host, history, nameOf, state, { bondRecord = () =
   let svg = '';
   for (let v = 0; v <= top + 1e-9; v += step) {
     svg += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="${v === 0 ? INK.axis : INK.grid}" stroke-width="1"/>`;
-    svg += `<text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" fill="${INK.label}" font-size="11">${fmt(v)}</text>`;
+    svg += `<text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" fill="${INK.label}" font-size="${axisFont}">${fmt(v)}</text>`;
   }
   const every = Math.ceil(rounds.length / 15);
-  rounds.forEach((r, i) => { if (i % every === 0 || i === rounds.length - 1) svg += `<text x="${X(r)}" y="${H - B + 18}" text-anchor="middle" fill="${INK.label}" font-size="11">${r}</text>`; });
-  svg += `<text x="${W - R}" y="${H - 2}" text-anchor="end" fill="${INK.label}" font-size="11">${esc(t('回合'))}</text>`;
+  rounds.forEach((r, i) => { if (layout.tickIndices ? layout.tickIndices.includes(i) : i % every === 0 || i === rounds.length - 1) svg += `<text x="${X(r)}" y="${H - B + 18}" text-anchor="middle" fill="${INK.label}" font-size="${axisFont}">${r}</text>`; });
+  svg += `<text x="${W - R}" y="${H - 2}" text-anchor="end" fill="${INK.label}" font-size="${axisFont}">${esc(t('回合'))}</text>`;
   for (const l of lines) {
     if (!l.pts.length) continue;
     svg += `<polyline fill="none" stroke="${l.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${l.pts.map((p) => `${X(p.round)},${Y(p.v)}`).join(' ')}"/>`;
@@ -98,7 +111,7 @@ export function drawRoundChart(host, history, nameOf, state, { bondRecord = () =
   for (let i = 1; i < ends.length; i++) ends[i].y = Math.max(ends[i].y, ends[i - 1].y + 13);
   const over = ends.length ? ends[ends.length - 1].y - (H - B) : 0;
   if (over > 0) for (const e of ends) e.y -= over;
-  for (const e of ends) svg += `<text x="${e.x + 8}" y="${e.y + 4}" fill="${INK.text}" font-size="12">${esc(e.l.name)}</text>`;
+  if (layout.names) for (const e of ends) svg += `<text x="${e.x + 8}" y="${e.y + 4}" fill="${INK.text}" font-size="12">${esc(e.l.name)}</text>`;
   svg += `<line class="cross" x1="0" x2="0" y1="${T}" y2="${H - B}" stroke="${INK.label}" stroke-width="1" visibility="hidden"/>`;
   svg += `<rect class="hit" x="${L - 10}" y="0" width="${W - L - R + 20}" height="${H}" fill="transparent"/>`;
 
@@ -111,7 +124,7 @@ export function drawRoundChart(host, history, nameOf, state, { bondRecord = () =
   content.append(legend, wrap);
 
   const svgEl = wrap.querySelector('svg'), cross = wrap.querySelector('.cross'), tip = wrap.querySelector('.tip');
-  wrap.querySelector('.hit').addEventListener('pointermove', (e) => {
+  const showPoint = (e) => {
     const box = svgEl.getBoundingClientRect();
     const k = box.width / W;
     const vx = (e.clientX - box.left) / k;
@@ -133,10 +146,18 @@ export function drawRoundChart(host, history, nameOf, state, { bondRecord = () =
     }
     tip.style.display = 'block';
     const px = X(r) * k;
-    tip.style.left = `${px + 12 + tip.offsetWidth > box.width ? px - 12 - tip.offsetWidth : px + 12}px`;
+    tip.style.left = `${width > 0
+      ? Math.max(wrap.scrollLeft, Math.min(px + 12, wrap.scrollLeft + wrap.clientWidth - tip.offsetWidth))
+      : px + 12 + tip.offsetWidth > box.width ? px - 12 - tip.offsetWidth : px + 12}px`;
     tip.style.top = '8px';
+  };
+  wrap.querySelector('.hit').addEventListener('pointermove', showPoint);
+  wrap.querySelector('.hit').addEventListener('pointerdown', showPoint);
+  // Touch emits pointerleave on release; keep the tapped values readable until another point/view is chosen.
+  wrap.querySelector('.hit').addEventListener('pointerleave', e => {
+    if (e.pointerType === 'touch') return;
+    cross.setAttribute('visibility', 'hidden'); tip.style.display = 'none';
   });
-  wrap.querySelector('.hit').addEventListener('pointerleave', () => { cross.setAttribute('visibility', 'hidden'); tip.style.display = 'none'; });
 }
 
 

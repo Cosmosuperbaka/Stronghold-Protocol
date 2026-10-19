@@ -28,6 +28,7 @@ import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { ALL_EMOTE_THEMES, EMOTE_COOLDOWN_MS, EMOTE_BUBBLE_MS, emoteInfo, emoteArtGroup, emoteArtPath } from '../../../shared/constants.js';
 import { assetUrl } from '../../../shared/cdn.js';
 import { html } from './components.js';
+import { useCommunicationDock } from './hudDock.js';
 import { GIcon } from './gameComponents.js';
 import { data, useData, localAsset, artUrls, nextArtUrl } from '../data.js';
 import { ASSETS_CDN } from '../asset-cdn.js';
@@ -242,6 +243,8 @@ export function EmoteWheel({ onSend, onChat, chatState = null, history = [], myI
   const composing = useRef(false);
   const pendingChat = useRef(false);
   const entry = useRef(null), wasOpen = useRef(false);
+  const dialog = useRef(null);
+  useCommunicationDock(dialog, open);
   useEffect(() => {
     if (wasOpen.current && !open) entry.current?.focus({ preventScroll: true });
     wasOpen.current = open;
@@ -360,7 +363,7 @@ export function EmoteWheel({ onSend, onChat, chatState = null, history = [], myI
       ${btnSprite ? null : html`<${GIcon} name="emote" />`}<span class="ewheel__label">${t('交流')}</span>
       ${chatState?.unread ? html`<span class="echat__unread">${chatState.unread}</span>` : null}
     </button>
-    ${open ? html`<div class=${cx('ewheel__dialog', onChat && 'has-chat')} role="dialog" aria-label=${t('交流')}
+    ${open ? html`<div ref=${dialog} class=${cx('ewheel__dialog', onChat && 'has-chat')} role="dialog" aria-label=${t('交流')}
       onKeyDown=${e => { if (e.key === 'Escape' && !composing.current && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); e.stopPropagation(); onToggle(false); } }}>
     ${onChat ? html`<nav class="echat__tabs" aria-label=${t('交流内容')}>
       <button type="button" class=${cx('echat__tab', chatView === 'emotes' && 'is-on')}

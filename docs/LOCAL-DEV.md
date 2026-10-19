@@ -25,7 +25,7 @@
 - 合并上游新版本时从 `main` 开功能分支，完成适配与测试后再合并回 `main`。
 - 同步上游：`git fetch upstream` → `git merge upstream/master` → `npm install` → `npm run setup`（上游常会加素材）→ `node --test`。
 - 素材 `public/assets/`、`.cache/`、`.claude/` 都在 `.gitignore` 里，不进仓库。新机器 clone 后要先 `npm install && npm run setup`。
-- 当前版本为 `v0.3.1-extended.4`（正式版），基于上游 `v0.3.1`（`b3deebda`）。上一正式版为 `v0.3.1-extended.3`。本版新增默认开启的 FPS 显示，修复联防与首领图标、设置触摸交互和大厅动画。接入 Forge、工作台、交互窗口、干员特质、规则开关、测试房间与上游规则修复，保留控制台、聊天、统计、回档、回放、联动与皮肤扩展。完整包包含 11 个官方战场场景（提取版本 4）、官方 FX、多语言语音、174 套皮肤和海报素材；lite 需按文档补齐。发布预检使用 `--require-local-art`。
+- 当前版本为 `v0.3.1-extended.5`（正式版），基于上游 `v0.3.1`（`b3deebda`）。上一正式版为 `v0.3.1-extended.4`。本版修复手机房间、标点与统计布局，支持标点拖动及折叠记忆，新增个人数据恢复码、备份与域名迁移。接入 Forge、工作台、交互窗口、干员特质、规则开关、测试房间与上游规则修复，保留控制台、聊天、统计、回档、回放、联动与皮肤扩展。完整包包含 11 个官方战场场景（提取版本 4）、官方 FX、多语言语音、174 套皮肤和海报素材；lite 需按文档补齐。发布预检使用 `--require-local-art`。
 
 当前源码已整合上游 `v0.3.1`（`b3deebda`）；`package.json` / APP_VERSION 为基础版本 0.3.1；`server/release-version.js` 单独记录扩展标签。发布附件与公开状态以 Releases 为准。
 

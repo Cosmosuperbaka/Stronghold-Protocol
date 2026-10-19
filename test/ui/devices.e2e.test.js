@@ -73,8 +73,10 @@ describe('multi-device (Chrome device emulation)', { skip: !ENABLED && 'set SP_E
       page.on('request', (r) => (intercept(r.url()) ? r.respond({ status: 404, body: 'gone' }) : r.continue()));
     }
     const full = url.startsWith('/') ? `${base}${url}` : `${base}/dev/game-mock.html?shot=1&render=${render}&${url}`;
-    await page.goto(full, { waitUntil: 'networkidle0' });
+    // Game art/audio may keep fetching after the HUD is usable. Wait for the surface and field instead of network idle.
+    await page.goto(full, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(() => !!document.querySelector('.screen:not(.gload)'), { timeout: 20000 });
+    if (await page.$('.gm')) await page.waitForFunction(() => !!globalThis.__SP_VIEW__, { timeout: 30000 });
     await sleep(url.startsWith('/') ? 600 : 1600);
     return { page, problems };
   }
