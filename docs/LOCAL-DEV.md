@@ -4,6 +4,18 @@
 
 ## 1. 仓库与分支
 
+个人数据迁移（2026-10-19，未发布）：`public/js/ui/personalData.js` 为纯数据校验/编码/回滚模块，
+`personalDataPanel.js` 负责公共弹窗与旧站授权窗口。大厅入口紧接统计数据，标题页也可打开。
+迁移不需要账号后端或 CORS；新旧域名都要提供本版前端，旧域名不能只做 301/302 跳转。
+用户在新站填旧网址，在旧站确认目标 origin 并允许，新站核对摘要后确认恢复并刷新。
+恢复码也可复制或存成 `.spdata` 文件，可在不连接旧站时导入。应在停用旧站前提醒用户导出；
+已经失效且没有备份的域名，其浏览器隔离存储无法由新站读取。完整字段、安全边界和导入语义见
+[当前界面契约](design/client.md#本机个人数据备份与域名迁移2026-10-19)。测试：
+`node --test test/ui/personal-data.test.js`；双域名与布局浏览器测试为 `test/ui/personal-data.e2e.test.js`。
+本机可在已被 Git 忽略的 `local/personal-data.json` 配置 `migrationSource`（仅完整 HTTP(S) 源站地址）。
+前端打开迁移弹窗时从 `/personal-data-config.json` 读取默认旧站地址，缺失/无效则留空；
+用户可手动修改，延迟返回的配置不会覆盖已输入内容。配置文件不进版本库或发布包，源码中不写具体实例地址。
+
 | 远程 | 地址 | 用途 |
 |---|---|---|
 | `origin` | `zhewang448/Stronghold-Protocol` | 本分支扩展与维护 |

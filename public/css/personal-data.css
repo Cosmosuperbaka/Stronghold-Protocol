@@ -1,0 +1,22 @@
+/* Shares the root/font scale and modal focus/scroll rules; the entry reuses HubTile. */
+.title-screen .title-corner--tr { z-index: 3; }
+.title-personal-data { min-height: 44px; background: var(--bg-0); }
+@media (max-height: 500px) { .title-screen .title-corner--tr > div > .micro, .title-screen .title-corner--tr > div > br { display: none; } }
+.personal-data-veil { padding: 12px; }
+.modal__box.personal-data-modal { width: min(max(8rem, 440px), calc(100vw - 24px)); max-height: calc(100dvh - 24px); }
+.personal-data-modal .modal__body { min-height: 0; overscroll-behavior: contain; touch-action: pan-y; }
+.personal-data-panel { display: flex; flex-direction: column; gap: .18rem; padding: 4px; min-width: 0; font-size: max(13px, calc(.16 * var(--t))); line-height: 1.65; }
+.personal-data-panel p { margin: 0; overflow-wrap: anywhere; }
+.personal-data-panel section { display: flex; flex-direction: column; align-items: stretch; gap: .12rem; padding-top: .18rem; border-top: 1px solid var(--line); }
+.personal-data-panel h3 { margin: 0; color: var(--text-hi); font-size: max(15px, calc(.2 * var(--t))); }
+.personal-data-actions { display: flex; flex-wrap: wrap; gap: .1rem; }
+.personal-data-panel textarea { width: 100%; min-height: max(70px, 1rem); max-height: 2rem; resize: vertical; padding: .12rem; background: var(--bg-0); color: var(--text-hi); border: 1px solid var(--line-3); font: inherit; font-size: max(14px, calc(.16 * var(--t))); overflow-wrap: anywhere; caret-color: var(--mint-400); }
+.personal-data-panel textarea:focus-visible { outline: 2px solid var(--mint-400); outline-offset: 2px; }
+.personal-data-panel textarea::placeholder { color: var(--text-md); opacity: 1; }
+.personal-data-panel .btn { min-height: 44px; white-space: normal; max-width: calc(100% - 8px); margin: 4px; align-self: flex-start; font-size: max(14px, calc(.18 * var(--t))); }
+.personal-data-modal .modal__actions .btn { min-height: 44px; font-size: max(14px, calc(.18 * var(--t))); }
+.personal-data-warning { color: var(--amber); }
+.personal-data-error { color: var(--red-premium); }
+.personal-data-origin { color: var(--mint-400); overflow-wrap: anywhere; user-select: text; }
+.personal-data-preview { border: 1px solid var(--mint-a35); padding: .16rem; }
+@media (max-height: 500px) { .personal-data-modal .modal__head { padding-top: 10px; } .personal-data-modal .modal__actions { padding-top: 8px; padding-bottom: 8px; } }

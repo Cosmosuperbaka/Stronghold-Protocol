@@ -23,6 +23,7 @@ import { ROOT } from './config.js';
 import { buildTag } from './buildTag.js';
 import { setSecurityHeaders, sendError, sendJson, splitUrl } from './common.js';
 import { clientAddress, isLocalIp } from '../net.js';
+import { readPersonalDataConfig } from './personalDataConfig.js';
 
 const MAX_URL_LENGTH = 4096;
 
@@ -98,6 +99,7 @@ export function createRequestHandler({ serveStatic, health, log, trustProxy = 'a
       return;
     }
     if (parts.rawPath === '/release-notes.json') { sendJson(req, res, 200, notes); return; }
+    if (parts.rawPath === '/personal-data-config.json') { sendJson(req, res, 200, readPersonalDataConfig()); return; }
     if (parts.rawPath === '/healthz') {
       const withTraffic = wantsTraffic(parts.query) && isLocalIp(clientAddress(req, trustProxy).ip);
       sendJson(req, res, 200, healthReport(health, withTraffic));

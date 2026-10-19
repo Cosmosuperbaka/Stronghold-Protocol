@@ -32,6 +32,7 @@ import { html, confirmDialog, useDialogFocus, Button, Icon, MicroLabel, Panel, T
 import { toast, toastError } from '../ui/toasts.js';
 import { GuideButton, openGuide } from '../ui/guide.js';
 import { openStats } from './stats.js';
+import { openPersonalData } from '../ui/personalDataPanel.js';
 import { AchievementEntry, AchievementPanel } from '../ui/achievements.js';
 import { FriendsTile } from '../ui/friends.js';
 
@@ -1048,6 +1049,7 @@ export function LobbyScreen() {
           <${LoadoutButton} from="lobby" size="lg" class="hub-plate hub-plate--loadout" label=${t('干员调配')} />
         </div>
         <${HubTile} icon="chart" label=${t('统计数据')} en="LOCAL RECORDS" onClick=${openStats} />
+        <${HubTile} icon="download" label=${t('导出 / 导入个人数据')} en="PERSONAL DATA" onClick=${openPersonalData} />
       </aside>
 
       <section class="hub-entries" aria-label=${t('模拟方式')}>
