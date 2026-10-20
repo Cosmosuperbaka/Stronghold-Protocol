@@ -679,3 +679,23 @@ Windows 文件锁、既有资源缓存/标题链接断言。观战隐私断言�
 关闭邀请会清空待处理邀请。关闭状态选择仍允许主动恢复在线，且不会改变已有隐身状态。
 
 回归入口：`test/social.test.js`、`test/admin.test.js`、`SP_E2E=1 node --test test/ui/social.e2e.test.js`。
+
+### 重启后保留有效公告（默认开启）
+
+控制台「服务器 → 全站公告」新增「重启后保留有效公告」与「保存保留设置」。无配置时默认开启；
+曾明确关闭的配置保持关闭。开启会立即保存当前尚未过期的公告，之后每次发布或撤下都同步保存。
+重启时沿用原 ID、正文格式、级别和绝对起止时间，不重新计算时长；已经过期的不恢复，尚未开始的
+仍按原时间开始，「直到撤下」继续保留。关闭仅清除下次恢复内容，当前公告继续按原时限显示。
+
+设置与已发布正文保存在 `logs/announcement-state.json`（自定义控制台设置文件时位于同目录），独立于
+草稿与 admin-settings.json；不进入发布包或对局结果清理。写入使用临时文件加重命名，失败则不修改
+内存公告、开关和已保存文件；撤下保存失败也保留原公告并返回错误，避免重启后意外恢复。
+已过期的磁盘内容可保留至下次保存，但恢复时始终按绝对 endAt 过滤。
+
+`GET /api/announcement-persistence` 返回 `{enabled}`；`POST /api/announcement-persistence {enabled:boolean}`
+保存设置，复用控制台 token 和 localhost 鉴权。读取损坏文件时拒绝覆盖并提示修复后重试。配置仅在
+启用控制台的正常服务启动时加载；单独构造 SiteAnnouncements 的测试调用不自动读写磁盘。
+
+验证：`test/announcement-persistence.test.js` 覆盖默认开启、关闭保留、当前/定时/长期/过期公告、撤下、
+写入失败、原 ID 与期限、真实服务器重启、鉴权与清理保护；
+`SP_E2E=1 node --test test/ui/announcement-persistence.e2e.test.js` 验证保存、刷新恢复、失败重试和手机布局。

@@ -9,6 +9,30 @@ export function initAnnouncementEditor({ api }) {
   const text = $('#site-notice-text'), format = $('#site-notice-format');
   const title = $('#site-notice-draft-title'), picker = $('#site-notice-drafts');
   const status = $('#site-notice-draft-status'), preview = $('#site-notice-preview');
+  const persist = $('#site-notice-persist'), persistSave = $('#site-notice-persist-save'), persistStatus = $('#site-notice-persist-status');
+  const loadPersistence = async () => {
+    const result = await api('/api/announcement-persistence');
+    if (typeof result.enabled !== 'boolean') throw new Error(result.error || '读取失败');
+    persist.checked = result.enabled; persist.disabled = false;
+    persistStatus.textContent = result.enabled ? '已开启：重启后恢复未过期公告。' : '未开启：公告在重启后清空，草稿不受影响。';
+  };
+  persistSave.addEventListener('click', async () => {
+    persist.disabled = persistSave.disabled = true;
+    try {
+      if (persistSave.dataset.retry === 'true') { await loadPersistence(); delete persistSave.dataset.retry; }
+      else {
+        const result = await api('/api/announcement-persistence', { enabled: persist.checked });
+        if (!result.ok) throw new Error(result.error || '保存失败');
+        persist.checked = result.enabled;
+        persistStatus.textContent = result.enabled ? '已保存：当前和之后发布的有效公告将在重启后恢复。' : '已保存：重启后不恢复公告，当前公告保持不变。';
+      }
+    } catch (e) { persistStatus.textContent = `操作失败：${e.message}。可重试。`; }
+    finally { persist.disabled = persistSave.dataset.retry === 'true'; persistSave.disabled = false; }
+  });
+  loadPersistence().catch(e => {
+    persistStatus.textContent = `读取保留设置失败：${e.message}。点击保存保留设置重试读取。`;
+    persistSave.dataset.retry = 'true';
+  }).finally(() => { persistSave.disabled = false; });
   const fields = [text, format, $('#site-notice-level'), $('#site-notice-delay'), $('#site-notice-duration'), title];
   let drafts = [], loadedId, baseline = '', busy = false;
   const value = () => ({ title: title.value, text: text.value, format: format.value, level: $('#site-notice-level').value, delay: Number($('#site-notice-delay').value), duration: $('#site-notice-duration').value === 'untilRemoved' ? 'untilRemoved' : Number($('#site-notice-duration').value) });

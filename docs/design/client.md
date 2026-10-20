@@ -934,3 +934,10 @@ pending per recipient. Full/started/disbanded rooms, disconnects and invisibilit
 Console 设置 → 交流管理 → 在线玩家与邀请 controls directory, invitations, status selection, invisible selection,
 visible counts and host-only invitations. All except host-only default on. Settings persist and apply immediately.
 Disabling invitations cancels pending invites; disabling selection preserves existing privacy.
+
+### 公告重启保留
+
+本机控制台「服务器 → 全站公告」提供「重启后保留有效公告」复选框及独立保存按钮，默认开启，
+已有关闭选择保持关闭。开启会保存当前及以后发布的公告；只恢复未过期内容，沿用原起止时间，
+定时公告和直到撤下公告均保留原语义。关闭不撤下当前公告。读取/保存错误可重试，不影响编辑中的草稿。
+持久化设置与正文位于控制台设置同目录的 announcement-state.json；普通玩家协议保持不变。

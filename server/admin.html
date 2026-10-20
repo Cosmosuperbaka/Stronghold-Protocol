@@ -212,6 +212,9 @@
 <section id="site-announcement" class="room" aria-label="全站公告">
   <h2>全站公告</h2>
   <p class="meta" id="site-notice-status">暂无公告</p>
+  <div class="row notice-draft-tools"><label><input id="site-notice-persist" type="checkbox" disabled aria-describedby="site-notice-persist-help" /> 重启后保留有效公告</label><button type="button" id="site-notice-persist-save" disabled>保存保留设置</button></div>
+  <p class="meta" id="site-notice-persist-help">默认开启。保存当前和之后发布的公告；重启时恢复尚未过期的公告，沿用原起止时间。定时公告仍按原计划开始，「直到撤下」持续保留。关闭只取消下次恢复，不撤下当前公告。</p>
+  <p class="meta" id="site-notice-persist-status" role="status" aria-live="polite"></p>
   <div class="row notice-draft-tools"><label>公告草稿 <select id="site-notice-drafts"><option value="">选择已保存草稿</option></select></label>
     <button type="button" data-notice-editor="load">载入草稿</button><button type="button" data-notice-editor="refresh">刷新草稿</button><button type="button" data-notice-editor="delete" class="danger">删除草稿</button></div>
   <div class="row notice-draft-tools"><label>草稿名称 <input id="site-notice-draft-title" maxlength="160" placeholder="例如：下次更新公告" /></label>
@@ -230,7 +233,7 @@
     <label>持续 <select id="site-notice-duration"><option value="600000">10 分钟</option><option value="3600000" selected>1 小时</option><option value="untilRemoved">直到撤下</option></select></label>
     <button data-site-notice="save">发布全站公告</button><button data-site-notice="remove" class="danger">立即撤下</button>
   </div>
-  <p class="meta">默认立即开始、持续 1 小时；可选择定时开始或直到撤下。发布会替换当前公告，重启服务后清空。</p>
+  <p class="meta">默认立即开始、持续 1 小时；可选择定时开始或直到撤下。发布会替换当前公告；重启是否保留取决于上方设置，草稿始终独立保存。</p>
 </section>
 </main>
 <main id="rooms"></main>

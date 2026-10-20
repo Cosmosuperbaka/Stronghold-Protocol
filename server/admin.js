@@ -696,6 +696,9 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
   setReplayConfig({ enabled: process.env.SP_REPLAY !== '0', identity, release });
   loadSettings(settingsFile, log);
   const announcementDrafts = new AnnouncementDrafts(path.join(path.dirname(settingsFile), 'announcement-drafts.json'));
+  const announcementPersistenceFile = path.join(path.dirname(settingsFile), 'announcement-state.json');
+  try { lobby.announcements?.loadPersistence(announcementPersistenceFile); }
+  catch (e) { log.error('[admin] announcement restore failed', e); }
   const serveStatic = createStaticHandler({ publicDir: path.join(root, 'public'), dataDir: path.join(root, 'data'),
     sharedDir: path.join(root, 'shared'), simDir: path.join(root, 'server', 'sim'), packsDir: path.join(root, 'packs'), ...(lobby.staticOptions || {}), log });
   const updater = createReleaseUpdater({ ...updateOptions, root, log, onReady: onUpdateReady,
@@ -727,7 +730,7 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
   };
   const session = (req) => (req.headers.cookie || '').split(';').some((s) => s.trim() === `sp_admin=${token}`);
   const summarizeResults = createResultSummary(resultsDir);
-  const resultFiles = () => recordFiles(resultsDir, [path.resolve(settingsFile), path.resolve(announcementDrafts.file)]);
+  const resultFiles = () => recordFiles(resultsDir, [path.resolve(settingsFile), path.resolve(announcementDrafts.file), path.resolve(announcementPersistenceFile)]);
   const storageView = () => ({ results: resultFiles().length, replays: replayFiles(replaysDir).length,
     adminLogs: replayAdminLogs(replaysDir) + [...lobby.rooms.values()].reduce((n, r) => n + (r.adminLog?.length || 0) + (r.match?.replay?.rounds || []).reduce((s, x) => s + x.admin.length, 0), 0) });
 
@@ -820,7 +823,7 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
         const body = await readJson(req);
         if (!body || body.confirm !== true) return send(400, { error: '请先确认删除范围' });
         if (body.id != null) {
-          if (typeof body.id !== 'string' || !REPLAY_ID.test(body.id) || [path.resolve(settingsFile), path.resolve(announcementDrafts.file)].includes(path.resolve(resultsDir, body.id))) return send(400, { error: '记录名称无效' });
+          if (typeof body.id !== 'string' || !REPLAY_ID.test(body.id) || [path.resolve(settingsFile), path.resolve(announcementDrafts.file), path.resolve(announcementPersistenceFile)].includes(path.resolve(resultsDir, body.id))) return send(400, { error: '记录名称无效' });
           const deleted = deleteRecordFiles(resultsDir, replaysDir, body.id);
           for (const room of lobby.rooms.values()) if (room.adminLastMatch?.id === body.id) room.adminLastMatch = null;
           return send(200, { ok: true, deleted, ...storageView() });
@@ -893,6 +896,15 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
         return send(400, { error: '未知更新操作' });
       }
       if (req.method === 'GET' && url.pathname === '/api/rooms') return send(200, { rooms: await roomsView(lobby), announcement: lobby.announcements?.frame().announcement || null });
+      if (url.pathname === '/api/announcement-persistence' && ['GET', 'POST'].includes(req.method)) {
+        if (!lobby.announcements) return send(503, { error: '公告服务不可用' });
+        try { lobby.announcements.loadPersistence(announcementPersistenceFile); }
+        catch { return send(500, { error: '公告恢复文件读取失败，请检查文件内容和权限后重试' }); }
+        if (req.method === 'GET') return send(200, { enabled: lobby.announcements.persistEnabled });
+        const body = await readJson(req);
+        if (!body || typeof body.enabled !== 'boolean') return send(400, { error: '公告重启保留设置必须为开或关' });
+        return send(200, lobby.announcements.setPersistence(body.enabled));
+      }
       if (url.pathname === '/api/announcement-drafts' && ['GET', 'POST'].includes(req.method)) {
         try {
           if (req.method === 'GET') return send(200, { drafts: announcementDrafts.list() });

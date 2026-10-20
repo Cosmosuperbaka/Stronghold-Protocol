@@ -26,7 +26,7 @@ Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 
 ### Hub 传输扩展（2026-10-16）
 
-全站公告 S2C site.announcement {serverNow, announcement: {id,text,level,startAt,endAt} | null} 独立于房间与回合。hello / 重连下发当前公告；客户端按服务器绝对时间判断展示，服务器在开始 / 过期时广播。单条 1–500 字，仅认证的 loopback 控制台 action: announce 可编辑或传 null 撤下；重启不保留，没有玩家 C2S 管理入口。清空、禁言和踢出继续走本机控制台，公告不写入聊天历史。验证见 test/announcements.test.js 和 test/admin-chat.test.js。
+全站公告 S2C site.announcement {serverNow, announcement: {id,text,level,startAt,endAt} | null} 独立于房间与回合。hello / 重连下发当前公告；客户端按服务器绝对时间判断展示，服务器在开始 / 过期时广播。仅认证的 loopback 控制台 action: announce 可编辑或传 null 撤下；没有玩家 C2S 管理入口。控制台默认开启「重启后保留有效公告」；开启时原子保存正文、原 ID、格式、级别和绝对起止时间，重启只恢复 endAt 尚未到达的公告（定时公告保留原计划，不重新计时；untilRemoved 保留标志）。撤下同步清除恢复正文，关闭只取消下次恢复，不撤下当前公告。配置与正文位于控制台设置同目录 announcement-state.json，已明确关闭的配置不会被默认值覆盖。清空、禁言和踢出继续走本机控制台，公告不写入聊天历史。验证见 test/announcements.test.js、test/announcement-persistence.test.js 和 test/admin-chat.test.js。
 
 hello 可选 stateDelta: 1 启用 m.public / m.private 的 m.state 传输。每连接每 kind 独立 baseline；全帧为 {t:'m.state',kind,seq,full}，增量为 {t:'m.state',kind,seq,base,patch}。patch 操作为 [path,value] 设置、[path] 删除对象键，数组长度变化替换子树。仅 patch 更小时发送增量；失败的 socket 写入不推进 baseline。不协商的旧客户端照常收到原始帧。
 
