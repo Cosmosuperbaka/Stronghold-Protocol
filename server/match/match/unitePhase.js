@@ -50,8 +50,8 @@ export class MatchUnite {
    */
   _uniteOpts(plan, limit) {
     const { wave, players } = uniteBattleOpts(this, plan, limit);
-    // Host's custom rule, latched for this field and settlement even if the setting changes mid-battle.
-    this.uniteLayerGainsEnabled = getUniteLayerGains();
+    // The room's explicit rule wins, including false; direct callers may use the legacy host default.
+    this.uniteLayerGainsEnabled = this.uniteLayerGains ?? getUniteLayerGains();
     return {
       seed: deriveSeed(this.seed, `u:${this.round}`),
       kind: 'unite',

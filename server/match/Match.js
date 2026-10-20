@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────────────────────────────
 //
 // new Match(opts)
+//   opts.uniteLayerGains boolean (optional)     room-local 联防 gains, fixed for the match; absent uses the host default
 //   opts.roomCode    string                     4-letter room code (logging only)
 //   opts.mode        'solo' | 'coop'
 //   opts.difficulty  'FUNNY'|'NORMAL'|'HARD'|'ABYSS'
@@ -318,6 +319,8 @@ export class Match {
     this.isSolo = this.mode === 'solo' || this.gd.isSolo;
     /** 「AI 队友最后选择」 (opts.aiPicksLast, GitHub #338): humans draft before AI seats (MatchPhases.humansFirst) */
     this.aiPicksLast = !this.isSolo && opts.aiPicksLast === true;
+    /** Room rule fixed for this match; direct callers without it retain the host-setting fallback. */
+    this.uniteLayerGains = typeof opts.uniteLayerGains === 'boolean' ? opts.uniteLayerGains : null;
     this.ownsScheduler = !opts.scheduler;
     this.sched = opts.scheduler || new RealScheduler({ now: opts.now || Date.now, onError: (e) => this.reportError('timer', e) });
     this.registry = opts.registry || getDefaultRegistry();
@@ -499,7 +502,7 @@ export class Match {
     this.watchPref = new Map();
     this.lastResults = new Map();
     this.unitePlan = null;
-    this.uniteLayerGainsEnabled = false; // host setting captured at the start of each 联防 field
+    this.uniteLayerGainsEnabled = false; // effective rule captured at the start of each 联防 field
     /** 联防 outcome for the SETTLE view: { through, helpers, leakers, losses } (settle()), null when no 联防 resolved */
     this.uniteResultView = null;
     /** server-run 联防: the leakers' counts last published (_uniteTick) */

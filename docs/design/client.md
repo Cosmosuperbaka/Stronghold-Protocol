@@ -898,3 +898,22 @@ keys override and missing/invalid entries retain built-in text. Scope remains br
 room content and simulation. Pure geometry SDK helpers return frozen values and accept at most 1024 range cells.
 Forge UI mounts without an equivalent slot require an explicit manual-adaptation report, separate from script copying.
 Art/audio templates ship original CC0 sample media; the studio fills the target's first editable slot [ASSUMED].
+
+### Room-local 联防 stack option
+
+Waiting-room 同盟设置 (the bottom protocol pill's gear) shows 允许联防叠层 with its room-only, match-locked
+behavior and boss/hidden exclusion. It uses `room.state.uniteLayerGains` and sends `room.setUniteLayerGains {on}`;
+only the room host may edit before starting when `room.state.canSetUniteLayerGains` is true. Otherwise the disabled
+control explains that the server has not allowed edits; guests and spectators always read it. Inputs are disabled
+while offline or busy. Console permission saves update existing rooms immediately. An older server without the
+rule boolean hides the option; absent permission fails closed. Compact layouts keep the options panel inside
+the viewport. The four shipped language packs translate the control and help text.
+
+### Local announcement authoring
+
+The local host console's announcement editor separately persists up to 30 named drafts, with create/update/copy,
+load/delete and refresh. Four editable Markdown templates cover maintenance, releases, room rules and incidents.
+Live preview shares the player announcement renderer (escaped HTML, no remote images, safe links). Desktop uses
+two columns and compact screens stack them. Replacing unsaved text asks for confirmation; leaving a dirty editor
+warns. Draft storage and template/preview actions never publish or withdraw a notice; publication is explicit.
+Draft details and authenticated endpoints: [LOCAL-DEV](../LOCAL-DEV.md#公告草稿模板与正文预览).

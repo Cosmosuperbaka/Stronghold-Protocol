@@ -6,13 +6,14 @@ import { setUniteLayerGains, resetHostSettings } from '../../server/match/hostSe
 import { FakeBattle } from './fakeBattle.js';
 import { DATA, makeMatch, give, legalTileFor, checkInvariants } from './harness.js';
 
-for (const clientCombat of [false, true]) for (const enabled of [false, true]) {
-  test(`联防 layers: ${clientCombat ? 'client' : 'server'} mode, enabled=${enabled}, mid-field toggles affect only the next field`, () => {
+for (const clientCombat of [false, true]) for (const enabled of [false, true]) for (const roomRule of [undefined, false, true]) {
+  test(`联防 layers: ${clientCombat ? 'client' : 'server'} mode, host=${enabled}, room=${roomRule}`, () => {
     resetHostSettings();
     let h;
     try {
       setUniteLayerGains(enabled);
       h = makeMatch({
+        uniteLayerGains: roomRule,
         mode: 'coop', humans: 3, seed: 97, fake: true, clientCombat,
         script: (b) => {
           if (b.kind === 'normal') return { leaks: { p_0: 2 }, layerGains: { p_1: { yanShip: 3 }, p_2: { yanShip: 3 } } };
@@ -36,17 +37,18 @@ for (const clientCombat of [false, true]) for (const enabled of [false, true]) {
       assert.equal(m.phase, PHASE.UNITE);
       const field = m.fields[0];
       const opts = clientCombat ? field.spec : field.battle.opts;
-      assert.equal(opts.flags.layerGainsEnabled, enabled);
+      const effective = roomRule ?? enabled;
+      assert.equal(opts.flags.layerGainsEnabled, effective);
       assert.deepEqual(opts.players.map((p) => p.bonds.yanShip.layers).sort((a, b) => a - b), [993, 998], 'starts with the normal battle gains');
       setUniteLayerGains(!enabled);
-      assert.equal(opts.flags.layerGainsEnabled, enabled, 'the running spec stays fixed');
+      assert.equal(opts.flags.layerGainsEnabled, effective, 'the running spec stays fixed');
       h.drive(() => m.phase === PHASE.SETTLE);
-      assert.deepEqual(helpers.map((p) => p.layers.yanShip), enabled ? [998, 999] : [993, 998]);
+      assert.deepEqual(helpers.map((p) => p.layers.yanShip), effective ? [998, 999] : [993, 998]);
       assert.equal(h.ps('p_0').layers.yanShip || 0, 0, 'leaker gets no helper layers');
       assert.ok(helpers.every((p) => p.pendingLayerGains === null));
       h.drive(() => m.phase === PHASE.UNITE && m.round === 2);
       const next = m.fields[0];
-      assert.equal((clientCombat ? next.spec : next.battle.opts).flags.layerGainsEnabled, !enabled);
+      assert.equal((clientCombat ? next.spec : next.battle.opts).flags.layerGainsEnabled, roomRule ?? !enabled);
       assert.equal(m.errorCount, 0, JSON.stringify(h.logs));
       checkInvariants(m);
     } finally {

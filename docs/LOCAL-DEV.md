@@ -431,12 +431,13 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 ### 可选联防叠层（hostSettings.js）
 
-控制台「设置 → 联防叠层 → 允许联防叠层」，进程级布尔值 `uniteLayerGains`，默认 `false`。这是明确选择的自定义规则，与上游默认联防不叠层的玩法不同。
+控制台「设置 → 联防叠层 → 允许联防叠层」设置新房间的默认值，布尔值 `uniteLayerGains`，默认 `false`。房主可在等待室「同盟设置 → 允许联防叠层」单独控制本房间，修改会取消其他真人的就绪；开局后本局固定。房间保留该选择，房主迁移和下一局也不重置。这是明确选择的自定义规则，与上游默认联防不叠层的玩法不同。
 
-- `GET /api/settings` 返回 `prep` 和 `uniteLayerGains`；`POST /api/settings` 允许只提交其中一项，省略项保留。两者都校验通过并成功写入 `logs/admin-settings.json` 后才生效；旧文件没有开关时保持关闭。
-- 每次 `_uniteOpts()` 构建联防时通过 `getUniteLayerGains()` 读取当前设置，保存到 `Match.uniteLayerGainsEnabled` 并写入 `flags.layerGainsEnabled`。服务器与浏览器使用同一规则；战斗中改开关只影响下一次联防。
+- 控制台同一区域新增「允许房主自行设置联防叠层」：`allowRoomUniteLayerGains`，默认关闭，旧配置文件也不自动授权。开启后房主才能修改；关闭立即锁定所有已有房间入口，服务端拒绝 `UNITE_LAYERS_LOCKED`，但保留房间原先选择和正在进行的对局。
+- `GET /api/settings` 返回 `prep`、`uniteLayerGains` 和 `allowRoomUniteLayerGains`；`POST /api/settings` 允许单独提交，省略项保留。全部校验通过并成功写入 `logs/admin-settings.json` 后才生效；权限保存会向所有房间广播 `canSetUniteLayerGains`，无需刷新。
+- 创建房间时复制 `getUniteLayerGains()`，开局通过 `opts.uniteLayerGains` 传入（插件子进程同样传递）。每次 `_uniteOpts()` 保存本局值到 `Match.uniteLayerGainsEnabled` 并写入 `flags.layerGainsEnabled`。服务器与浏览器使用同一规则；之后修改控制台默认值只影响新建房间。直接创建 Match 且省略选项的旧调用方仍按每次联防读取主机设置。
 - 援助干员从本轮普通战斗已达到的层数开始联防，每场战斗的特性计数和额度重新获得。结算先合入普通战斗增量，再给援助者合入联防增量各一次，复用 999 上限和 `onLayers` 钩子；漏怪方不会收到援助者的层数，合成兜底结果也不发层数。
-- 最终攻势和隐秘核心仍禁止叠层。主机开关不进回档快照；回档后开始的新联防读取当时设置，战斗开关在每次构建联防时重新捕获。
+- 最终攻势和隐秘核心仍禁止叠层。房间选择写入磁盘恢复记录，重启后仍保持；局内回档不修改本局规则，联防战斗和结算使用同一捕获值。
 - 页面支持保存、撤销未保存修改、重载与保存失败重试；休整期时长和联防开关独立保存，不会互相覆盖。
 - 回归：`node --test test/admin.test.js test/match/unite-layers.test.js test/content/garrisons_battle.test.js test/match/rewind.test.js`；真实控制台操作与桌面 / 手机布局用 `SP_E2E=1 node --test test/ui/admin-settings.e2e.test.js`。
 
@@ -642,3 +643,21 @@ Windows 文件锁、既有资源缓存/标题链接断言。观战隐私断言�
 横幅提示点击查看详情。支持标题、列表、引用、表格、代码、安全链接；HTML 原样显示、图片显示替代文字。
 `/api/action` 的 JSON 上限为 256 KiB，覆盖长文及其 JSON 转义，其他接口保留原上限。
 源码来源、私有归档范围与验证入口见 [REFERENCE-UI-REVIEW.md](REFERENCE-UI-REVIEW.md)。
+
+### 公告草稿、模板与正文预览
+
+控制台「服务器 → 全站公告」可命名保存、载入、覆盖保存、另存和删除公告草稿，最多 30 份。草稿保存
+在控制台设置文件同目录的 `announcement-drafts.json`（默认 `logs/announcement-drafts.json`），重启后保留，
+不进入游戏内容或对局记录清理。仅本机已鉴权控制台可调用 `GET /api/announcement-drafts` 和
+`POST /api/announcement-drafts {action:'save',draft}` / `{action:'delete',id}`。写入采用临时文件加重命名，
+校验或写入失败保留旧数据。草稿名 1–80 字，正文沿用纯文本 500 字 / Markdown 20000 字上限，可留空待补。
+
+内置「维护通知、版本更新、房间规则说明、临时故障通知」四种 Markdown 模板，包含明确待填内容，使用
+模板只填入编辑器。草稿保存正文、格式、级别、开始延迟和持续时长，载入后在点击发布时重新计算绝对时间。
+替换未保存内容前确认，离开页面时提示未保存修改；保存失败可保留编辑内容重试。
+
+正文实时预览复用玩家端 `announcementMarkdown.js`，支持标题、列表、表格、代码、引用和安全链接；
+原始 HTML 显示为文字，图片不加载，危险 URL 不生成链接。桌面左右编辑 / 预览，窄屏上下排列。
+保存、载入、删除、预览和套用模板均不发布，也不撤下当前公告；仍需点击「发布全站公告」。
+验证：`test/announcement-drafts.test.js`、`test/ui/announcement-markdown.test.js` 和
+`SP_E2E=1 node --test test/ui/announcement-drafts.e2e.test.js`。

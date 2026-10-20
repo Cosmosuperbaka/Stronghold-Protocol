@@ -1904,7 +1904,7 @@ button.ally-card:disabled { filter: grayscale(.7) brightness(.7); cursor: defaul
   border: 2px solid #0e0f0f; border-radius: 50%; cursor: pointer; }
 .rs-pill__gear svg { width: 62%; height: 62%; fill: currentColor; }
 .rs-pill__gear.is-on, .rs-pill__gear:hover { background: #fff; }
-.rs-opts { position: absolute; left: 50%; bottom: calc(100% + .14rem); z-index: 10; transform: translateX(-50%); width: min(5.2rem, 92vw); display: flex; flex-direction: column; gap: .12rem;
+.rs-opts { --room-options-x: -50%; position: absolute; left: 50%; bottom: calc(100% + .14rem); z-index: 10; transform: translateX(var(--room-options-x)); width: min(5.2rem, 92vw); display: flex; flex-direction: column; gap: .12rem;
   padding: .16rem .2rem; background: linear-gradient(180deg, #202323, #141616); border: 1px solid rgba(255, 255, 255, .16); box-shadow: 0 .1rem .4rem rgba(0, 0, 0, .7);
   animation: sw-in 140ms var(--ease-out) backwards; }
 .rs-opts h4 { display: flex; align-items: baseline; justify-content: space-between; margin: 0; font-size:max(calc(.2 * var(--t)), 13px); }
@@ -1916,6 +1916,9 @@ button.ally-card:disabled { filter: grayscale(.7) brightness(.7); cursor: defaul
 .rs-opt select { font: inherit; color: #eef0ef; background: #111313; border: 1px solid rgba(255, 255, 255, .2); padding: 2px 6px; }
 .rs-opt--variant { flex-direction: column; align-items: stretch; }
 .rs-opts .ailast { display: flex; align-items: center; gap: .1rem; }
+@media (max-width: 900px), (max-height: 520px) {
+  .rs-opts { --room-options-x: 0%; left: 0; }
+}
 .rs-foot__right { display: flex; align-items: center; justify-content: flex-end; gap: .14rem; }
 .rs-search { display: inline-flex; align-items: center; gap: .08rem; height: max(.7rem, 40px); padding: 0 .26rem; font: inherit; font-size:max(calc(.24 * var(--t)), 14px); font-weight: 800;
   color: #5df0c6; background: rgba(10, 30, 25, .85); border: 2px solid rgba(79, 232, 192, .7); cursor: pointer; white-space: nowrap; }
@@ -2103,9 +2106,9 @@ button.ally-card:disabled { filter: grayscale(.7) brightness(.7); cursor: defaul
 .rs-proto.is-leaving > * { animation: tr-slide-out 200ms ease-in forwards; }
 @keyframes tr-slide-out { to { opacity: 0; transform: translateX(.36rem); } }
 .rs-opts { transform-origin: 50% 100%; animation: tr-pop-up 200ms var(--tr-ease) backwards; }
-@keyframes tr-pop-up { from { opacity: 0; transform: translateX(-50%) translateY(.12rem) scale(.96); } }
+@keyframes tr-pop-up { from { opacity: 0; transform: translateX(var(--room-options-x)) translateY(.12rem) scale(.96); } }
 .rs-opts.is-leaving { pointer-events: none; animation: tr-pop-down 150ms ease-in forwards; }
-@keyframes tr-pop-down { to { opacity: 0; transform: translateX(-50%) translateY(.08rem) scale(.97); } }
+@keyframes tr-pop-down { to { opacity: 0; transform: translateX(var(--room-options-x)) translateY(.08rem) scale(.97); } }
 
 /* 搜寻中: the panel fades in over the right, its lines one after another */
 .rs-searchpanel.mf-search { animation: tr-fade 260ms ease-out backwards; }

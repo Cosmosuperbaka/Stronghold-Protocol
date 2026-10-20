@@ -81,10 +81,16 @@ The offer is recipient-private, including after reconnect, and never enters `m.p
 - `tier` from thresholds; `active = tier ≥ 1`.
 - `layers[bondId]` persist all match; gains come from garrisons/bands/items/choices/bond effects; IN_BATTLE gains are collected from `BattleResult.layerGains` at SETTLE (disabled in unite by default, always disabled in boss/hidden). The host-only custom rule of §28.28 can enable unite gains.
 
-**Host-only 联防叠层 (§28.28):** the local console's settings expose `uniteLayerGains` (boolean, default false),
-persisted alongside `prep` in `logs/admin-settings.json`. It applies to every room starting with its next 联防;
-the field captures the setting in `flags.layerGainsEnabled`, shared by server and browser simulation, and settlement
-uses that captured value even if the host toggles it while fighting. 联防 is a fresh battle: every per-battle trait
+**Room-local 联防叠层 (§28.28):** the local console's `uniteLayerGains` (boolean, default false), persisted alongside
+`prep` in `logs/admin-settings.json`, is the default copied when a room is created. The room host may change it
+before starting through `room.setUniteLayerGains {on}` (waiting-room 同盟设置) only when the console's
+`allowRoomUniteLayerGains` is true (default false, persisted; old files grant no permission). Otherwise the server
+refuses `UNITE_LAYERS_LOCKED`. Saving this permission broadcasts it to existing rooms immediately; revocation
+locks editing without changing selected rules or running matches. A rule change un-readies other humans.
+The choice survives host migration, subsequent matches and disk recovery. `opts.uniteLayerGains` fixes it for the
+match, including plugin workers; later console changes affect new rooms only. Direct Match callers that omit it
+retain the legacy host-setting fallback. The field captures the effective rule in `flags.layerGainsEnabled`, shared
+by server and browser simulation, and settlement uses that captured value. 联防 is a fresh battle: every per-battle trait
 allowance and trigger counter resets. Helpers start from their normal battle's reached layers; settlement applies
 normal increments then each helper's 联防 increments once, with the 999 cap and existing `onLayers` hooks. Leakers
 receive no helper layers, synthetic results grant none, and boss/hidden gains remain disabled. This is an explicitly

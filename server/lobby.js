@@ -8,7 +8,7 @@
 //     Humans and bots take the lowest free seat index; seat indexes never compact.
 //   * ▸ Being in a LOBBY room and sending room.create / room.join implicitly leaves it. While your room is
 //     in a match, create/join of another room fails with ROOM_STARTED (send g.leave or room.leave first).
-//   * Host-only: room.setDifficulty, room.setAiPicksLast, room.addBot, room.removeBot, room.kick, room.start.
+//   * Host-only: room.setDifficulty, room.setAiPicksLast, room.setUniteLayerGains, room.addBot, room.removeBot, room.kick, room.start.
 //     ▸ Changing the difficulty or the AI-picks-last option (co-op only) un-readies the other humans.
 //     ▸ room.start requires every other human to be connected and ready; the host's start counts as the host's
 //     ready (the host may still toggle room.ready for display).
@@ -170,6 +170,7 @@ import { RoomChat, cleanChatText, getChatSettings } from './chat.js';
 
 import { getData as defaultGetData, lookup } from './data.js';
 import { Match as DefaultMatch } from './match/Match.js';
+import { getUniteLayerGains, getAllowRoomUniteLayerGains } from './match/hostSettings.js';
 import { KITTED_CHARS } from './sim/content/kits/index.js';
 import { SiteAnnouncements } from './announcements.js';
 
@@ -278,6 +279,8 @@ export class Room {
      * put every human seat before every AI seat (Match opts.aiPicksLast). Kept across the room's matches.
      */
     this.aiPicksLast = false;
+    // Capture the host default once; later changes belong to this room alone.
+    this.uniteLayerGains = getUniteLayerGains();
     /** @type {string | null} */
     this.hostId = null;
     /** @type {(Seat | null)[]} */
@@ -348,6 +351,8 @@ export class Room {
       mode: this.mode,
       difficulty: this.difficulty,
       aiPicksLast: this.aiPicksLast,
+      uniteLayerGains: this.uniteLayerGains,
+      canSetUniteLayerGains: getAllowRoomUniteLayerGains(),
       inMatch: !!this.match,
       textChat: true,
       seats: this.seats.map((s) => (s
@@ -655,6 +660,7 @@ export class Lobby {
       case 'room.chat': return this.chat(session, msg);
       case 'room.setDifficulty': return this.setDifficulty(session, msg);
       case 'room.setAiPicksLast': return this.setAiPicksLast(session, msg);
+      case 'room.setUniteLayerGains': return this.setUniteLayerGains(session, msg);
       case 'room.addBot': return this.addBot(session);
       case 'room.removeBot': return this.removeBot(session, msg);
       case 'room.kick': return this.kick(session, msg);
@@ -910,6 +916,23 @@ export class Lobby {
     if (room.difficulty !== difficulty || room.content?.modeId) {
       room.difficulty = difficulty;
       if (room.content?.modeId) { const rest = { ...room.content }; delete rest.modeId; room.content = Object.freeze(rest); }
+      for (const s of room.seats) if (s && !s.isBot && s.playerId !== room.hostId) s.ready = false;
+      this.broadcastState(room);
+    }
+    return OK;
+  }
+
+  /** Room-local unite rule: host-only, before the match; rule changes require guests to ready again. */
+  setUniteLayerGains(session, { on }) {
+    const room = this.roomOf(session);
+    if (!room) return fail(ERR.NOT_IN_ROOM);
+    if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
+    if (room.match) return fail(ERR.ROOM_STARTED);
+    if (!getAllowRoomUniteLayerGains()) return fail(ERR.UNITE_LAYERS_LOCKED);
+    if (typeof on !== 'boolean') return fail(ERR.BAD_MSG);
+    if (room.uniteLayerGains !== on) {
+      this.dropReplay(room, session.playerId);
+      room.uniteLayerGains = on;
       for (const s of room.seats) if (s && !s.isBot && s.playerId !== room.hostId) s.ready = false;
       this.broadcastState(room);
     }
@@ -1434,6 +1457,7 @@ export class Lobby {
         modeId: room.content?.modeId || modeIdFor(room.mode, room.difficulty),
         // 「AI 队友最后选择」 (GitHub #338): fixed for the match
         aiPicksLast: room.mode !== 'solo' && room.aiPicksLast === true,
+        uniteLayerGains: room.uniteLayerGains,
         seats: restored?.seats || seats,
         // the spectator seats (header): watched like eliminated players, never players
         spectators: room.spectators.map((s) => s.playerId),

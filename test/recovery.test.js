@@ -15,7 +15,7 @@ import { VirtualScheduler } from '../server/match/scheduler.js';
 import { FakeBattle } from './match/fakeBattle.js';
 import { getReplayConfig, setReplayConfig } from '../server/match/replay.js';
 import { capturePrep } from '../server/match/rewind.js';
-import { resetHostSettings, setPrep } from '../server/match/hostSettings.js';
+import { resetHostSettings, setPrep, setUniteLayerGains } from '../server/match/hostSettings.js';
 
 const log = { info() {}, warn() {}, error() {} };
 function fixture(t, mode = 'coop', options = {}) {
@@ -60,6 +60,22 @@ test('disk snapshot restores PREP identically and continues to the same final re
   const normalize = (x) => JSON.parse(JSON.stringify(x));
   assert.deepEqual(normalize(other.ended), normalize(f.h.ended));
   assert.deepEqual(normalize(other.m.history), normalize(f.h.m.history));
+});
+
+test('room unite layers survives recovery even after the host default changes', t => {
+  resetHostSettings(); t.after(resetHostSettings);
+  const f = fixture(t);
+  const restored = makeMatch({ fake: true });
+  t.after(() => restored.m.dispose());
+  for (const on of [true, false]) {
+    f.room.uniteLayerGains = on;
+    f.recovery.save(f.room, f.h.m, f.h.m.prepSnapshots.get(1));
+    const record = deserialize(fs.readFileSync(f.file));
+    setUniteLayerGains(!on);
+    assert.equal(record.room.uniteLayerGains, on);
+    restoreMatch(restored.m, record);
+    assert.equal(restored.m.uniteLayerGains, on);
+  }
 });
 
 test('test rooms never write a resumable recovery snapshot', t => {
@@ -165,6 +181,9 @@ test('disabled persistence writes no snapshots and survives restart', (t) => {
 test('source checkout has a version fingerprint; original browser token reconnects after two real server restarts', async (t) => {
   assert.match(recoveryIdentity(process.cwd()), /^v[\w.-]+:[a-f0-9]{64}$/);
   const f = fixture(t, 'solo');
+  f.room.uniteLayerGains = true;
+  f.h.m.uniteLayerGains = true;
+  f.recovery.save(f.room, f.h.m, f.h.m.prepSnapshots.get(1));
   class RestoredMatch extends Match {
     constructor(opts) { super({ ...opts, scheduler: new VirtualScheduler(), BattleClass: FakeBattle, botRehearsal: 0 }); }
   }
@@ -177,6 +196,8 @@ test('source checkout has a version fingerprint; original browser token reconnec
       const welcome = await client.hello('Host', f.host.token);
       assert.equal(welcome.playerId, f.host.playerId); assert.equal(welcome.token, f.host.token);
       const state = await client.waitFor('room.state'); assert.equal(state.code, 'TEST');
+      assert.equal(state.uniteLayerGains, true);
+      assert.equal(srv.lobby.rooms.get('TEST').match.uniteLayerGains, true);
       const pub = await client.waitFor('m.public', p => p.phase === 'PREP'); assert.equal(pub.round, 1);
       assert.equal(srv.lobby.rooms.get('TEST').match.players.get(f.host.playerId).connected, true);
     } finally { await client?.terminate(); await srv.close(); }

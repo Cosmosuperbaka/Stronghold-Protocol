@@ -828,9 +828,14 @@ playtest #5 item 2 — it used to stay out and vanish); its timer is its full re
 only hp / tech per operator; confirmed by the user), with the redeploy-time effects that start with the battle (机变 征召); summons are
 fielded as the board has them (their SP carried); `flags.layerGainsEnabled = false` by default; time limit = the round's combat limit.
 
-The host's local console can enable the custom **联防叠层** rule (`hostSettings.js getUniteLayerGains`, default off,
-saved with the prep timer in `logs/admin-settings.json`). The setting is captured at the start of each 联防 and sent
-in its BattleSpec; mid-battle toggles affect only the next 联防. Each operator gets fresh per-battle trait counters
+The custom **联防叠层** rule is chosen per room (`room.setUniteLayerGains {on}`, waiting-room 同盟设置, host-only
+before starting, and only when the console enables `allowRoomUniteLayerGains`, default false). Permission changes
+reach existing rooms immediately; revocation locks edits without resetting room choices or running matches. Rooms
+copy the local console's default (`hostSettings.js getUniteLayerGains`, default off, saved
+with the prep timer in `logs/admin-settings.json`) on creation; existing rooms keep their choice when that default
+changes. Rule changes un-ready the other humans. `opts.uniteLayerGains` stays fixed for the match and survives disk
+recovery and plugin-worker transport. Direct callers without the room option retain the legacy host fallback.
+The effective value is captured at the start of each 联防 and sent in its BattleSpec. Each operator gets fresh per-battle trait counters
 and allowances. Helpers begin with their normal battle's reached layers; SETTLE saves the normal increments and the
 helper's 联防 increments once, capped at 999, through the existing `onLayers` hooks. Synthetic results grant no
 联防 layers. Boss / hidden fields still disable gains. DESIGN §28.28 records this owner-requested deviation.
