@@ -1,5 +1,6 @@
 import { LobbyMusicButton } from '../ui/lobbyMusic.js';
 import { AccountMeChip } from '../ui/accounts.js';
+import { OnlinePlayersButton, PresenceSelector } from '../ui/social.js';
 import { isOwnerName, decorateOwnerName } from '../ui/ownerName.js';
 import { enabled as federationEnabled } from '../federation.js';
 import { MatchmakingCount } from '../ui/matchmaking.js';
@@ -844,7 +845,7 @@ export function LobbyScreen() {
   const maint = useStore((s) => s.maintenance, shallowEqual);
   const [modalOpen, setModalOpen] = useState(() => new URLSearchParams(location.search).has('modal'));
   const lobbyStats = useStore((s) => s.lobbyStats, shallowEqual);
-  const [onlineCount, setOnlineCount] = useState(() => lobbyStats?.online ?? 1);
+  const [_onlineCount, setOnlineCount] = useState(() => lobbyStats?.online ?? 1);
   const [rooms, setRooms] = useState(() => (federationEnabled ? [] : lobbyStats?.rooms ?? []));
   const bg = useHubBackdrop();
   const [bgOpen, setBgOpen] = useState(false);
@@ -1020,7 +1021,7 @@ export function LobbyScreen() {
         </div>
       </div>
       <div class="topbar__right">
-        <span class="hub-online"><span class="online-pill__dot"></span><span class="num">${onlineCount}</span><span>${t('名博士在线')}</span></span>
+        <${OnlinePlayersButton} /><${PresenceSelector} />
         <${ResumeMatchButton} />
         <${AccountMeChip} player=${me} onStats=${openStats} />
 

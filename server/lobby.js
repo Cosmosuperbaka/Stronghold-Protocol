@@ -170,7 +170,8 @@ import { RoomChat, cleanChatText, getChatSettings } from './chat.js';
 
 import { getData as defaultGetData, lookup } from './data.js';
 import { Match as DefaultMatch } from './match/Match.js';
-import { getUniteLayerGains, getAllowRoomUniteLayerGains } from './match/hostSettings.js';
+import { getUniteLayerGains, getAllowRoomUniteLayerGains, getSocialSettings } from './match/hostSettings.js';
+import { ServerSocial } from './social.js';
 import { KITTED_CHARS } from './sim/content/kits/index.js';
 import { SiteAnnouncements } from './announcements.js';
 
@@ -426,6 +427,7 @@ export class Lobby {
     if (testHostOpt != null) this.setTestHost(testHostOpt);
     /** @type {Map<string, Room>} */
     this.rooms = new Map();
+    this.social = new ServerSocial(this);
     this.chatTimes = new WeakMap();
     this.announcements = new SiteAnnouncements({ now: this.now, broadcast: (frame) => {
       for (const session of this.registry.all()) if (session.connected) sendSession(session, frame);
@@ -546,9 +548,16 @@ export class Lobby {
   /**
    * After `welcome`: resend room state / match state for resumed (or repeated) hellos.
    * @param {import('./net.js').Session} session
-   * @param {{ resumed: boolean, repeat: boolean }} info
+   * @param {{ resumed: boolean, repeat: boolean, presenceStatus?: string }} info
    */
-  onHello(session, { resumed, repeat }) {
+  onHello(session, { resumed, repeat, presenceStatus }) {
+    const socialPolicy = getSocialSettings();
+    // Restore a browser's saved invisible state before any discovery frame, even after permissions were revoked.
+    if (presenceStatus === 'invisible' || presenceStatus === 'online' || socialPolicy.statusSelection) {
+      if (['online', 'away', 'busy', 'invisible'].includes(presenceStatus)) session.presenceStatus = presenceStatus;
+    }
+    this.social.lastSent.delete(session);
+    this.social.sync();
     sendSession(session, this.announcements.frame());
     if (!resumed && !repeat) return;
     const room = this.roomOf(session);
@@ -653,6 +662,10 @@ export class Lobby {
   handleMessage(session, msg, ctx = null) {
     switch (msg.t) {
       case 'state.resync': this.resync(session, true); return OK;
+      case 'social.list': return this.social.list(session, msg);
+      case 'social.status': return this.social.setStatus(session, msg);
+      case 'social.invite': return this.social.invite(session, msg);
+      case 'social.respond': return this.social.respond(session, msg);
       case 'room.create': return this.create(session, msg);
       case 'room.join': return this.join(session, msg);
       case 'room.leave': return this.leave(session);
@@ -687,6 +700,7 @@ export class Lobby {
 
   /** The session's socket closed. @param {import('./net.js').Session} session */
   onDisconnect(session) {
+    this.social.sync();
     this.clearResync(session.playerId); // the next resume resyncs immediately
     const room = this.roomOf(session);
     // a solo run may be resumed within singleReconnectTime (24 h); everything else keeps the registry's window
@@ -732,6 +746,7 @@ export class Lobby {
    * @param {string} [reason]
    */
   shutdown(reason = 'shutdown') {
+    this.social.dispose();
     this.announcements.dispose();
     this.offStale?.();
     this.offContentStale?.();

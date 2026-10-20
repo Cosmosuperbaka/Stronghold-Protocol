@@ -76,7 +76,7 @@ export function createRecovery({ lobby, root, dir = path.join(root, 'logs', 'rec
       if (!enabled || stopping || restoring || room.test || m.test) return;
       const sessions = [...room.seats, ...room.spectators].filter((s) => s && !s.isBot)
         .map((s) => lobby.registry.byId(s.playerId)).filter(Boolean)
-        .map((s) => Object.fromEntries(['playerId', 'token', 'name', 'loadout', 'ops', 'skins', 'card', 'cardSkin', 'notOwned', 'diy', 'resumeWindowMs'].map((k) => [k, s[k]])));
+        .map((s) => Object.fromEntries(['playerId', 'token', 'name', 'loadout', 'ops', 'skins', 'card', 'cardSkin', 'notOwned', 'diy', 'resumeWindowMs', 'presenceStatus'].map((k) => [k, s[k]])));
       const record = { format: 1, identity, seed: m.seed, matchNo: room.matchCount,
         room: { code: room.code, mode: room.mode, difficulty: room.difficulty, hostId: room.hostId, seats: room.seats, spectators: room.spectators, aiPicksLast: room.aiPicksLast, uniteLayerGains: room.uniteLayerGains, createdAt: room.createdAt },
         seats: m.order.map((p) => ({ seat: p.seat, playerId: p.playerId, name: p.name, isBot: p.isBot, connected: p.isBot,

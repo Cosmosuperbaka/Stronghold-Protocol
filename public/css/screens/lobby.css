@@ -1916,6 +1916,25 @@ button.ally-card:disabled { filter: grayscale(.7) brightness(.7); cursor: defaul
 .rs-opt select { font: inherit; color: #eef0ef; background: #111313; border: 1px solid rgba(255, 255, 255, .2); padding: 2px 6px; }
 .rs-opt--variant { flex-direction: column; align-items: stretch; }
 .rs-opts .ailast { display: flex; align-items: center; gap: .1rem; }
+.social-online { cursor: pointer; background: transparent; border: 0; color: inherit; font: inherit; padding: 4px; }
+.social-online .social-expand { width: 14px; height: 14px; transform: rotate(90deg); }
+.social-online:disabled { cursor: default; }
+.social-presence { display: inline-flex; align-items: center; gap: 6px; font-size: max(calc(.16 * var(--t)), 12px); white-space: nowrap; }
+.social-presence select { min-height: 32px; color: var(--text-hi); background: var(--bg-1); border: 1px solid var(--line-2); padding: 3px 6px; font: inherit; }
+.social-modal { width: min(7rem, calc(100vw - 24px)); background: var(--bg-1); }
+.social-note { color: var(--text-md); font-size: max(calc(.15 * var(--t)), 13px); }
+.social-toolbar { display: flex; gap: 8px; margin: 12px 0; }
+.social-toolbar input { flex: 1; min-width: 0; padding: 8px; border: 1px solid var(--line-2); background: var(--bg-0); color: var(--text-hi); font: inherit; }
+.social-players { max-height: min(50vh, 420px); overflow-y: auto; }
+.social-player { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: max(calc(.16 * var(--t)), 13px); }
+.social-player > div { min-width: 0; overflow-wrap: anywhere; }
+.social-player small { display: block; color: var(--text-md); margin-top: 3px; font-size: max(calc(.14 * var(--t)), 12px); }
+.social-invites { position: fixed; right: 16px; bottom: 16px; z-index: 78; width: min(360px, calc(100vw - 32px)); max-height: 70vh; overflow-y: auto; }
+.social-invites section { background: var(--bg-1); border: 1px solid var(--line-2); padding: 14px; margin-top: 8px; box-shadow: 0 6px 22px rgba(0,0,0,.35); font-size: max(calc(.16 * var(--t)), 13px); }
+.social-invites p { overflow-wrap: anywhere; margin: 8px 0; }
+.social-invites small { color: var(--text-md); }
+.social-invites section > div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+@media (max-width: 900px), (max-height: 520px) { .social-presence > span { display: none; } .social-presence select { max-width: 90px; } .social-player .btn { min-height: 36px; } }
 @media (max-width: 900px), (max-height: 520px) {
   .rs-opts { --room-options-x: 0%; left: 0; }
 }

@@ -28,7 +28,7 @@
 //   1001 server shutdown
 //
 // The handler object (implemented by server/lobby.js) receives:
-//   onHello(session, { resumed, repeat })  after `welcome` was sent
+//   onHello(session, { resumed, repeat, presenceStatus? })  after `welcome` was sent
 //   welcomeInfo() → object (optional)      extra fields of every `welcome` (never one of its own keys): the lobby's
 //                                          `diyKitted` (0.2.0 自选编队 — which operators a DIY slot may field) and
 //                                          `content` ({ vanilla: <cs> }, the server's content hash — DESIGN §32)
@@ -104,6 +104,7 @@ export class Session {
     this.ws = null;
     /** @type {boolean} */
     this.connected = false;
+    this.presenceStatus = 'online';
     /** @type {number | null} local first-welcome stamp of the attached client (optional, not authentication) */
     this.claimAt = null;
     /** @type {number} ms epoch of the last inbound frame / pong */
@@ -677,7 +678,10 @@ export class Network {
       // surface as an error toast in the browser)
       if (msg.t === 'b.progress' && !validRid(rid)) return;
       this.reply(conn, errorMsg(isErrCode(res.error) ? res.error : ERR.INTERNAL, rid, res.detail));
-    } else if (validRid(rid)) this.reply(conn, { t: 'ok', rid });
+    } else if (validRid(rid)) {
+      if (msg.t === 'social.list' && res?.ok) this.reply(conn, { t: 'ok', rid, players: res.players, total: res.total, nextOffset: res.nextOffset, canInvite: res.canInvite });
+      else this.reply(conn, { t: 'ok', rid });
+    }
   }
 
   /** @param {Connection} conn @param {any} msg @param {number} now */
@@ -725,7 +729,7 @@ export class Network {
     if (validRid(rid)) welcome.rid = rid;
     this.reply(conn, welcome);
     try {
-      this.handler.onHello?.(session, { resumed, repeat });
+      this.handler.onHello?.(session, { resumed, repeat, presenceStatus: msg.presenceStatus });
     } catch (e) {
       this.log.error('[net] onHello crashed', e);
     }

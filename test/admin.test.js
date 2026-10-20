@@ -11,6 +11,7 @@ import { TestClient } from './helpers/wsClient.js';
 import { makeMatch, checkInvariants } from './match/harness.js';
 import { getPrep, setPrep, resetHostSettings, prepSeconds, prepSecondsFor, getUniteLayerGains } from '../server/match/hostSettings.js';
 import { getAllowRoomUniteLayerGains } from '../server/match/hostSettings.js';
+import { getSocialSettings } from '../server/match/hostSettings.js';
 import { capturePrep, rewindToPrep } from '../server/match/rewind.js';
 import { releaseFor, tag, until } from './helpers/release-fixture.js';
 
@@ -678,6 +679,13 @@ test('console settings: the 休整期 timer of every timed match, kept in a file
     assert.match((await postCharts('false')).error, /开或关/);
     assert.equal(fs.readFileSync(file, 'utf8'), savedBefore, 'invalid chart setting is not persisted');
     assert.equal((await postCharts(false)).roundCharts, false);
+    const postSocial = social => req(a.port, '/api/settings', { method: 'POST', headers: auth, body: { social } }).then(r => r.json);
+    const beforeSocial = fs.readFileSync(file, 'utf8');
+    assert.match((await postSocial({ directory: 'no' })).error, /开或关/);
+    assert.equal(fs.readFileSync(file, 'utf8'), beforeSocial);
+    assert.equal((await postSocial({ directory: false, hostOnly: true })).social.directory, false);
+    assert.equal(getSocialSettings().hostOnly, true);
+    assert.equal(getSocialSettings().invitations, true, 'omitted social options remain unchanged');
     const permission = value => req(a.port, '/api/settings', { method: 'POST', headers: auth, body: { allowRoomUniteLayerGains: value } }).then(r => r.json);
     const beforePermission = fs.readFileSync(file, 'utf8');
     assert.match((await permission('true')).error, /开或关/);
@@ -692,12 +700,15 @@ test('console settings: the 休整期 timer of every timed match, kept in a file
     assert.deepEqual(getPrep(), { mode: 'perRound', rounds: { 2: 40 } }, 'read back at start');
     assert.equal(getUniteLayerGains(), true, 'custom rule survives restart');
     assert.equal(getAllowRoomUniteLayerGains(), true, 'room-host permission survives restart and omitted-field saves');
+    assert.equal(getSocialSettings().directory, false, 'social policy survives restart and unrelated saves');
+    assert.equal(getSocialSettings().hostOnly, true);
     assert.equal((await req(a.port, '/api/settings', { headers: { 'x-admin-token': a.token } })).json.roundCharts, false, 'chart setting survives restart');
     await a.close();
     fs.writeFileSync(file, JSON.stringify({ prep: { mode: 'default' } }));
     a = await startAdmin({ lobby, port: 0, log: { info() {}, error() {} }, resultsDir, settingsFile: file });
     assert.equal(getUniteLayerGains(), false, 'old settings files keep the official rule');
     assert.equal(getAllowRoomUniteLayerGains(), false, 'old files do not grant room-host control');
+    assert.equal(getSocialSettings().directory, true, 'old files use documented social defaults');
     assert.equal((await req(a.port, '/api/settings', { headers: { 'x-admin-token': a.token } })).json.roundCharts, true, 'old settings files default to showing charts');
     await a.close();
   } finally {

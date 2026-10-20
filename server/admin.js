@@ -37,6 +37,8 @@ import { GameData } from './match/gamedata.js';
 import { getPrep, setPrep, normalizePrep, getUniteLayerGains, setUniteLayerGains, getRoundCharts, setRoundCharts, getLiveRoundDamage, setLiveRoundDamage } from './match/hostSettings.js';
 import { getAllowRoomUniteLayerGains, setAllowRoomUniteLayerGains } from './match/hostSettings.js';
 import { AnnouncementDrafts } from './announcement-drafts.js';
+import { getSocialSettings, setSocialSettings, normalizeSocialSettings } from './match/hostSettings.js';
+import { DEFAULT_SOCIAL_SETTINGS } from '../shared/social.js';
 import { diyCatalog, grantDiy } from './match/adminDiy.js';
 import { createReleaseUpdater } from './release-update.js';
 import { gzipSync } from 'node:zlib';
@@ -607,6 +609,8 @@ export function loadSettings(file, log) {
   try { raw = fs.readFileSync(file, 'utf8'); } catch { return; } // none yet: the data's timers
   try {
     const saved = JSON.parse(raw);
+    const social = setSocialSettings({ ...DEFAULT_SOCIAL_SETTINGS, ...saved.social });
+    if (social.error) log.error(`[admin] ${file}: social ignored (${social.error})`);
     if (typeof saved.replay?.enabled === 'boolean') setReplayConfig({ enabled: process.env.SP_REPLAY === '0' ? false : saved.replay.enabled });
     const r = setPrep(saved.prep);
     if (r.error) log.error(`[admin] ${file}: prep ignored (${r.error})`);
@@ -627,6 +631,8 @@ export function loadSettings(file, log) {
 
 /** POST /api/settings { prep?, uniteLayerGains?, allowRoomUniteLayerGains?, roundCharts?, blockedWords? }: preserve omitted fields. */
 function saveSettings(file, body) {
+  const social = normalizeSocialSettings(Object.hasOwn(body, 'social') ? body.social : getSocialSettings());
+  if (social.error) return social;
   const r = normalizePrep(Object.hasOwn(body, 'prep') ? body.prep : getPrep());
   if (r.error) return r;
   const uniteLayerGains = Object.hasOwn(body, 'uniteLayerGains') ? body.uniteLayerGains : getUniteLayerGains();
@@ -646,11 +652,12 @@ function saveSettings(file, body) {
   if (typeof replay.enabled !== 'boolean' || replay.keep !== 50) return { error: '回放设置无效（最多保留 50 局）' };
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify({ prep: r.prep, uniteLayerGains, allowRoomUniteLayerGains, roundCharts, liveRoundDamage, chat: chat.settings, blockedWords: blocked.words, replay }, null, 2));
+  fs.writeFileSync(tmp, JSON.stringify({ prep: r.prep, uniteLayerGains, allowRoomUniteLayerGains, roundCharts, liveRoundDamage, chat: chat.settings, blockedWords: blocked.words, replay, social: social.settings }, null, 2));
   fs.renameSync(tmp, file);
   setPrep(r.prep);
   setUniteLayerGains(uniteLayerGains);
   setAllowRoomUniteLayerGains(allowRoomUniteLayerGains);
+  setSocialSettings(social.settings);
   setRoundCharts(roundCharts);
   setLiveRoundDamage(liveRoundDamage);
   setChatSettings(chat.settings);
@@ -658,6 +665,7 @@ function saveSettings(file, body) {
   setReplayConfig({ enabled: process.env.SP_REPLAY === '0' ? false : replay.enabled });
   const out = { ok: true, prep: getPrep(), uniteLayerGains: getUniteLayerGains(), roundCharts: getRoundCharts() };
   if (Object.hasOwn(body, 'allowRoomUniteLayerGains')) out.allowRoomUniteLayerGains = getAllowRoomUniteLayerGains();
+  if (Object.hasOwn(body, 'social')) out.social = getSocialSettings();
   if (Object.hasOwn(body, 'liveRoundDamage')) out.liveRoundDamage = getLiveRoundDamage();
   if (Object.hasOwn(body, 'chat')) out.chat = getChatSettings();
   if (Object.hasOwn(body, 'blockedWords')) out.blockedWords = getBlockedWords();
@@ -901,7 +909,7 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
       if (req.method === 'GET' && url.pathname === '/api/catalog') return send(200, await catalogView(lobby, url.searchParams.get('room')));
       if (req.method === 'GET' && url.pathname === '/api/results-summary') return send(200, summarizeResults(Object.fromEntries(url.searchParams)));
       if (req.method === 'GET' && url.pathname === '/api/results') return send(200, { records: listRecords(resultsDir) });
-      if (req.method === 'GET' && url.pathname === '/api/settings') return send(200, { prep: getPrep(), uniteLayerGains: getUniteLayerGains(), allowRoomUniteLayerGains: getAllowRoomUniteLayerGains(), roundCharts: getRoundCharts(), liveRoundDamage: getLiveRoundDamage(), chat: getChatSettings(), blockedWords: getBlockedWords(), replay: { enabled: getReplayConfig().enabled, keep: 50, forcedOff: process.env.SP_REPLAY === '0' }, file: settingsFile, defaults: prepDefaults(lobby.safeData()) });
+      if (req.method === 'GET' && url.pathname === '/api/settings') return send(200, { social: getSocialSettings(), prep: getPrep(), uniteLayerGains: getUniteLayerGains(), allowRoomUniteLayerGains: getAllowRoomUniteLayerGains(), roundCharts: getRoundCharts(), liveRoundDamage: getLiveRoundDamage(), chat: getChatSettings(), blockedWords: getBlockedWords(), replay: { enabled: getReplayConfig().enabled, keep: 50, forcedOff: process.env.SP_REPLAY === '0' }, file: settingsFile, defaults: prepDefaults(lobby.safeData()) });
       if (req.method === 'POST' && url.pathname === '/api/settings') {
         const body = await readJson(req);
         if (!body) return send(400, { error: '请求格式错误' });
@@ -911,6 +919,7 @@ export async function startAdmin({ lobby, port = 3100, host = '127.0.0.1', log =
           if (room.match) { room.match.replayDisabled = true; delete room.match.replay; }
         }
         if (r.ok) for (const room of lobby.rooms.values()) room.match?.syncExtensions?.();
+        if (r.ok && Object.hasOwn(body, 'social')) lobby.social?.sync(true);
         if (r.ok && Object.hasOwn(body, 'allowRoomUniteLayerGains')) {
           for (const room of lobby.rooms.values()) lobby.broadcastState?.(room);
         }

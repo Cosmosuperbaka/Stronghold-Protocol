@@ -41,6 +41,7 @@ import { html, UiHosts, Button, MicroLabel, closeAllDialogs } from './ui/compone
 import { ChatPanel } from './ui/chat.js';
 import { installChatSync } from './ui/chatStore.js';
 import { AnnouncementBanner, AnnouncementHost } from './ui/announcement.js';
+import { installSocial, SocialHost } from './ui/social.js';
 import { announcementFromMessage } from '../../shared/announcements.js';
 import { ConnectionBanner } from './ui/connBanner.js';
 import { ToastHost, toast, toastError, describeError } from './ui/toasts.js';
@@ -236,6 +237,7 @@ const CLOSE_REASON = {
 };
 
 function wireNet() {
+  installSocial();
   net.on('status', (snap) => {
     const cur = store.get().connection;
     store.set({
@@ -354,6 +356,7 @@ function App() {
     ${error ? html`<${ScreenCrashed} error=${error} reset=${resetError} />` : html`<${Screen} key=${route} />`}
     ${route !== 'game' ? html`<${ChatPanel} />` : null}
     <${AnnouncementBanner} /><${AnnouncementHost} />
+    <${SocialHost} />
     <${TrustedNotice} />
     <${ConnectionBanner} />
     <${ToastHost} />

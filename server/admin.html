@@ -1215,6 +1215,13 @@ async function showSettings() {
       <p class="meta">实时伤害默认开启。关闭后仅显示已结算回合，累计与结算记录继续保存；不影响玩家本机的 DPS / HPS 作战统计。</p>
       <div class="row"><button class="primary" data-round-charts-save>保存</button><button data-round-charts-reset>撤销修改</button><span class="meta" id="round-charts-saved" role="status"></span></div>
     </form></section>
+    <section class="room" id="social-settings"><h2>在线玩家与邀请</h2>
+    <p class="meta">仅管理当前服务器的会话，无需注册账号。保存后立即生效；隐身玩家始终从名单和可见人数中排除，也不能发送或接收邀请。关闭隐身选择不会强制公开已隐身玩家。</p>
+    <form id="social-form" class="stats-body" onsubmit="return false">
+      ${[['directory','启用在线玩家名单'],['invitations','启用房间直接邀请'],['statusSelection','允许玩家设置在线状态'],['invisible','允许玩家选择隐身'],['counts','显示可见在线人数'],['hostOnly','仅房主可以发送邀请']].map(([key,label]) => `<label><input type="checkbox" data-social-option="${key}" ${d.social?.[key] ? 'checked' : ''}> ${label}</label>`).join('')}
+      <p class="meta">忙碌玩家不接收邀请；对局中、已有房间、离线及隐身玩家均不能被邀请。邀请 60 秒过期，每人发送间隔至少 10 秒，单个玩家最多收到 5 份待处理邀请。关闭邀请会撤销待处理邀请。</p>
+      <div class="row"><button class="primary" data-social-save>保存</button><button data-social-reset>撤销修改</button><span class="meta" id="social-saved" role="status"></span></div>
+    </form></section>
     <section class="room" id="unite-settings"><h2>联防叠层</h2>
     <p class="meta" id="unite-layers-help">联防叠层默认关闭，新建房间沿用下方默认规则。只有开启「允许房主自行设置联防叠层」，房主才能在等待室「同盟设置」中修改，开局后固定。关闭权限会立即锁定已有房间的修改入口，但保留房间已选规则和正在进行的对局。开启叠层后，每场战斗额度重新获得，结算保留新增层数，上限仍为 999；最终攻势和隐秘核心仍不叠层。</p>
     <p class="meta">修改权限保存后立即生效，默认叠层规则仅用于新建房间。设置保存在 ${esc(d.file)}，重启服务器后保留。</p>
@@ -1270,7 +1277,7 @@ function arrangeSettings() {
   sections.set(chat.id, chat);
   const groups = [
     ['game', '对局设置', ['prep-settings', 'unite-settings', 'round-charts-settings']],
-    ['chat', '交流管理', ['chat-policy-settings', 'chat-settings']],
+    ['chat', '交流管理', ['social-settings', 'chat-policy-settings', 'chat-settings']],
     ['history', '记录与恢复', ['replay-settings', 'recovery-settings']],
     ['system', '维护与扩展', ['release-update', 'plugin-settings']],
     ['cleanup', '数据清理', ['storage-settings']],
@@ -1513,6 +1520,22 @@ async function refresh(force = false) {
 }
 
 document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-social-reset]')) {
+    for (const input of document.querySelectorAll('[data-social-option]')) input.checked = settingsData.social?.[input.dataset.socialOption] === true;
+    $('#social-saved').textContent = ''; return;
+  }
+  const socialSave = e.target.closest('[data-social-save]');
+  if (socialSave) {
+    const inputs = [...document.querySelectorAll('[data-social-option]')];
+    const social = Object.fromEntries(inputs.map(input => [input.dataset.socialOption, input.checked]));
+    socialSave.disabled = true; for (const input of inputs) input.disabled = true;
+    $('#social-saved').textContent = '保存中…';
+    api('/api/settings', { social }).then(result => {
+      if (!result.ok) throw new Error(result.error || '保存失败');
+      settingsData.social = result.social; $('#social-saved').textContent = '已保存，立即生效';
+    }).catch(error => { $('#social-saved').textContent = '保存失败：' + error.message; }).finally(() => { socialSave.disabled = false; for (const input of inputs) input.disabled = false; });
+    return;
+  }
   const roomButton = e.target.closest('[data-open-room]');
   const pageButton = e.target.closest('[data-record-page]');
   if (pageButton) { recordPage = Number(pageButton.dataset.recordPage); drawRecordList(); return; }

@@ -1739,7 +1739,7 @@ describe('match result replay', () => {
       const res = await back.waitFor('m.result');
       if (unicast) assert.equal(res.playerId, guest.id, 'the player gets their own result');
       else assert.equal(res.reason, hostResult.reason);
-      assert.deepEqual(order(back), ['site.announcement', 'room.state', 'chat.history', `m.public:${PHASE.RESULT}`, 'm.result']);
+      assert.deepEqual(order(back), ['social.state', 'site.announcement', 'room.state', 'chat.history', `m.public:${PHASE.RESULT}`, 'm.result']);
       assert.equal(back.log.find((m) => m.t === 'room.state').inMatch, false);
     });
   }
@@ -1793,13 +1793,13 @@ describe('match result replay', () => {
     await back.hello('Guest', guest.token);
     assert.equal((await back.waitFor('room.closed')).reason, 'timeout');
     assert.equal((await back.waitFor('m.result')).playerId, guest.id);
-    assert.deepEqual(order(back), ['site.announcement', 'room.closed', `m.public:${PHASE.RESULT}`, 'm.result']);
+    assert.deepEqual(order(back), ['social.state', 'site.announcement', 'room.closed', `m.public:${PHASE.RESULT}`, 'm.result']);
     // delivered once
     await back.terminate();
     const again = await pool.connect();
     await again.hello('Guest', guest.token);
     assert.equal((await again.waitFor('site.announcement')).announcement, null);
-    await again.expectNone(null, (m) => !['welcome', 'site.announcement'].includes(m.t), 300);
+    await again.expectNone(null, (m) => !['welcome', 'social.state', 'site.announcement'].includes(m.t), 300);
   });
 
   test('real Match: a human who is away when the match finishes gets its m.result on resume', async () => {

@@ -444,3 +444,25 @@ same-origin native script responses before import; all gameplay battle simulatio
 Test-room admission requires `testAck:true` for both join and spectate; otherwise `TEST_CONFIRM` precedes any membership/state delivery. `g.test bond` accepts `{id,layers,count?}` (count is 0–99 extra members). All host attempts consume their per-command rate bucket, including malformed args. `[test-input ROOM]` init/call/timer JSON lines and `[test-audit ROOM]` results use the server logger. Test results have null titles and zero trophies/rewards and never enter browser records.
 
 Console release updates use the authenticated full release archive. Program files and changed art/manifests are staged, verified, backed up and rolled back together; matching art is retained and extra local art is not deleted. Missing references or modified retained files prevent installation. A same-version repair requires explicit `repairAssets:true`; active-match and downgrade gates still apply. This downloads a full archive, not a network delta.
+
+### Local social protocol
+
+Optional `hello.presenceStatus` is online/away/busy/invisible. The lobby applies it before emitting discovery; a
+saved invisible login is honored even if invisible selection has since been disabled. `social.status {status}`
+requires enabled selection (online is always permitted); invisible additionally requires enabled invisible choice.
+
+`social.list {offset?}` returns an `ok` reply with `{players,total,nextOffset,canInvite}`; 100 entries per page,
+only connected visible human sessions, each `{playerId,name,status,activity:'lobby'|'room'|'match',available}`. It
+never exposes tokens, addresses or room codes. Directory disabled returns SOCIAL_DISABLED. Invisible/busy/offline/
+nonexistent invite targets receive the same INVITE_UNAVAILABLE refusal, with no lookup disclosure.
+
+`social.invite {playerId}` requires enabled invitations, a visible player seat of a non-test coop waiting room with
+space, and host permission when host-only is on. The recipient must be connected, visible, not busy and outside
+rooms. Invites have server-issued UUIDs, expire after 60 seconds, use a 10-second sender cooldown and a five-pending
+recipient cap. `social.respond {inviteId,accept}` checks ownership, expiry and current source/target/room validity;
+acceptance calls normal room.join without evicting anyone. Expired or stale requests return INVITE_EXPIRED.
+
+`social.state {policy,self,visibleCount,revision,invites}` is sent on hello, explicit updates and coalesced two-second
+checks only when changed. `visibleCount` is null when hidden by policy. The roster revision prompts an open list to
+refresh; no invisible names/IDs enter the frame. `invites` exposes only recipient-owned active invitations, with
+`{id,fromName,roomCode,difficulty,expiresAt}`. Clients poll visible directory pages every five seconds while open.

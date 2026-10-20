@@ -917,3 +917,20 @@ Live preview shares the player announcement renderer (escaped HTML, no remote im
 two columns and compact screens stack them. Replacing unsaved text asks for confirmation; leaving a dirty editor
 warns. Draft storage and template/preview actions never publish or withdraw a notice; publication is explicit.
 Draft details and authenticated endpoints: [LOCAL-DEV](../LOCAL-DEV.md#公告草稿模板与正文预览).
+
+### Local online players and room invitations
+
+The lobby's 名博士在线 is a directory button with an expansion chevron. It lists this server's visible connected
+human sessions (no account service), with search, room/match activity and 100-player pagination. Visible counts
+exclude invisible users. The top-right selector offers online, away, busy and invisible. The browser persists it
+and sends it in hello before discovery. Saved invisible logins stay hidden even if the administrator later disables
+invisible selection. Invisibility governs discovery/invitations, not room membership visible during shared play.
+
+Waiting-room 邀请玩家 opens the directory. Available players outside rooms may be invited; acceptance is explicit
+and runs normal join checks. Busy, invisible, disconnected and room-bound players cannot be invited; invisible
+players cannot send invitations. Invites expire after 60 seconds, with a 10-second sender cooldown and at most five
+pending per recipient. Full/started/disbanded rooms, disconnects and invisibility invalidate pending invites.
+
+Console 设置 → 交流管理 → 在线玩家与邀请 controls directory, invitations, status selection, invisible selection,
+visible counts and host-only invitations. All except host-only default on. Settings persist and apply immediately.
+Disabling invitations cancels pending invites; disabling selection preserves existing privacy.

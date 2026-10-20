@@ -25,7 +25,7 @@
 - 合并上游新版本时从 `main` 开功能分支，完成适配与测试后再合并回 `main`。
 - 同步上游：`git fetch upstream` → `git merge upstream/master` → `npm install` → `npm run setup`（上游常会加素材）→ `node --test`。
 - 素材 `public/assets/`、`.cache/`、`.claude/` 都在 `.gitignore` 里，不进仓库。新机器 clone 后要先 `npm install && npm run setup`。
-- 当前版本为 `v0.3.1-extended.5`（正式版），基于上游 `v0.3.1`（`b3deebda`）。上一正式版为 `v0.3.1-extended.4`。本版修复手机房间、标点与统计布局，支持标点拖动及折叠记忆，新增个人数据恢复码、备份与域名迁移。接入 Forge、工作台、交互窗口、干员特质、规则开关、测试房间与上游规则修复，保留控制台、聊天、统计、回档、回放、联动与皮肤扩展。完整包包含 11 个官方战场场景（提取版本 4）、官方 FX、多语言语音、174 套皮肤和海报素材；lite 需按文档补齐。发布预检使用 `--require-local-art`。
+- 当前版本为 `v0.3.1-extended.6`（正式版），基于上游 `v0.3.1`（`b3deebda`）。上一正式版为 `v0.3.1-extended.5`。本版新增在线玩家名单、状态与隐身、房间邀请及控制台管理，房间联防叠层权限和公告草稿、模板与 Markdown 预览。完整包包含 11 个官方战场场景（提取版本 4）、官方 FX、多语言语音、174 套皮肤和海报素材；lite 需保留或另行安装素材，发布预检使用 `--require-local-art`。
 
 当前源码已整合上游 `v0.3.1`（`b3deebda`）；`package.json` / APP_VERSION 为基础版本 0.3.1；`server/release-version.js` 单独记录扩展标签。发布附件与公开状态以 Releases 为准。
 
@@ -661,3 +661,21 @@ Windows 文件锁、既有资源缓存/标题链接断言。观战隐私断言�
 保存、载入、删除、预览和套用模板均不发布，也不撤下当前公告；仍需点击「发布全站公告」。
 验证：`test/announcement-drafts.test.js`、`test/ui/announcement-markdown.test.js` 和
 `SP_E2E=1 node --test test/ui/announcement-drafts.e2e.test.js`。
+
+### 在线玩家、在线状态与直接邀请
+
+首页右上角「名博士在线」后增加展开符号，可查看当前服务器可见在线玩家、搜索姓名并分页（100 人/页）。
+同一区域可切换在线、暂离、忙碌、隐身，选择保存在本浏览器；握手时先应用，避免刷新短暂暴露。隐身不计入
+可见人数、不返回名单，也不能发送或接收邀请；关闭隐身选择不会强制公开已有隐身玩家。房间中的真实成员仍
+按原有玩法可见，隐身不隐藏对局席位。名单不返回地址、令牌或其他人的房间码。
+
+等待室「邀请玩家」打开名单，可向当前未在房间、非忙碌的可见玩家发送邀请；对方确认加入后复用原有入房校验。
+邀请 60 秒失效、发送者每 10 秒最多一次、接收者最多 5 份待处理邀请。房满、开局、离线、离房、隐身或关闭
+邀请功能会使邀请失效；不会强制移出对方当前房间。测试房间不提供这条邀请入口。
+
+控制台「设置 → 交流管理 → 在线玩家与邀请」包含六个布尔选项：`directory` 名单、`invitations` 邀请、
+`statusSelection` 状态选择、`invisible` 隐身选择、`counts` 可见人数、`hostOnly` 仅房主邀请。前五项默认
+开启，最后默认关闭；保存到 `logs/admin-settings.json` 的 `social`，省略项保留，校验和写盘成功后立即广播。
+关闭邀请会清空待处理邀请。关闭状态选择仍允许主动恢复在线，且不会改变已有隐身状态。
+
+回归入口：`test/social.test.js`、`test/admin.test.js`、`SP_E2E=1 node --test test/ui/social.e2e.test.js`。

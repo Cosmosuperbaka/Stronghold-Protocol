@@ -138,6 +138,9 @@ export const ERR = Object.freeze({
   CHAT_MUTED: 'CHAT_MUTED',
   CHAT_DISABLED: 'CHAT_DISABLED',
   UNITE_LAYERS_LOCKED: 'UNITE_LAYERS_LOCKED',
+  SOCIAL_DISABLED: 'SOCIAL_DISABLED',
+  INVITE_UNAVAILABLE: 'INVITE_UNAVAILABLE',
+  INVITE_EXPIRED: 'INVITE_EXPIRED',
   SESSION_IN_USE: 'SESSION_IN_USE', // a local recovery candidate cannot replace the connected holder
   RATE: 'RATE',                   // rate limited
   NOT_IN_ROOM: 'NOT_IN_ROOM',
@@ -195,6 +198,9 @@ export const ERR_TEXT = {
   CHAT_MUTED: N_('你已被主机禁言，请联系主机解除'),
   CHAT_DISABLED: N_('主机已暂时关闭房间文字聊天'),
   UNITE_LAYERS_LOCKED: N_('主机未允许房主修改联防叠层规则'),
+  SOCIAL_DISABLED: N_('主机未开启此在线玩家功能'),
+  INVITE_UNAVAILABLE: N_('当前无法发送邀请，请检查房间空位和玩家状态'),
+  INVITE_EXPIRED: N_('邀请已失效，请重新邀请'),
   SESSION_IN_USE: N_('此对局仍在其他窗口中，或当前浏览器无法安全恢复。请关闭原窗口后重试。'),
   BAD_MSG: N_('无效的请求'), RATE: N_('操作过于频繁'), NOT_IN_ROOM: N_('你不在房间中'), ROOM_NOT_FOUND: N_('未找到该同盟密钥对应的房间'),
   ROOM_FULL: N_('房间已满'), ROOM_STARTED: N_('模拟已开始'), NOT_HOST: N_('只有房主可以操作'), NOT_READY: N_('仍有玩家未就绪'),

@@ -1,6 +1,6 @@
 # 卫戍协议：盟约 · Stronghold Protocol: Alliance
 
-![扩展版本](https://img.shields.io/badge/version-0.3.1--extended.5-blue)
+![扩展版本](https://img.shields.io/badge/version-0.3.1--extended.6-blue)
 ![上游基础版本](https://img.shields.io/badge/version-0.3.1-2ea44f)
 ![许可](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)
 
@@ -11,7 +11,7 @@ A non-commercial fan remake of the Arknights mode *Stronghold Protocol: Alliance
 
 [下载正式版](https://github.com/zhewang448/Stronghold-Protocol/releases/latest) · [开始运行](#开始运行) · [和朋友一起玩](#和朋友一起玩) · [更新记录](docs/LOCAL-CHANGELOG.md) · [玩法指南](docs/PLAYING.md) · [反馈问题](https://github.com/zhewang448/Stronghold-Protocol/issues)
 
-> 当前版本为 **`v0.3.1-extended.5`**（基础版本 `0.3.1`）。修复手机房间卡片、标点与统计布局，标点支持拖动、收起和位置记忆；新增个人数据恢复码、备份与域名迁移。提供签名完整素材包与轻量包。新版内容见[扩展更新记录](docs/LOCAL-CHANGELOG.md)，上游变化见 [CHANGELOG.md](CHANGELOG.md)。
+> 当前版本为 **`v0.3.1-extended.6`**（基础版本 `0.3.1`）。新增在线玩家名单、状态与隐身、房间直接邀请及控制台管理；支持房间联防叠层权限和公告草稿、模板、Markdown 预览。提供签名完整素材包与轻量包。新版内容见[扩展更新记录](docs/LOCAL-CHANGELOG.md)，上游变化见 [CHANGELOG.md](CHANGELOG.md)。
 >
 > 非官方、非商业同人项目，与《明日方舟》官方无隶属或授权关系。游戏名称、美术、音频、文本与数据的权利归原权利人，仅供学习和个人非商业使用。
 

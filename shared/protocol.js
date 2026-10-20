@@ -10,6 +10,7 @@ import { isPluginId } from './plugins/manifest.js';
 import { LIVE_DAMAGE_UNITS } from './battleDamage.js';
 import { isTestCommand } from './testMode.js';
 import { PLUGIN_OFFER_SLOTS } from './plugins/limits.js';
+import { PRESENCE_STATUSES } from './social.js';
 
 
 // ---- tiny validators -------------------------------------------------------
@@ -500,8 +501,12 @@ const target = (v) => {
 export const C2S = {
   // session & lobby
   hello: { name: (v) => isStr(v, NAME_MAX_LEN) && v.trim().length > 0, token: (v) => v == null || isStr(v, 64), version: (v) => v == null || isInt(v, 0, 1e6),
-    noReplace: isBool, claimAt: (v) => isNum(v, 0, Number.MAX_SAFE_INTEGER), stateDelta: (v) => isInt(v, 0, 1e6), $optional: ['token', 'version', 'noReplace', 'claimAt', 'stateDelta'] },
+    noReplace: isBool, claimAt: (v) => isNum(v, 0, Number.MAX_SAFE_INTEGER), stateDelta: (v) => isInt(v, 0, 1e6), presenceStatus: v => PRESENCE_STATUSES.includes(v), $optional: ['token', 'version', 'noReplace', 'claimAt', 'stateDelta', 'presenceStatus'] },
   'state.resync': {},
+  'social.list': { offset: v => isInt(v, 0, 20000), $optional: ['offset'] },
+  'social.status': { status: v => PRESENCE_STATUSES.includes(v) },
+  'social.invite': { playerId: isId },
+  'social.respond': { inviteId: isId, accept: isBool },
   ping: { c: (v) => typeof v === 'number' && Number.isFinite(v) },
   // test: only the literal true (DESIGN §34.8). Omit it for a normal room — `false` is a bad field, so a
   // string cannot sneak in as "not a test". The server still refuses it unless SP_TEST_MODE is on.
@@ -646,6 +651,7 @@ export const C2S = {
 // Server → client message types (documentation + client dispatch table keys).
 export const S2C = [
   'welcome', 'ok', 'error', 'pong',
+  'social.state',
   'room.state', 'room.closed', 'chat.message', 'chat.history', 'site.announcement',
   'm.public', 'm.private', 'm.state', 'm.field', 'm.toast', 'm.ticker', 'm.emote', 'm.ping', 'm.result',
   // m.layer { playerId, bondId, add } — own live prep layer gain; ephemeral, never replayed on resync.

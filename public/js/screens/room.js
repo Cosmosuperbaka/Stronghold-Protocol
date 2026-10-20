@@ -44,6 +44,7 @@ import { copyText } from '../ui/clipboard.js';
 import { GuideButton } from '../ui/guide.js';
 import { openStats } from './stats.js';
 import { openFriends } from '../ui/friends.js';
+import { RoomInviteButton, PresenceSelector } from '../ui/social.js';
 import { NameCardLayer } from '../ui/namecards.js';
 import { SettingsButton } from '../ui/settings.js';
 import { LoadoutButton } from './loadout.js';
@@ -551,6 +552,7 @@ export function RoomScreen() {
         </div>
       </div>
       <div class="rs-top__right">
+        <${PresenceSelector} />
         ${room.test ? html`<${TestMark} />` : null}
 
         <${PluginTag} room=${room} myId=${me.playerId} />
@@ -562,6 +564,7 @@ export function RoomScreen() {
           <b class="rs-key__code num selectable" aria-label=${t('同盟密钥 {code}', { code: room.code })}>${room.code}</b>
           <button type="button" class="rs-key__copy" onClick=${() => copy('code')}>${t('复制')}</button>
           <button type="button" class="rs-key__link" onClick=${() => copy('link')} title=${t('复制邀请链接')} aria-label=${t('复制邀请链接')}><${Icon} name="link" /></button>
+          <${RoomInviteButton} />
           ${openFriends.unavailable ? null : html`<button type="button" class="rs-key__friends" onClick=${() => openFriends('list')} title=${t('从好友列表邀请好友加入同盟')}><${Icon} name="users" /><span>${t('邀请好友')}</span></button>`}
         </div>` : html`<div class="rs-key rs-key--solo"><${MicroLabel}>SINGLE OPERATOR<//><span>${t('仅限 1 名博士')}</span></div>`}
       </div>
