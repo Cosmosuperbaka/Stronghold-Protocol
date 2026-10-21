@@ -25,7 +25,7 @@
 - 合并上游新版本时从 `main` 开功能分支，完成适配与测试后再合并回 `main`。
 - 同步上游：`git fetch upstream` → `git merge upstream/master` → `npm install` → `npm run setup`（上游常会加素材）→ `node --test`。
 - 素材 `public/assets/`、`.cache/`、`.claude/` 都在 `.gitignore` 里，不进仓库。新机器 clone 后要先 `npm install && npm run setup`。
-- 当前版本为 `v0.3.1-extended.6`（正式版），基于上游 `v0.3.1`（`b3deebda`）。上一正式版为 `v0.3.1-extended.5`。本版新增在线玩家名单、状态与隐身、房间邀请及控制台管理，房间联防叠层权限和公告草稿、模板与 Markdown 预览。完整包包含 11 个官方战场场景（提取版本 4）、官方 FX、多语言语音、174 套皮肤和海报素材；lite 需保留或另行安装素材，发布预检使用 `--require-local-art`。
+- 当前版本为 `v0.3.1-extended.7`（正式版），基于上游 `v0.3.1`（`514b69d9`）。上一正式版为 `v0.3.1-extended.6`。本版把上游 `v0.3.1-extended.6` 的 229 个提交合入本分支，保留全部本地扩展（素材预载镜像、玩法扩展六开关、战斗倍速、DPS 面板、重启恢复、标题页精简），并按官方清单补上 32 个新增素材（4 个技能音效与 28 条 `char_1029_yato2` 语音）。完整包包含 11 个官方战场场景（提取版本 4）、官方 FX、多语言语音、174 套皮肤和海报素材；lite 需保留或另行安装素材，发布预检使用 `--require-local-art`。
 
 当前源码已整合上游 `v0.3.1`（`b3deebda`）；`package.json` / APP_VERSION 为基础版本 0.3.1；`server/release-version.js` 单独记录扩展标签。发布附件与公开状态以 Releases 为准。
 

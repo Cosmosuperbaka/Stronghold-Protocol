@@ -5,7 +5,7 @@ export const SKIN_LIMIT = 256;
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 
 /**
- * The web spine entry the client can load — `assets.js` entries (a `/…​.skel` path, its atlas, animations). Defined here
+ * The web spine entry the client can load — `assets.js` entries (a `/….skel` path, its atlas, animations). Defined here
  * so the skin picker (public/js/ui/skins.js) shares the asset store's predicate without importing the store itself:
  * public/js/assets.js must stay out of a page's static graph (test/ui/plugins-client.test.js).
  */

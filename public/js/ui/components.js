@@ -75,9 +75,7 @@ export const ICONS = {
   info: { d: 'M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm-1 8v7h2v-7zm0-3v2h2V7z', eo: true },
   warn: { d: 'M12 2 1 21h22zm-1 7v6h2V9zm0 7.5v2h2v-2z', eo: true },
   play: { d: 'M7 4v16l13-8z' },
-  warn: { d: 'M12 2 1 21h22zm-1 7v6h2V9zm0 7.5v2h2v-2z' },
   // 预载资源 (ui/preload.js): the widget / manager actions (ported with the preload panel)
-  download: { d: 'M11 3h2v9.2l3.3-3.4 1.4 1.5L12 16.1 6.3 10.3l1.4-1.5L11 12.2zM4 18h2v2h12v-2h2v4H4z' },
   pause: { d: 'M7 4h3.6v16H7zM13.4 4H17v16h-3.6z' },
   mic: { d: 'M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21H8v2h8v-2h-3v-3.1A7 7 0 0 0 19 11z' },
   edit: { d: 'M3 17.2V21h3.8l11-11-3.8-3.8zM20.7 7.1a1 1 0 0 0 0-1.4l-2.4-2.4a1 1 0 0 0-1.4 0l-1.8 1.8 3.8 3.8z' },

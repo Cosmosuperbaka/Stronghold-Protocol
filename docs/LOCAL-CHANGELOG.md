@@ -6,7 +6,7 @@
 
 - 合并上游自 `v0.3.0-extended.2` 之后的全部工作（229 个提交 / 733 个文件，`514b69d9` = `v0.3.1-extended.6`）：在线玩家与隐身、房间邀请、公告草稿与模板、工作室（`/studio`）与参考 UI、社交与个人数据面板、房主「联防叠层」设置（`room.setUniteLayerGains`）、标点拖动、手机适配、官方式 CDN 配置（`server/http/cdnConfig.js` + `deploymentCdn()`）、`media-src` CSP 等。
 - 保留本库扩展并合入官方新骨架：素材预载引擎（`ui/preload.js`，IndexedDB + 双镜像 + 后台续传）、素材镜像候选（`ui/assetMirrors.js`）、玩法扩展六开关（`room.setExtensions`，其中「升本补卡」强制开启）、战斗倍速（1× / 2× / 4×）、DPS 面板、重启恢复快照、CSP 镜像放行（`SP_ASSET_MIRROR_ORIGINS`）、标题页精简。对局内通讯改用官方 `MatchCommunication`（取代本库 `EmoteWheel`），DPS 面板与官方角落工具列共存。
-- 合并取舍：`server/match/match/settle.js` 采用官方 `eliminateBroken()` 并把 revive 分支注入其中；`server/match/audit.js` 保留本库 `sharedLp` 的按人均分校验（`countedOf` / `maxOf` / `shares`），同时采纳官方关于 `uniteRuntime` 召唤物不计费的注释；`public/js/ui/resourcePanel.js` 保留本库引擎版（官方 `ResourceHost` / `ResourceTier` / `ResourcePackProgress` 未合入），`main.js` 不再挂载 `ResourceHost`；`ui/assetUrls.js` 保留 `skinAvatarUrl`（官方改走 `avatarUrl`，本库棋盘与预载仍引用前者），`ui/fallbackField.js`、`ui/skinPicker.js`、`ui/skins.js` 取官方版；`data/assets.json` 取上游（18,357 文件 / 990 MB），需在服务器补齐 206 个新增素材（28 条语音、4 条音效、174 张 seat-portrait）。
+- 合并取舍：`server/match/match/settle.js` 采用官方 `eliminateBroken()` 并把 revive 分支注入其中；`server/match/audit.js` 保留本库 `sharedLp` 的按人均分校验（`countedOf` / `maxOf` / `shares`），同时采纳官方关于 `uniteRuntime` 召唤物不计费的注释；`public/js/ui/resourcePanel.js` 保留本库引擎版（官方 `ResourceHost` / `ResourceTier` / `ResourcePackProgress` 未合入），`main.js` 不再挂载 `ResourceHost`；`ui/assetUrls.js` 保留 `skinAvatarUrl`（官方改走 `avatarUrl`，本库棋盘与预载仍引用前者），`ui/fallbackField.js`、`ui/skinPicker.js`、`ui/skins.js` 取官方版；`data/assets.json` 取上游（18,357 文件 / 990 MB）；与服务器素材树逐文件比对后实际只差 32 个文件（`char_1029_yato2` 的 28 条 en / kr 语音、4 条技能音效，共 600 KB），官方清单里另有 174 张 seat-portrait 本库早已在库，无需补。
 - 素材链路修复（线上问题）：`/data/asset-mirrors.json` 此前只列 R2，而 R2 只有 `sp-ext` 增量树，基础头像 / 立绘 / Spine / 标记图标全部 404，界面退回「盟约首字」占位；已改为 `mirrors: []`，素材统一同源 `/assets/**`，由侧车本地优先、缺失再 302 兜底。侧车误开 `SP_LOCALIZE` 触发资源包下载的事故已回滚（写入的 1 个 zip 已删、1 个被截断的语音已按 28,230 字节恢复）。
 - 本版验证：见发布日志（待补：全量测试、lint / imports / typecheck、预发布环境浏览器回归）。
 
@@ -471,7 +471,7 @@
 ## 2026-10-16 — v0.3.0-extended.5：合并官方 v0.3.0-extended.2（社区 Hub UI 与新功能）
 
 - 合并官方主仓在 vanilla 0.3.0 之后的全部工作（v0.3.0-extended.1 与 v0.3.0-extended.2，即 de661276…6c428e67）：社区 Hub UI（大厅 Hub 化改版，lobby.js / lobby.css / hubBackdrop 等 ~5,500 行）、局内每回合统计与实时伤害、交流管理（全员公告 / 屏蔽词 / 房间聊天开关）、主机设置重组、组队海报（干员与立绘搜索）、帧率设置、干员快捷键选中优先修复、素材指纹修复、恢复快照增强。
-- 合并取舍：`data/assets.json` 保留本库清单（16,705 文件，与服务器 / R2 素材基线一致；官方清单含其离线资源包的 1,449 个文件，本库未部署该素材，取官方值会造成预载 404）；`server/http/csp.js` 保留本库 `mirrorOrigins()`（SP_ASSET_MIRROR_ORIGINS）；`release-version.js` 升至本标签（官方也用了 v0.3.0-extended.1 / v0.3.0-extended.2 标签，为避免歧义本库跳到 extended.5）；标题页官方素材下载行维持移除；玩法扩展六开关、战斗倍速、DPS 面板、素材预载镜像系统全部保留，官方资源面板（设置内可选，默认关）与本库预载 Widget 并存。
+- 合并取舍：`data/assets.json` 保留本库清单（16,705 文件，与服务器 / R2 素材基线一致；官方清单含其离线资源包的 1,449 个文件，本库未部署该素材，取官方值会造成预载 404）；`server/http/csp.js` 保留本库 `mirrorOrigins()`（SP_ASSET_MIRROR_ORIGINS）；`release-version.js` 升至本标签（官方也用了 v0.3.0-extended.1 / v0.3.0-extended.2 标签，为避免歧义本库跳到 v0.3.0-extended.5）；标题页官方素材下载行维持移除；玩法扩展六开关、战斗倍速、DPS 面板、素材预载镜像系统全部保留，官方资源面板（设置内可选，默认关）与本库预载 Widget 并存。
 - 干员快捷键 / kit 类文件（op-makoto / op-orchd2 / op-yato2）取官方版（两边同源仅注释排版差异）；测试合并取双方超集；i18n 四语言取键并集（各 2,368+ 键，JSON 校验通过）。
 
 ## 2026-10-16 — v0.3.0-extended.2：局内统计、交流管理与主机设置

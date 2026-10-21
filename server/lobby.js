@@ -1473,14 +1473,13 @@ export class Lobby {
         card: s.card || null, cardSkin: s.cardSkin || null,
         bondPlan: s.isBot ? null : s.bondPlan || null,
         loadout: own ? own.loadout : null,
+        // 干员皮肤 (docs/SKINS.md): the appearances the human wears, keyed by operator charId (bots always default)
         skins: s.isBot ? null : s.skins || null,
         ops: own ? own.ops : null,
         // 0.2.0 补位: the chess the human marked as not owned (bots own every operator)
         notOwned: own ? own.notOwned : null,
         // 0.2.0 自选编队: the human's checked DIY picks (bots field no 自选 piece [ASSUMED])
         diy: own ? own.diy : null,
-        // 干员皮肤 (docs/SKINS.md): the appearances the human wears, keyed by operator charId (bots always default)
-        skins: own ? own.skins : null,
       };
     });
     // lastPublic / results: the latest m.public broadcast and the m.result frames (encoded), kept for the replay.

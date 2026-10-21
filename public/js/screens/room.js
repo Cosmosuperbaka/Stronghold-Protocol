@@ -34,7 +34,8 @@ import { useEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.
 import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS, MAX_SPECTATORS, ROOM_EXTENSIONS, ROOM_EXTENSIONS_DEFAULT, extensionsAreDefault } from '../../../shared/constants.js';
 // seat counts through the namespace: the live constants (before the 10-seat package) have MAX_SEATS 4 and no DEFAULT_SEATS
 import * as SEAT_CONST from '../../../shared/constants.js';
-import { RANDOM_MODE, RANDOM_MODE_NAME } from '../../../shared/randomMode.js';import {
+import { RANDOM_MODE, RANDOM_MODE_NAME } from '../../../shared/randomMode.js';
+import {
   html, Button, Icon, MicroLabel, AvatarFrame, DifficultyIcon, Tooltip, confirmDialog, doctorNo, Spinner, Modal,
 } from '../ui/components.js';
 import { toast, toastError } from '../ui/toasts.js';
@@ -181,7 +182,7 @@ function CardPicker({ current, currentSkin, list, m, onPick, onClose }) {
       <button type="button" class=${`cardpick__op cardpick__op--auto${!current ? ' is-on' : ''}`} onClick=${() => onPick('')} title=${t('按博士编号自动分配')}>
         <span class="cardpick__img"><${Icon} name="refresh" /></span><span class="cardpick__name">${t('默认')}</span></button>
       ${shown.map((c) => html`<button key=${c.charId} type="button" class=${`cardpick__op${current === c.charId ? ' is-on' : ''}`} onClick=${() => setSelected(c)} title=${c.name}>
-        <span class="cardpick__img"><img src=${chessAvatarUrl(m, c) || c.choices?.[0]?.portrait} alt="" loading="lazy" draggable=${false} /></span>
+        <span class="cardpick__img"><img src=${chessAvatarUrl(m, c) || c.choices?.[0]?.portrait} alt="" draggable=${false} /></span>
         <span class="cardpick__name">${c.name}</span>${c.rarity ? html`<span class=${`cardpick__star r${c.rarity}`}>${c.rarity}★</span>` : null}</button>`)}
     </div>
     <p class="cardpick__note"><${Icon} name="info" />${CARD_SYNC ? t('选择后，同盟里的博士都会看到这张立绘') : t('目前只有你自己看得到；服务器下次更新后，同盟里的其他博士也能看到你的选择')}</p>
@@ -314,22 +315,6 @@ function RoomOptionsButton({ room, isHost, busy, onSet }) {
       })}
       ${ROOM_EXTENSIONS.map((k) => (EXT_TIP[k] ? html`<p class="ropts__tip" key=${`tip-${k}`}>${EXT_TIP[k]}</p>` : null))}
     </div>` : null}
-  </div>`;
-}
-
-function DifficultyPicker({ room, isHost, busy, onPick }) {
-  if (!isHost) {
-    return html`<div class="dpick dpick--ro">
-      <${DifficultyTag} difficulty=${room.difficulty} size="lg" code=${difficultyInfo(room.mode, room.difficulty).code} />
-      <span class="t-dim">${t('由创建者选择')}</span>
-    </div>`;
-  }
-  return html`<div class="dpick" role="radiogroup" aria-label=${t('模拟难度')}>
-    ${DIFFICULTIES.map((d) => html`<button key=${d} type="button" role="radio" aria-checked=${room.difficulty === d ? 'true' : 'false'}
-        class=${`dpick__opt${room.difficulty === d ? ' is-active' : ''}`} style=${`--d-color:${DIFFICULTY_COLORS[d]}`}
-        disabled=${!!busy} onClick=${() => room.difficulty !== d && onPick(d)}>
-      <${DifficultyIcon} difficulty=${d} />${t(DIFFICULTY_NAMES[d].replace('模拟', ''))}
-    </button>`)}
   </div>`;
 }
 
