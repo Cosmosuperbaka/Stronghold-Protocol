@@ -144,6 +144,39 @@ test('sharedLp: one team pool — the round bill comes off Σ LP, the rest is de
   m.dispose();
 });
 
+test('sharedLp: the pool rides m.public as ONE bar — no doctor\'s row ever shows a teammate\'s leaks', () => {
+  // 用户反馈「漏怪显示到队友那里」: the team bar reads Σ alive LP + the round's whole bill (teamPending); the per-player
+  // pendingLp of a shared pool is NOT published, so a teammate's row cannot preview leaks the viewer never caused.
+  const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', seed: 5, fake: true, humans: 2, bots: 0,
+    extensions: { sharedLp: true }, script: () => ({ leaks: { p_0: 3, p_1: 1 } }) }).start();
+  h.toPrep(1);
+  const m = h.m;
+  h.drive(() => m.phase === 'PREP' && m.round === 2);
+  const frames = h.bc.filter((f) => f.t === 'm.public' && (f.phase === 'COMBAT' || f.phase === 'UNITE'));
+  assert.ok(frames.length > 0, 'the round broadcast m.public while the battles ran');
+  for (const f of frames) {
+    const alive = f.players.filter((p) => p.alive !== false);
+    assert.equal(f.teamLp, alive.reduce((s, p) => s + p.lp, 0), `the team bar reads Σ alive LP (${f.phase} R${f.round})`);
+    if (f.teamPending != null) assert.ok(f.teamPending >= 0 && f.teamPending <= f.teamLp, `teamPending ${f.teamPending} within the pool`);
+    for (const p of f.players) assert.equal(p.pendingLp, undefined, `${p.playerId} 的行不显示别人的漏怪`);
+  }
+  h.invariants();
+  m.dispose();
+});
+
+test('sharedLp off (control): a leaking doctor\'s own row carries pendingLp', () => {
+  const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', seed: 5, fake: true, humans: 2, bots: 0,
+    script: () => ({ leaks: { p_0: 3, p_1: 1 } }) }).start();
+  h.toPrep(1);
+  const m = h.m;
+  h.drive(() => m.phase === 'PREP' && m.round === 2);
+  const frames = h.bc.filter((f) => f.t === 'm.public' && (f.phase === 'COMBAT' || f.phase === 'UNITE'));
+  assert.ok(frames.some((f) => f.players.some((p) => p.pendingLp > 0)), 'without sharedLp the leaker previews its own bill');
+  assert.ok(frames.every((f) => f.teamLp === undefined), 'without sharedLp m.public carries no team bar');
+  h.invariants();
+  m.dispose();
+});
+
 test('sharedLp + 联防: the pool absorbs the 联防 bill too — no round pays one doctor alone', () => {
   // p_0 leaks 4, p_1 is perfect → 联防 runs and its survivors still bill 4: the pool takes it, both bars end even
   const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', seed: 5, fake: true, humans: 2, bots: 0,

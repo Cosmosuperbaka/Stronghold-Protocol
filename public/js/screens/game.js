@@ -121,7 +121,7 @@ import { pieceTile } from '../render/drag.js';
 import { FOLD_CAMERA_MS } from '../render/app/tune.js';
 import {
   phaseMode, phaseBanner, isCombatPhase, showDeadPill, isBossPhase, placementContext, canPlace, boardTargets, dropIntent,
-  battleOverSfx, uniteResultBox, battleResultBox,
+  battleOverSfx, uniteResultBox, battleResultBox, roundResultBox,
   snapHud, activeBubbles, shortcutFor, shortcutBlocked, prepShortcutsSuspended, closesOnFieldPress, phaseTotalSeconds, homeFieldId, ownFieldId, normalizeSp, normalizePersonalChoice, sortedPlayers,
   terrainInfo, deviceInfo, deviceTipAt, noteDeviceUnits, deviceUnitsForEntry,
   countdownState, shopBlockReason, stageOverrides, effectiveStage, watchTarget, dropFailureReason,
@@ -409,6 +409,18 @@ function MatchScreen() {
       cap: gd.config?.lpCapPerRound,
       unite: phase === PHASE.UNITE || (same && prev.unite),
     };
+  }
+
+  // 玩法扩展 sharedLp (共享血条): the team pool as the client saw it during this round (it only falls), so the SETTLE
+  // dialog and the 战斗结束 sound can name the TEAM's bill instead of the viewer's own share (m.public.teamLp / teamPending,
+  // server/match/match/views.js teamPoolView).
+  const teamLpRef = useRef(null);
+  const sharedLp = pub?.extensions?.sharedLp === true;
+  const teamLpNow = Number.isFinite(pub?.teamLp) ? pub.teamLp : null;
+  if (sharedLp && teamLpNow != null) {
+    const prev = teamLpRef.current;
+    if (!prev || prev.round !== pub?.round) teamLpRef.current = { round: pub?.round, max: teamLpNow };
+    else if (teamLpNow > prev.max) prev.max = teamLpNow;
   }
 
   // latest values for event handlers bound once
@@ -894,9 +906,16 @@ function MatchScreen() {
       const kept = roundLossRef.current;
       roundLossRef.current = null;
       const cost = kept && kept.round === pub?.round ? kept : null;
-      const sfx = battleOverSfx(cost, pub?.uniteResult?.losses?.[myId]);
+      const teamLoss = sharedLp && teamLpRef.current && teamLpRef.current.round === pub?.round && teamLpNow != null
+        ? Math.max(0, teamLpRef.current.max - teamLpNow) : null;
+      teamLpRef.current = null;
+      const sfx = teamLoss != null
+        ? (teamLoss > 0 ? 'battleOverReduce' : cost?.unite ? 'battleOverNoReduce' : 'battleOverNormal')
+        : battleOverSfx(cost, pub?.uniteResult?.losses?.[myId]);
       if (sfx) audio.sfx(sfx);
-      const box = uniteResultBox(pub?.uniteResult, myId) || battleResultBox(cost);
+      // 共享血条: the dialog names the team's bill (the pool fell by it), never the viewer's share of it
+      const ownBox = uniteResultBox(pub?.uniteResult, myId) || battleResultBox(cost);
+      const box = teamLoss != null && ownBox ? roundResultBox(teamLoss) : ownBox;
       resultSeq.current += 1;
       if (box) setResultBox({ ...box, key: `result:${pub?.round}:${resultSeq.current}` });
     }

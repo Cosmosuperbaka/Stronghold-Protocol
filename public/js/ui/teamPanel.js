@@ -24,7 +24,7 @@ import { html, Icon, Tooltip } from './components.js';
 import { PlayerAvatar, LpTower, GIcon, LocalSprite } from './gameComponents.js';
 import { AvatarMessage } from './matchCommunication.js';
 import { STATUS_META, sortedPlayers, teamFrameIds } from './gameLogic.js';
-import { MissTag, uniteRemaining } from './hud.js';
+import { MissTag, uniteRemaining, sharedPendingTip } from './hud.js';
 import { localAsset } from '../data.js';
 import { t } from '../../../shared/i18n.js';
 import { BondPlanBadge } from './bondPlan.js';
@@ -125,6 +125,14 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
   useEffect(() => { setOpenPid(null); }, [phaseKey, watching, observe?.observing]);
   const players = sortedPlayers(pub);
   if (!players.length) return null;
+  // 玩法扩展 sharedLp (共享血条): the team has ONE bar (m.public.teamLp / teamPending, views.js teamPoolView) drawn above
+  // the rows — the rows keep name, status and the 联防 leftovers tag but no LP tower of their own, so no seat ever shows
+  // a number that is not the team's (the user's report「血条还是各自显示」). Boss rounds keep their frozen per-seat LP
+  // (the pool merges into the boss node there, bossPlates.js).
+  const bossPhase = pub?.phase === PHASE.FINAL_ASSAULT || pub?.phase === PHASE.HIDDEN_CORE;
+  const shared = !bossPhase && pub?.extensions?.sharedLp === true && Number.isFinite(pub?.teamLp);
+  const sharedPending = shared ? Math.min(pub.teamLp, Math.max(0, Number(pub?.teamPending) || 0)) : 0;
+  const aliveSeats = players.filter((p) => p && p.alive !== false).length;
   // a boss round: the viewer's pair framed in green from the round's start (item 51 — the official bg_team_border,
   // tinted like the official green; a plain green ring without the local art)
   const team = teamFrameIds(pub, myId);
@@ -157,6 +165,11 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
     onWatch(p);
   };
   return html`<aside class=${cx('team', compact && 'team--compact')} aria-label=${t('同盟成员')}>
+    ${shared ? html`<div class="team__shared" key="team-shared-bar" data-testid="team-shared-bar">
+      <span class="team__shared-label">${t('全队共享')}</span>
+      <${LpTower} value=${pub.teamLp} size="md" tone=${pub.teamLp - sharedPending <= 5 * Math.max(1, aliveSeats) ? 'danger' : 'team'} pending=${sharedPending}
+        tip=${sharedPendingTip(pub.teamLp, sharedPending, { cap })} />
+    </div>` : null}
     ${players.map((p) => {
       const self = p.playerId === myId;
       const status = p.alive === false ? 'dead' : p.status;
@@ -183,8 +196,8 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
           <span class="team__name">${p.name || t('博士')}</span>
           <${BondPlanBadge} bondId=${p.bondPlan} />
           <div class="team__line">
-            <${LpTower} value=${lp.lp} size="sm" tone=${Number.isFinite(lp.lp) && lp.lp - lp.pending <= 5 ? 'danger' : null} pending=${lp.pending}
-              tip=${rowLpTip(lp, cap)} />
+            ${shared ? null : html`<${LpTower} value=${lp.lp} size="sm" tone=${Number.isFinite(lp.lp) && lp.lp - lp.pending <= 5 ? 'danger' : null} pending=${lp.pending}
+              tip=${rowLpTip(lp, cap)} />`}
             ${lp.left != null ? html`<${MissTag} n=${lp.left} name=${self ? null : p.name || t('博士')} />` : null}
             <${Tooltip} text=${offline ? t('连接已断开') : t(meta.text)} placement="right">
               <span class=${cx('team__status', `is-${meta.tone}`, offline && 'is-offline', (offline || STATUS_SPRITE[status]) && localAsset('ui/battle', offline ? 'icon_lost_connect' : STATUS_SPRITE[status]) && 'has-sprite')} aria-label=${t(meta.text)}>

@@ -611,6 +611,10 @@
 
 /* ---- team panel ------------------------------------------------------------------------------------------- */
 .team { position: absolute; left: .22rem; top: 2.36rem; display: flex; flex-direction: column; gap: .14rem; pointer-events: none; }
+/* 玩法扩展 sharedLp (ui/teamPanel.js): the team's ONE bar above the seat rows — the rows carry no LP tower of their own */
+.team__shared { display: flex; align-items: center; gap: .08rem; padding: .02rem .14rem .02rem .08rem; pointer-events: auto;
+  background: linear-gradient(90deg, rgba(8, 11, 10, .88), rgba(8, 11, 10, 0)); border-left: .02rem solid var(--mint-500); }
+.team__shared-label { font-size: .13rem; letter-spacing: .06em; color: var(--mint-500); text-shadow: 0 1px 2px #000; }
 .team__row { position: relative; display: flex; align-items: center; gap: .1rem; pointer-events: auto; }
 .team__btn {
   position: relative; padding: 0; background: none; border: 0;

@@ -32,6 +32,9 @@ const finiteOrNull = (v, cap = Infinity) => {
   return Math.max(0, Math.min(Number.isFinite(cap) ? cap : Infinity, Math.trunc(n)));
 };
 
+/** Counted leaks of one battle result ({ leaked: [{ counted }] }) — the ones settlement charges for. */
+const countedLeaks = (r) => (r && Array.isArray(r.leaked) ? r.leaked.filter((l) => l && l.counted !== false).length : 0);
+
 /**
  * A scouted operator's potential (below 6) and 练度 (0.2.2), like the sim's UnitInfo: PlayerState.loadoutFor's
  * `potential` / `cultivate` (null for a stand-in or a prototype 自选 pick: neither field).
@@ -146,7 +149,9 @@ export class MatchViews {
       }),
     };
     if (this.offers.length) v.offers = this.offerViews();
+    // 最终攻势 / 隐秘核心 merge the team LP into the boss pool (this.teamLp); 玩法扩展 sharedLp has one pool all match long
     if (this.teamLp != null) v.teamLp = Math.max(0, Math.round(this.teamLp));
+    else if (this.ext?.sharedLp) Object.assign(v, this.teamPoolView());
     // 最终攻势 / 隐秘核心: when the overtime drain starts (ms epoch; `deadline` is the level's 120 s countdown)
     if ((this.phase === PHASE.FINAL_ASSAULT || this.phase === PHASE.HIDDEN_CORE) && this.overtimeAt) v.overtimeAt = this.overtimeAt;
     if (this.bossPool) v.bossHp = { hp: Math.max(0, Math.round(this.bossPool.hp)), max: Math.round(this.bossPool.maxHp) };
@@ -245,39 +250,48 @@ export class MatchViews {
    */
   _pendingLpView(ps) {
     if (!ps || !ps.alive || (this.phase !== PHASE.COMBAT && this.phase !== PHASE.UNITE)) return {};
-    const counted = (r) => (r && Array.isArray(r.leaked) ? r.leaked.filter((l) => l && l.counted !== false).length : 0);
-    // 联防: a leaker's enemies still standing on the 联防 field (uncapped), the loss capped like settle()
     const left = this._uniteLeft(ps);
-    // this doctor's own bill so far: the 联防 leftovers for a leaker, otherwise its leaks (settled or still running)
-    const ownBill = (q) => {
-      const lq = this._uniteLeft(q);
-      if (lq != null) return Math.min(this.gd.lpCapPerRound, Math.max(0, Math.trunc(lq)));
-      let k = 0;
-      if (this.lastResults.has(q.playerId)) k = counted(this.lastResults.get(q.playerId));
-      else if (this.phase === PHASE.COMBAT) {
-        const f = this.fields.find((x) => x && x.kind === 'normal' && Array.isArray(x.players) && x.players.includes(q.playerId));
-        if (f && f.cc) k = f.done && f.result ? counted(f.result.perPlayer && f.result.perPlayer[q.playerId]) : Number(f.progress && f.progress.leaks) || 0;
-        else if (f && f.battle) { try { k = battleProgress(f.battle).leaks; } catch { k = 0; } }
-      }
-      return Math.min(this.gd.lpCapPerRound, Math.max(0, Math.trunc(Number(k) || 0)));
-    };
-    // 玩法扩展 sharedLp (共享血条): one team pool — every bar previews the same even share of the team's total bill
-    // (settle.js does the authoritative deal, remainder to the first players of the alive order; mirrored here so the
-    // bars fall together). 联防 changes the total, never who pays, so the preview holds through the 联防 phase too.
-    if (this.ext?.sharedLp) {
-      const mates = this.alivePlayers();
-      if (mates.length > 1) {
-        const total = mates.reduce((s, q) => s + ownBill(q), 0);
-        const base = Math.floor(total / mates.length);
-        const rem = total - base * mates.length;
-        const idx = mates.findIndex((q) => q.playerId === ps.playerId);
-        const loss = idx >= 0 ? base + (idx < rem ? 1 : 0) : 0;
-        return { ...(left != null ? { uniteLeft: left } : {}), ...(loss > 0 ? { pendingLp: loss } : {}) };
-      }
-    }
+    // 玩法扩展 sharedLp (共享血条): the team pays ONE pool, so a player's own bill must never appear on someone else's
+    // row (the user's report「漏怪显示到队友那里」: the even-share preview put every player's leaks on every bar). The
+    // team's total bill rides m.public.teamPending for the single team bar (teamPoolView) instead; a leaker keeps the
+    // 联防 leftovers tag, which says whose enemies are still standing, not who pays.
+    if (this.ext?.sharedLp) return left != null ? { uniteLeft: left } : {};
     if (left != null) return left > 0 ? { uniteLeft: left, pendingLp: Math.min(this.gd.lpCapPerRound, left) } : { uniteLeft: left };
-    const loss = ownBill(ps);
+    const loss = this._roundBill(ps);
     return loss > 0 ? { pendingLp: loss } : {};
+  }
+
+  /**
+   * This player's own bill of the round's battle so far — the number settlement charges it outside a 联防
+   * (`min(lpCapPerRound, counted leaks)`; a 联防 leaker: its enemies still standing). 0 outside COMBAT / UNITE and for
+   * a dead player.
+   * @param {any} ps
+   * @returns {number}
+   */
+  _roundBill(ps) {
+    if (!ps || !ps.alive || (this.phase !== PHASE.COMBAT && this.phase !== PHASE.UNITE)) return 0;
+    const lq = this._uniteLeft(ps);
+    if (lq != null) return Math.min(this.gd.lpCapPerRound, Math.max(0, Math.trunc(lq)));
+    let k = 0;
+    if (this.lastResults.has(ps.playerId)) k = countedLeaks(this.lastResults.get(ps.playerId));
+    else if (this.phase === PHASE.COMBAT) {
+      const f = this.fields.find((x) => x && x.kind === 'normal' && Array.isArray(x.players) && x.players.includes(ps.playerId));
+      if (f && f.cc) k = f.done && f.result ? countedLeaks(f.result.perPlayer && f.result.perPlayer[ps.playerId]) : Number(f.progress && f.progress.leaks) || 0;
+      else if (f && f.battle) { try { k = battleProgress(f.battle).leaks; } catch { k = 0; } }
+    }
+    return Math.min(this.gd.lpCapPerRound, Math.max(0, Math.trunc(Number(k) || 0)));
+  }
+
+  /**
+   * 玩法扩展 sharedLp (共享血条): the whole team as ONE bar — Σ alive LP and the round's total bill (the sum of every
+   * alive player's own bill, exactly what settle() takes off the pool), both for the single team bar and the top bar.
+   * @returns {{ teamLp: number, teamPending?: number }}
+   */
+  teamPoolView() {
+    const mates = this.alivePlayers();
+    const lp = mates.reduce((s, q) => s + Math.max(0, q.lp), 0);
+    const bill = mates.reduce((s, q) => s + this._roundBill(q), 0);
+    return { teamLp: lp, ...(bill > 0 ? { teamPending: Math.min(lp, bill) } : {}) };
   }
 
   /** nextEnemies preview for m.private. */

@@ -32,7 +32,7 @@ globalThis.fetch = async (url) => {
   }
 };
 
-const { pendingLoss, liveLp, ownLeaks, pendingTip, tempInfo, tempReadyReason, ReadyToggle, TEMP_RULE } = await import('../../public/js/ui/hud.js');
+const { pendingLoss, liveLp, ownLeaks, pendingTip, sharedPendingTip, tempInfo, tempReadyReason, ReadyToggle, TEMP_RULE } = await import('../../public/js/ui/hud.js');
 const { rowLp } = await import('../../public/js/ui/teamPanel.js');
 const { LpTower, GAME_FILES } = await import('../../public/js/ui/gameComponents.js');
 const { tempRowFrame, tempRowRule } = await import('../../public/js/ui/underframe.js');
@@ -134,6 +134,11 @@ describe("2: the own LP's pending loss is marked live while the battle runs", ()
     assert.match(pendingTip(30, 3), /结算时扣除 3 点/);
     assert.match(pendingTip(30, 10, { unite: true }), /联防中/);
     assert.equal(pendingTip(30, 0), null);
+    // 玩法扩展 sharedLp: the team's one bar speaks about the team, never about a teammate paying for the viewer's leaks
+    assert.match(sharedPendingTip(57, 6), /全队共享目标生命值 57/);
+    assert.match(sharedPendingTip(57, 6), /全队已漏 6 个/);
+    assert.doesNotMatch(sharedPendingTip(57, 6), /队友/);
+    assert.equal(sharedPendingTip(57, 0), null);
   });
 
   test('team panel rows: the own row takes the top bar\'s live value, a teammate\'s m.public players[].pendingLp; only in COMBAT / 联防', () => {

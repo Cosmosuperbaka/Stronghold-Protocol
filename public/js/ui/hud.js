@@ -331,6 +331,18 @@ export function pendingTip(lp, pending, { unite = false, cap = 10, left = null }
       : t('目标生命值 {lp}：本回合已有 {pending} 个敌人进入蓝门，结算时扣除 {pending} 点（每回合至多 {cap} 点）', { lp, pending, cap });
 }
 
+/**
+ * Tooltip of the team's single bar (玩法扩展 sharedLp): the number is the team's pool, the −N the whole team's bill —
+ * the team pays out of one pool, so the box never says a teammate is paying for the viewer's leaks.
+ * @param {number} lp the team's pool @param {number} pending the team's bill so far, capped at the pool
+ * @param {{ cap?: number }} [opts]
+ * @returns {string|null} null without a pending loss
+ */
+export function sharedPendingTip(lp, pending, { cap = 10 } = {}) {
+  if (!(pending > 0)) return null;
+  return t('全队共享目标生命值 {lp}：本回合全队已漏 {pending} 个，结算时从总血条扣除 {pending} 点（每人每回合至多 {cap} 点）', { lp, pending, cap });
+}
+
 // ---- temp overflow row (临时整备区, user playtest #3 item 3) ---------------------------------------------------
 
 /**
@@ -472,9 +484,15 @@ export function TopBar({ pub, priv, conn, hud, total, drawer, onExit, onDrawer, 
   spectators = null, myId = null, isHost = false, onRemoveSpectator = null, room = null, view = null }) {
   const phase = pub?.phase;
   const boss = isBossPhase(phase);
-  const lp = boss && Number.isFinite(pub?.teamLp) ? pub.teamLp : Number.isFinite(priv?.lp) ? priv.lp : null;
+  // 玩法扩展 sharedLp (共享血条): the top bar IS the team's single bar — m.public.teamLp (Σ alive LP, published by
+  // server/match/match/views.js teamPoolView) with the whole team's bill as its pending loss (m.public.teamPending),
+  // never the viewer's own share: the bar belongs to everyone (the user's report「血条还是各自显示」).
+  const shared = !boss && pub?.extensions?.sharedLp === true && Number.isFinite(pub?.teamLp);
+  const lp = boss && Number.isFinite(pub?.teamLp) ? pub.teamLp : shared ? pub.teamLp : Number.isFinite(priv?.lp) ? priv.lp : null;
   // normal rounds: the leaks of the own battle so far (boss rounds: the team LP above already moves live)
-  const pending = !boss && Number.isFinite(lp) && live && live.pending > 0 ? Math.min(lp, live.pending) : 0;
+  const pending = shared
+    ? Number.isFinite(lp) ? Math.min(lp, Math.max(0, Number(pub?.teamPending) || 0)) : 0
+    : !boss && Number.isFinite(lp) && live && live.pending > 0 ? Math.min(lp, live.pending) : 0;
   const hidden = phase === PHASE.HIDDEN_CORE || (Number.isFinite(pub?.lastRound) && pub.round > pub.lastRound);
   const roundText = hidden ? '??' : pub?.round > 0 ? String(pub.round) : '--';
   // a spectator seat (no m.private, community report #26) never readies
@@ -485,7 +503,7 @@ export function TopBar({ pub, priv, conn, hud, total, drawer, onExit, onDrawer, 
   const now = Number.isFinite(frozenAt) ? frozenAt : serverNow();
   const ot = otLive ? overtimeState(pub, now, { perSec: overtimeDrainPerSec(config) }) : null;
   const draining = ot?.state === 'drain';
-  const lowLp = (Number.isFinite(lp) && lp - pending <= 5) || draining;
+  const lowLp = (Number.isFinite(lp) && lp - pending <= 5 * (shared ? Math.max(1, (pub?.players || []).filter((p) => p && p.alive !== false).length) : 1)) || draining;
   const cap = Number(config?.lpCapPerRound) > 0 ? Number(config.lpCapPerRound) : 10;
   const frozenSecs = Number.isFinite(frozenAt) ? remainAt(pub?.deadline, frozenAt) : null;
   const btn = checkButtons({ pen, penAvail, infoOpen: !!drawer });
@@ -530,8 +548,9 @@ export function TopBar({ pub, priv, conn, hud, total, drawer, onExit, onDrawer, 
           ${fx.kind && fx.kind !== 'enter' ? html`<${CapsuleScene} kind=${fx.kind} />` : null}
         </div>
         <div class="gtop__half gtop__half--r">
-          <${LpTower} value=${lp} size="lg" tone=${lowLp ? 'danger' : boss ? 'team' : null} pending=${pending}
-            note=${pending > 0 && live?.unite ? t('联防中') : null} tip=${pendingTip(lp, pending, { unite: !!live?.unite, cap, left: live?.left ?? null })} />
+          <${LpTower} value=${lp} size="lg" tone=${lowLp ? 'danger' : boss || shared ? 'team' : null} pending=${pending}
+            note=${pending > 0 && live?.unite ? t('联防中') : null}
+            tip=${shared ? sharedPendingTip(lp, pending, { cap }) : pendingTip(lp, pending, { unite: !!live?.unite, cap, left: live?.left ?? null })} />
         </div>
       </div>
       <span class="gtop__frame">
