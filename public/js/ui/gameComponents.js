@@ -7,14 +7,14 @@ import { data, useData, localAsset } from '../data.js';
 import { parseRichText, rtClassName } from './richText.js';
 import { t as tr } from '../../../shared/i18n.js';
 import {
-  uiUrl, chessAvatarUrl, chessPortraitUrl, itemIconUrl, tokenAvatarUrl, enemyIconUrl, bondIconUrl, bandIconUrl,
+  uiUrl, chessAvatarUrl, itemIconUrl, tokenAvatarUrl, enemyIconUrl, bondIconUrl, bandIconUrl,
 } from './assetUrls.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
 /** Data files the in-match screens use (`backups`: the 补位 stand-ins' bodies — cards, the board model, the detail card). */
 export const GAME_FILES = ['config', 'assets', 'chess', 'bonds', 'items', 'bands', 'enemies', 'bosses', 'stages', 'tokens',
-  'choices', 'effects', 'garrisons', 'factions', 'local', 'backups', 'skins'];
+  'choices', 'effects', 'garrisons', 'factions', 'local', 'backups', 'skins', 'seat-art'];
 
 /**
  * Load every in-match data file; returns lookups (sync, null until loaded).
@@ -179,6 +179,7 @@ export function gearPath({ teeth = 8, rTip = 10, rRoot = 7.4, tipW = 3.2, rootW 
 /** Extra 24×24 glyphs used by the in-match HUD (original shapes). */
 export const GLYPHS = Object.freeze({
   gear: gearPath(),
+  history: 'M12 3a9 9 0 1 1-8.6 11.7l1.9-.6A7 7 0 1 0 6.4 7.8L9 10H2V3l2.8 2.8A9 9 0 0 1 12 3zM11 7h2v5.4l3.3 2-1 1.7L11 13.5z',
   eye: 'M12 5c5 0 9 4.5 10 7-1 2.5-5 7-10 7S3 14.5 2 12c1-2.5 5-7 10-7zm0 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4z',
   emote: 'M8.2 2h7.6L22 8.2v7.6L15.8 22H8.2L2 15.8V8.2zM8.5 8.5v3h2v-3zm5 0v3h2v-3zM7.8 14.2a5.5 5.5 0 0 0 8.4 0l-1.5-1.3a3.5 3.5 0 0 1-5.4 0z',
   dp: 'M13 2 4 13.5h6.2L9 22l11-12.5h-6.4z',
@@ -256,8 +257,8 @@ export function RichTip({ text, children, placement = 'top' }) {
  * Seat-coloured player avatar: band icon when a band is picked, else glyph/robot.
  * @param {{ player: any, size?: 'sm'|'md', self?: boolean, class?: string }} props
  */
-export function PlayerAvatar({ player, size = 'md', self = false, class: cls }) {
-  const src = player?.bandId ? bandIconUrl(data.get('assets'), player.bandId) : null;
+export function PlayerAvatar({ player, size = 'md', self = false, class: cls, avatar = null }) {
+  const src = avatar || (player?.bandId ? bandIconUrl(data.get('assets'), player.bandId) : null);
   const glyph = [...(player?.name || '').trim()][0] || '?';
   const dead = player?.alive === false || player?.status === 'dead';
   const left = player?.status === 'left';

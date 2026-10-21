@@ -141,6 +141,7 @@ export function restartForEnvProxy({
   const child = spawnImpl(execPath, [...execArgv, ...argv.slice(1)], {
     env: { ...env, NODE_USE_ENV_PROXY: '1', [REEXEC_MARKER]: '1' },
     stdio: 'inherit',
+    windowsHide: true,
   });
   child.on('error', (e) => {
     error(`[assets] could not restart with NODE_USE_ENV_PROXY: ${e.message}`);

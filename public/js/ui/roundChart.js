@@ -7,6 +7,7 @@ const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const full = new Intl.NumberFormat();
 const compact = new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 });
 const fmt = (n) => Math.abs(n) >= 1e4 ? compact.format(n) : full.format(n);
+const chartViews = new WeakMap();
 function seriesOf(history, nameOf) {
   const last = history[history.length - 1];
   return last ? last.players.map((p, i) => ({ id: p.playerId, name: nameOf(p.playerId), color: SERIES[i] || INK.label })) : [];
@@ -34,28 +35,47 @@ export function niceScale(max) {
   return { top: Math.ceil(max / step) * step, step };
 }
 
+/** Only the compact in-game panel opts in. Console and desktop retain the original 720×260 plot. */
+export function roundChartLayout(width = 0, rounds = 1, fontSize = 12) {
+  if (!(width > 0)) return { width: 720, height: 260, left: 52, right: 96, top: 12, bottom: 30,
+    fontSize: 11, names: true, tickIndices: null };
+  const W = Math.max(240, Math.floor(width)), font = Math.max(12, fontSize);
+  const left = Math.max(48, Math.ceil(font * 4)), right = 16;
+  const count = Math.min(rounds, Math.max(2, Math.floor((W - left - right) / (font * 5)) + 1));
+  const tickIndices = Array.from({ length: count }, (_, i) => count === 1 ? 0 : Math.round(i * (rounds - 1) / (count - 1)));
+  return { width: W, height: Math.min(240, Math.max(180, Math.round(W * .34))),
+    left, right, top: 12, bottom: Math.ceil(font * 3), fontSize: font, names: false, tickIndices };
+}
+
 /**
  * A line chart of one metric by round, one line per player, drawn into `host`: legend, end labels, a crosshair with
  * one tooltip listing every player at that round, and a table view. `state` { metric, table } survives re-renders.
  */
-export function drawRoundChart(host, history, nameOf, state, { bondRecord = () => null, name = (s) => s } = {}) {
-  const focused = host.contains(document.activeElement) ? document.activeElement?.tagName?.toLowerCase() : null;
-  host.textContent = '';
-  if (!history.length) { host.innerHTML = `<p class="meta">${esc(t('第一回合结算后开始记录。'))}</p>`; return; }
+export function drawRoundChart(host, history, nameOf, state, { bondRecord = () => null, name = (s) => s, width = 0, fontSize = 12 } = {}) {
+  if (!history.length) { host.innerHTML = `<p class="meta">${esc(t('第一回合结算后开始记录。'))}</p>`; chartViews.delete(host); return; }
   const series = seriesOf(history, nameOf);
   const bonds = new Map();
   for (const h of history) for (const p of h.players) for (const b of p.bonds || []) if (b.active && !b.noStack && !bondRecord(b.id)?.noStack) bonds.set(b.id, name(b.name));
   const metrics = [...METRICS.map(([id, label]) => [id, t(label)]), ...[...bonds].map(([id, name]) => ['bond:' + id, t('盟约层数 · {name}', { name })])];
   const [key, label] = metrics.find((x) => x[0] === state.metric) || metrics[0];
-  const bar = document.createElement('div');
-  bar.className = 'row';
-  bar.innerHTML = `<label>${esc(t('指标'))} <select aria-label="${esc(t('曲线指标'))}">${metrics.map(([k, l]) => `<option value="${esc(k)}" ${k === key ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
-    <button aria-pressed="${!!state.table}">${state.table ? esc(t('看曲线')) : esc(t('看表格'))}</button>`;
-  const redraw = () => drawRoundChart(host, history, nameOf, state, { bondRecord, name });
-  bar.querySelector('select').addEventListener('change', (e) => { state.metric = e.target.value; redraw(); });
-  bar.querySelector('button').addEventListener('click', () => { state.table = !state.table; redraw(); });
-  host.append(bar);
-  if (focused === 'select' || focused === 'button') bar.querySelector(focused)?.focus();
+  let view = chartViews.get(host);
+  if (!view || view.bar.parentNode !== host || view.labels !== t('曲线指标')) {
+    const bar = document.createElement('div'), content = document.createElement('div');
+    bar.className = 'row';
+    bar.innerHTML = `<label>${esc(t('指标'))} <select aria-label="${esc(t('曲线指标'))}"></select></label>
+      <button type="button"></button>`;
+    host.replaceChildren(bar, content);
+    view = { bar, content, labels: t('曲线指标') }; chartViews.set(host, view);
+  }
+  const { bar, content } = view;
+  const select = bar.querySelector('select'), button = bar.querySelector('button');
+  const redraw = () => drawRoundChart(host, history, nameOf, state, { bondRecord, name, width, fontSize });
+  syncSelectOptions(select, metrics, key);
+  select.onchange = (e) => { state.metric = e.target.value; redraw(); };
+  button.textContent = state.table ? t('看曲线') : t('看表格');
+  button.setAttribute('aria-pressed', String(!!state.table));
+  button.onclick = () => { state.table = !state.table; redraw(); };
+  content.replaceChildren();
   const rounds = history.map((h) => h.round);
   if (state.table) {
     const table = document.createElement('div');
@@ -63,11 +83,12 @@ export function drawRoundChart(host, history, nameOf, state, { bondRecord = () =
     table.innerHTML = `<table><caption class="meta" style="text-align:left">${esc(t('{label}（每回合结算后）', { label }))}</caption>
       <thead><tr><th scope="col">${esc(t('回合'))}</th>${series.map((s) => `<th scope="col" class="n">${esc(s.name)}</th>`).join('')}</tr></thead>
       <tbody>${rounds.map((r) => `<tr><th scope="row">${r}</th>${series.map((s) => { const p = pointsOf(history, s.id, key).find((x) => x.round === r); return `<td class="n">${p ? full.format(p.v) : '—'}</td>`; }).join('')}</tr>`).join('')}</tbody></table>`;
-    host.append(table);
+    content.append(table);
     return;
   }
   const lines = series.map((s) => ({ ...s, pts: pointsOf(history, s.id, key) }));
-  const W = 720, H = 260, L = 52, R = 96, T = 12, B = 30;
+  const layout = roundChartLayout(width, rounds.length, fontSize);
+  const { width: W, height: H, left: L, right: R, top: T, bottom: B, fontSize: axisFont } = layout;
   const x0 = rounds[0], x1 = rounds[rounds.length - 1];
   const X = (r) => (x1 === x0 ? L + (W - L - R) / 2 : L + ((r - x0) / (x1 - x0)) * (W - L - R));
   const { top, step } = niceScale(Math.max(0, ...lines.flatMap((l) => l.pts.map((p) => p.v))));
@@ -75,11 +96,11 @@ export function drawRoundChart(host, history, nameOf, state, { bondRecord = () =
   let svg = '';
   for (let v = 0; v <= top + 1e-9; v += step) {
     svg += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="${v === 0 ? INK.axis : INK.grid}" stroke-width="1"/>`;
-    svg += `<text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" fill="${INK.label}" font-size="11">${fmt(v)}</text>`;
+    svg += `<text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" fill="${INK.label}" font-size="${axisFont}">${fmt(v)}</text>`;
   }
   const every = Math.ceil(rounds.length / 15);
-  rounds.forEach((r, i) => { if (i % every === 0 || i === rounds.length - 1) svg += `<text x="${X(r)}" y="${H - B + 18}" text-anchor="middle" fill="${INK.label}" font-size="11">${r}</text>`; });
-  svg += `<text x="${W - R}" y="${H - 2}" text-anchor="end" fill="${INK.label}" font-size="11">${esc(t('回合'))}</text>`;
+  rounds.forEach((r, i) => { if (layout.tickIndices ? layout.tickIndices.includes(i) : i % every === 0 || i === rounds.length - 1) svg += `<text x="${X(r)}" y="${H - B + 18}" text-anchor="middle" fill="${INK.label}" font-size="${axisFont}">${r}</text>`; });
+  svg += `<text x="${W - R}" y="${H - 2}" text-anchor="end" fill="${INK.label}" font-size="${axisFont}">${esc(t('回合'))}</text>`;
   for (const l of lines) {
     if (!l.pts.length) continue;
     svg += `<polyline fill="none" stroke="${l.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${l.pts.map((p) => `${X(p.round)},${Y(p.v)}`).join(' ')}"/>`;
@@ -90,7 +111,7 @@ export function drawRoundChart(host, history, nameOf, state, { bondRecord = () =
   for (let i = 1; i < ends.length; i++) ends[i].y = Math.max(ends[i].y, ends[i - 1].y + 13);
   const over = ends.length ? ends[ends.length - 1].y - (H - B) : 0;
   if (over > 0) for (const e of ends) e.y -= over;
-  for (const e of ends) svg += `<text x="${e.x + 8}" y="${e.y + 4}" fill="${INK.text}" font-size="12">${esc(e.l.name)}</text>`;
+  if (layout.names) for (const e of ends) svg += `<text x="${e.x + 8}" y="${e.y + 4}" fill="${INK.text}" font-size="12">${esc(e.l.name)}</text>`;
   svg += `<line class="cross" x1="0" x2="0" y1="${T}" y2="${H - B}" stroke="${INK.label}" stroke-width="1" visibility="hidden"/>`;
   svg += `<rect class="hit" x="${L - 10}" y="0" width="${W - L - R + 20}" height="${H}" fill="transparent"/>`;
 
@@ -100,10 +121,10 @@ export function drawRoundChart(host, history, nameOf, state, { bondRecord = () =
   const wrap = document.createElement('div');
   wrap.className = 'chart-wrap';
   wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('{label}曲线，第 {from}–{to} 回合，切换到表格可读出数值', { label, from: x0, to: x1 }))}"><title>${esc(label)}</title>${svg}</svg><div class="tip" role="presentation"></div>`;
-  host.append(legend, wrap);
+  content.append(legend, wrap);
 
   const svgEl = wrap.querySelector('svg'), cross = wrap.querySelector('.cross'), tip = wrap.querySelector('.tip');
-  wrap.querySelector('.hit').addEventListener('pointermove', (e) => {
+  const showPoint = (e) => {
     const box = svgEl.getBoundingClientRect();
     const k = box.width / W;
     const vx = (e.clientX - box.left) / k;
@@ -125,17 +146,25 @@ export function drawRoundChart(host, history, nameOf, state, { bondRecord = () =
     }
     tip.style.display = 'block';
     const px = X(r) * k;
-    tip.style.left = `${px + 12 + tip.offsetWidth > box.width ? px - 12 - tip.offsetWidth : px + 12}px`;
+    tip.style.left = `${width > 0
+      ? Math.max(wrap.scrollLeft, Math.min(px + 12, wrap.scrollLeft + wrap.clientWidth - tip.offsetWidth))
+      : px + 12 + tip.offsetWidth > box.width ? px - 12 - tip.offsetWidth : px + 12}px`;
     tip.style.top = '8px';
+  };
+  wrap.querySelector('.hit').addEventListener('pointermove', showPoint);
+  wrap.querySelector('.hit').addEventListener('pointerdown', showPoint);
+  // Touch emits pointerleave on release; keep the tapped values readable until another point/view is chosen.
+  wrap.querySelector('.hit').addEventListener('pointerleave', e => {
+    if (e.pointerType === 'touch') return;
+    cross.setAttribute('visibility', 'hidden'); tip.style.display = 'none';
   });
-  wrap.querySelector('.hit').addEventListener('pointerleave', () => { cross.setAttribute('visibility', 'hidden'); tip.style.display = 'none'; });
 }
 
 
 /** Shared console ranking: one settled round, all players or one, top ten or all. */
 const pct = (x) => `${(x * 100).toFixed(x >= 0.1 ? 0 : 1)}%`;
 const unitViews = new WeakMap();
-function syncRankOptions(select, options, value) {
+function syncSelectOptions(select, options, value) {
   // A native select's popup belongs to this exact DOM node. Do not replace it or its options while choosing.
   const signature = JSON.stringify(options);
   const sync = () => {
@@ -185,8 +214,8 @@ export function drawUnitRounds(host, history, nameOf, state, { name = (s) => s }
   const { bar, table } = view;
   const roundSelect = bar.querySelector('[data-k="round"]'), playerSelect = bar.querySelector('[data-k="player"]');
   const redraw = () => drawUnitRounds(host, history, nameOf, state, { name });
-  syncRankOptions(roundSelect, history.map((x) => [x.round, t('第 {r} 回合', { r: x.round }) + (x.live ? t('（进行中）') : x.round === latest ? t('（最新）') : '')]), h.round);
-  syncRankOptions(playerSelect, [['', t('全部')], ...h.players.map((p) => [p.playerId, nameOf(p.playerId)])], state.player || '');
+  syncSelectOptions(roundSelect, history.map((x) => [x.round, t('第 {r} 回合', { r: x.round }) + (x.live ? t('（进行中）') : x.round === latest ? t('（最新）') : '')]), h.round);
+  syncSelectOptions(playerSelect, [['', t('全部')], ...h.players.map((p) => [p.playerId, nameOf(p.playerId)])], state.player || '');
   roundSelect.onblur = redraw;
   roundSelect.onchange = (e) => {
     const r = Number(e.target.value);

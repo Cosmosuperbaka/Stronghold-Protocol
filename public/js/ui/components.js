@@ -403,12 +403,10 @@ export function Countdown({ deadline, seconds, total, warnAt = 10, label = 'COUN
 const modalStack = []; // open modals, topmost last: only the topmost handles keyboard focus / Escape
 
 /**
- * Modal dialog (declarative). Esc / backdrop click call onClose.
- * @param {{ open: boolean, title?: any, micro?: string, tone?: string, onClose?: Function, actions?: any,
- *   width?: string, closeOnBackdrop?: boolean, class?: string, children?: any }} props
+ * Shared dialog focus lifecycle: trap Tab in the topmost dialog and restore its opener on close.
+ * @param {boolean} open @param {{ current: any }} boxRef @param {Function} [onClose]
  */
-export function Modal({ open, title, micro, tone = 'mint', onClose, actions, width, closeOnBackdrop = true, class: cls, children }) {
-  const boxRef = useRef(null);
+export function useDialogFocus(open, boxRef, onClose) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   useLayoutEffect(() => {
@@ -425,8 +423,9 @@ export function Modal({ open, title, micro, tone = 'mint', onClose, actions, wid
       .filter((el) => el.tabIndex >= 0 && available(el));
     const focusFirst = () => (tabbable()[0] || box).focus();
     const onKey = (e) => {
-      if (!topmost()) return;
+      if (!topmost() || e.defaultPrevented || e.isComposing) return;
       if (e.key === 'Escape' && closeRef.current) {
+        e.preventDefault();
         e.stopPropagation();
         closeRef.current();
       } else if (e.key === 'Tab') {
@@ -456,8 +455,19 @@ export function Modal({ open, title, micro, tone = 'mint', onClose, actions, wid
       prevFocus?.focus?.();
     };
   }, [open]);
+}
+
+/**
+ * Modal dialog (declarative). Esc / backdrop click call onClose.
+ * @param {{ open: boolean, title?: any, micro?: string, tone?: string, onClose?: Function, actions?: any,
+ *   width?: string, closeOnBackdrop?: boolean, class?: string, veilClass?: string, children?: any }} props
+ * `veilClass` styles the backdrop itself (e.g. a dialog that dims the field without blurring it).
+ */
+export function Modal({ open, title, micro, tone = 'mint', onClose, actions, width, closeOnBackdrop = true, class: cls, veilClass, children }) {
+  const boxRef = useRef(null);
+  useDialogFocus(open, boxRef, onClose);
   if (!open) return null;
-  return html`<div class="modal" role="presentation"
+  return html`<div class=${cx('modal', veilClass)} role="presentation"
       onMouseDown=${(e) => { if (closeOnBackdrop && e.target === e.currentTarget && onClose) onClose(); }}>
     <div ref=${boxRef} class=${cx('modal__box', 'brackets', `modal__box--${tone}`, cls)} role="dialog" aria-modal="true" tabindex="-1"
          style=${width ? `width:${width}` : undefined}>

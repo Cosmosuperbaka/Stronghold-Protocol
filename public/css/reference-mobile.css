@@ -1,0 +1,84 @@
+/* Mobile rules adapted from weishuxieyi.xiaolubao.com/css/utility-mobile.css and css/screens/room.css
+   (public source captured 2026-10-19; xinhai-ai/Stronghold-Protocol, GPL-3.0-or-later; NOTICE.md).
+   Scope stays compact: the existing desktop and global rem are unchanged. Source room selectors
+   .seats/.topbar/.room-bar map to this fork's .rs-seats/.rs-top/.rs-foot below.
+   This site-based layer deliberately does not import the repository-only managementScale migration. */
+
+/* Reference utility-mobile.css:574–580. The battle keeps its own rem and camera. */
+@media (max-width: 1000px), (max-height: 600px) {
+  .gtop__band { grid-template-columns: auto auto auto; }
+  .gtop__half { padding-inline: .12rem; }
+  .gtop__plus { display: none; }
+  .gtop__frame { padding-inline: .06rem; }
+  .gtop__cap .capsule--boss { min-width: 3.2rem; }
+}
+
+@media (max-width: 1000px), (max-height: 600px) {
+  /* Reference utility-mobile.css:38–45: actual visible height, with safe areas owned once. */
+  .room-screen { bottom: auto; height: calc(min(100dvh, calc(var(--sp-vh, 1dvh) * 100)) - var(--sa-t, 0px) - var(--sa-b, 0px)); }
+  /* Reference room.css:19–39: do not squeeze a portrait into the height left by the chrome. */
+  .room-screen .rseat { width: 100%; min-width: 0; min-height: 3.5rem; }
+  .room-screen .rseat__art { flex: none; min-height: 0; aspect-ratio: 1 / 2; box-sizing: content-box; }
+  .room-screen .rseat__art img { inset: 0; width: 100%; height: 100%; max-width: 100%;
+    aspect-ratio: 1 / 2; object-fit: contain; object-position: center; transform: none; }
+  .room-screen .rseat__plate { flex: none; }
+  /* Reference utility-mobile.css:355 + room grid: keep content and scroll, not clipped art. */
+  .room-screen .rs-seats { display: grid; grid-template-columns: repeat(4, minmax(0, 3.2rem));
+    grid-template-rows: auto; align-content: start; align-items: start; justify-content: center;
+    padding: .2rem .25rem; gap: .2rem; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-x pan-y; }
+  .room-screen.rs--solo .rs-seats { grid-template-columns: minmax(0, 3.2rem) minmax(0, 6.4rem); }
+  .room-screen.rs--big .rs-seats { grid-template-columns: repeat(var(--n), minmax(3.2rem, 1fr)); justify-content: start; }
+  /* Reference utility-mobile.css:324–352: explicit chrome regions and bounded controls. */
+  .room-screen .rs-top { display: grid; grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start; min-width: 0; padding: .15rem .2rem; gap: .15rem; }
+  .room-screen .rs-top__left { min-width: 0; flex-wrap: wrap; gap: .1rem; }
+  .room-screen .rs-top__right { justify-self: end; min-width: 0; max-width: 100%; flex-wrap: wrap; gap: .1rem; }
+  .room-screen .rs-clock > b { white-space: normal; }
+  .room-screen .rs-tools { min-width: 0; flex-wrap: wrap; margin-left: 0; }
+  .room-screen .rs-key { max-width: 100%; gap: .1rem; padding-left: .1rem; }
+  /* Reference utility-mobile.css:366–382: content-sized footer and wrapping actions. */
+  .room-screen .rs-foot { height: auto; min-height: 0; padding: .15rem .25rem; gap: .15rem .25rem;
+    grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'options actions' 'status actions'; }
+  .room-screen .rs-foot__left { grid-area: options; min-width: 0; }
+  .room-screen .rs-foot__center { grid-area: status; min-width: 0; align-items: flex-start; }
+  .room-screen .rs-foot__right { grid-area: actions; min-width: 0; flex-wrap: wrap; }
+  .room-screen .rs-brief { max-width: 100%; min-height: 0; overflow-y: auto; touch-action: pan-y; }
+  /* Reference utility-mobile.css:75–76: no invisible hit area covering a neighbour. */
+  .sp-coarse .room-screen :is(.btn, .fsbtn)::before { inset: 0; width: 100%; height: 100%; transform: none; }
+  /* Reference utility-mobile.css:598–602. */
+  .cardpick__search input { font-size: 16px; }
+  .cardpick__name { white-space: normal; font-size: max(calc(.16 * var(--utility-text, var(--t))), 11px); }
+  .rseat__pick { min-height: 28px; right: 6px; padding: 2px 8px; }
+}
+
+/* Reference utility-mobile.css:522–536: retain every seat and control on truly narrow screens. */
+@media (max-width: 560px) {
+  .room-screen .rs-seats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .room-screen.rs--solo .rs-seats { grid-template-columns: minmax(0, 1fr); }
+  .room-screen .rs-foot { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'options' 'status' 'actions'; }
+  .room-screen .rs-foot__right { justify-self: stretch; }
+}
+
+/* Fork-only round history: inherit the reference's rem spacing and scroll-body pattern, not SVG downscaling. */
+@media (max-width: 1000px), (max-height: 600px) and (pointer: coarse) {
+  .round-history { --round-history-compact: 1; font-size: max(12px, calc(.14 * var(--t))); }
+  .round-history__head { flex: none; padding: .1rem .2rem; gap: .15rem; }
+  .round-history__head h2 { min-width: 0; font-size: max(14px, calc(.2 * var(--t))); }
+  .round-history button, .round-history select { min-height: 30px; padding: 4px 7px; line-height: 1.3; }
+  .round-history__head button { width: 32px; min-width: 32px; min-height: 32px; padding: 6px; }
+  .round-history__tabs { padding: .1rem .2rem 0; gap: 6px; }
+  .round-history__body { padding: .15rem .2rem; min-width: 0; flex: 1 1 auto; }
+  .round-history .row { gap: 6px 10px; margin-bottom: 6px; }
+  .round-history label { gap: 6px; }
+  .round-history select { min-width: 0; max-width: 100%; }
+  .round-history .legend { gap: 3px 10px; margin: 3px 0; }
+  .round-history .chart-wrap svg { min-width: 0; }
+  .round-history__live { margin: .1rem .2rem 0; padding: .1rem .15rem; }
+  .round-history__note { max-height: 20%; overflow-y: auto; margin: 0; padding: .1rem .2rem; }
+  .round-history .xscroll { max-width: 100%; overscroll-behavior-x: contain; touch-action: pan-x pan-y; }
+  .round-history th, .round-history td { padding: 5px 7px; }
+}
+@media (max-width: 1000px) and (pointer: coarse), (max-height: 600px) and (pointer: coarse) {
+  /* Native selects retain the iOS focus-zoom guard. These real targets never extend over a neighbour. */
+  .round-history select { font-size: 16px; }
+}

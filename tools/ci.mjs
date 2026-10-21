@@ -9,7 +9,7 @@
 //
 // Steps, in the order of ci.yml (job `test`, then job `tooling`):
 //   setup      node tools/setup.mjs --check --no-local
-//   test       node --test
+//   test       npm test: node --test over TEST_FILES (package.json "test")
 //   smoke      the server on a free port on 127.0.0.1: GET /healthz, / (must contain <html) and /vendor/pixi.min.js,
 //              then node tools/doctor.mjs (its exit code is ignored, like `|| true` in ci.yml), then the server stops
 //   lint       eslint .                                   (npm run lint; warnings do not fail it)
@@ -37,6 +37,15 @@ export const CI_TEST_ENV = { SP_E2E: '0', SP_REAL_E2E: '0', RENDER_E2E: '0', NO_
 /** The paths the smoke step requests (the curl URLs of ci.yml's smoke step; test/ci.test.js compares them). */
 export const SMOKE_PATHS = ['/healthz', '/', '/vendor/pixi.min.js'];
 
+/**
+ * The test files `npm test` runs (package.json "test", which ci.yml runs): every *.test.js under test/, the browser E2E
+ * test/e2e/coop.e2e.mjs (it skips itself without Chrome) and the plugin template's author test (it skips itself outside
+ * `node tools/plugin.mjs test`). A bare `node --test` uses Node's default patterns, which take every other .js under
+ * test/ for a test file too: the helpers, the child-process entries and the Forge fixtures — untrusted bait that writes
+ * files when it runs. test/ci.test.js checks this list against the tree.
+ */
+export const TEST_FILES = ['test/**/*.test.js', 'test/e2e/coop.e2e.mjs', 'plugins/_template/**/*.test.js'];
+
 /** ci.yml steps that only make sense on a GitHub runner, by `uses:` action or by step name. */
 export const SKIPPED_CI_STEPS = [
   { uses: 'actions/checkout', why: 'GitHub runner: the checkout is this folder' },
@@ -52,7 +61,9 @@ export const SKIPPED_CI_STEPS = [
  */
 export const STEPS = [
   { id: 'setup', ci: { job: 'test', name: 'Setup check (no downloads)' }, describe: 'node tools/setup.mjs --check --no-local' },
-  { id: 'test', ci: { job: 'test', name: 'Unit & integration tests' }, describe: 'node --test' },
+  // (the globs quoted: no shell expands them — Node's test runner does, the same on every OS)
+  { id: 'test', ci: { job: 'test', name: 'Unit & integration tests' }, npm: 'test',
+    describe: `node --test ${TEST_FILES.map((g) => `"${g}"`).join(' ')}` },
   { id: 'smoke', ci: { job: 'test', name: 'Server smoke test (boot, /healthz, index.html, doctor)' },
     describe: `server on a free port: GET ${SMOKE_PATHS.join(', ')}; node tools/doctor.mjs` },
   { id: 'lint', ci: { job: 'tooling', name: 'Lint (warnings allowed)' }, npm: 'lint', describe: 'eslint .' },
@@ -234,10 +245,10 @@ export function binPath(pkg, name, root = ROOT) {
   return path.join(dir, rel);
 }
 
-/** Run `node <args>` in ROOT with inherited stdio; resolves to the exit code (1 when killed by a signal). */
+/** Run in the current terminal without a new Windows console; keep output and exit codes. */
 function node(args, env) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, args, { cwd: ROOT, env, stdio: 'inherit' });
+    const child = spawn(process.execPath, args, { cwd: ROOT, env, stdio: 'inherit', windowsHide: true });
     child.on('error', (e) => { console.error(e.message); resolve(1); });
     child.on('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0)));
   });
@@ -276,7 +287,7 @@ async function smoke(env) {
   // [ASSUMED] HOST=127.0.0.1 instead of the unset-HOST default (::): the requests go to 127.0.0.1 either way, and
   // listening only on loopback spares a firewall prompt on Windows / macOS.
   const child = spawn(process.execPath, ['server/index.js'], {
-    cwd: ROOT, env: { ...env, PORT: String(port), HOST: '127.0.0.1' }, stdio: ['ignore', 'pipe', 'pipe'],
+    cwd: ROOT, env: { ...env, PORT: String(port), HOST: '127.0.0.1' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
   });
   servers.add(child);
   let log = '';
@@ -323,7 +334,7 @@ async function smoke(env) {
 function runStep(step, env) {
   switch (step.id) {
     case 'setup': return node(['tools/setup.mjs', '--check', '--no-local'], env);
-    case 'test': return node(['--test'], env);
+    case 'test': return node(['--test', ...TEST_FILES], env);
     case 'smoke': return smoke(env);
     case 'lint': return node([binPath('eslint', 'eslint'), '.'], env);
     case 'imports': return node(['tools/check-imports.mjs'], env);

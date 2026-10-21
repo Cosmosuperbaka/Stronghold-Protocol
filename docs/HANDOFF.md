@@ -1,6 +1,6 @@
 # 扩展分支维护交接
 
-最近更新 2026-10-16。接手这个项目先读这份，再按需要读下面列的文档。这里只放现状、怎么跑、常见任务和待办，实现细节在 [LOCAL-DEV.md](LOCAL-DEV.md)，不重复。
+最近更新 2026-10-20。接手这个项目先读这份，再按需要读下面列的文档。这里只放现状、怎么跑、常见任务和待办，实现细节在 [LOCAL-DEV.md](LOCAL-DEV.md)，不重复。
 
 ## 1. 项目是什么
 
@@ -33,14 +33,15 @@
 | [AGENTS.md](../AGENTS.md) | 上游的入口：必读文档、硬性规则（确定性、golden、生成的数据不能手改等）、验证方法 |
 | [LOCAL-DEV.md](LOCAL-DEV.md) | 本分支改了哪些文件、对局引擎速览、回档和控制台的实现、测试、踩过的坑、联动干员 |
 | [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md) | 本分支的更新记录（给玩家看的说法） |
+| [参考站前端私有归档](https://github.com/zhewang448/stronghold-ui-site-archive) | 跟进参考站 UI 的公开源码快照；复抓、来源区分和差异查看见 [REFERENCE-UI-REVIEW.md](REFERENCE-UI-REVIEW.md#后续跟进与私有归档)，需仓库访问权限 |
 | [ARCHITECTURE.md](ARCHITECTURE.md)、[SIM.md](SIM.md)、[META.md](META.md)、[DATA.md](DATA.md) | 上游的代码地图、战斗引擎、对局流程、生成数据 |
 
 ## 2. 分支与维护状态
 
 - `origin` 为本仓库，`upstream` 为原项目。默认分支 `main` 已整合主机工具、联动扩展、可选皮肤、随机装备和素材预加载；`local-tools` 与 `codex/operator-skins` 保留原功能分支历史。`master` 只跟踪上游。
-- 当前版本为 `v0.3.0-extended.5`（合并官方 v0.3.0-extended.2：Hub UI / 每回合统计 / 交流管理 / 组队海报），基础版本 `0.3.0`；提供带签名的完整素材包与轻量包，上一正式版为 `v0.2.6-extended.5`。新增全员每回合统计、聊天屏蔽词与主机消息、分组设置、组队海报，以及 0.3.0 插件与官方素材适配。发布验证以 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md) 为准。
+- 当前版本为 `v0.3.1-extended.6`，基础版本 `0.3.1`；提供带签名的完整素材包与轻量包，上一正式版为 `v0.3.1-extended.5`。本版增加在线玩家名单、状态与隐身、房间直接邀请、六项控制台社交开关、房间联防叠层权限及公告草稿、模板与预览，发布验证以 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md) 为准。
 - 九项实现与恢复边界见 LOCAL-DEV §9。聊天位置仅当前浏览器与站点按昵称保存；重启恢复要求同版本及规则指纹，跨版本升级不能续局。完整监控墙尚未重跑 30 分钟持续运行测试。
-- 当前源码已合入上游 v0.3.0（`c24e17ee`），与已发布的 v0.2.6-extended.5 附件分开记录；自选池为 79 名（上游 72 名 + 7 名联动），保留 174 套可选皮肤、多语言语音与原有控制台扩展。后续同步和测试结果以 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md) 为准，皮肤验证与限制见 [SKINS.md](SKINS.md)。
+- 本版整合上游 v0.3.1（`b3deebda`）。自选池为 79 名（上游 72 名 + 7 名联动），保留 174 套可选皮肤、多语言语音与控制台扩展；完整包包含重新提取的 11 个官方场景（版本 4）及官方 FX。来源与验证见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md)。
 - 定期跟进上游更新，先完成扩展兼容与验证，再合并。查看 `git status` 和远端分支确认实际工作状态，不把某台机器的进程、私人地址或临时 ref 写进公共交接文档。
 - 对局记录、主机设置和缓存不进入 Git。公开或分享前检查所有分支、历史和提交邮箱，见 [PRIVACY.md](PRIVACY.md)。
 

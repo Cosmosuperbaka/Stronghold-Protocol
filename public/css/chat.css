@@ -10,6 +10,22 @@
 .chat--dragging .chat__toggle, .chat--dragging .chat__drag { cursor: grabbing; }
 .chat__toggle .icon { width: 20px; height: 20px; color: var(--mint-400); }
 .chat__unread { color: var(--mint-400); font-size: 12px; }
+.chat__preview { box-sizing: border-box; position: fixed; width: min(320px, calc(100vw - 24px)); max-height: calc(100dvh - 24px);
+  overflow-y: auto; background: var(--bg-1); border: 1px solid var(--line-2); box-shadow: 0 6px 20px #000b;
+  scrollbar-color: var(--mint-700) var(--bg-1); opacity: 1; transform: translateY(0);
+  animation: chat-preview-in 220ms cubic-bezier(.16, 1, .3, 1); transition: opacity 180ms ease-out, transform 180ms ease-out; }
+.chat__preview--leaving { opacity: 0; transform: translateY(-4px); }
+@keyframes chat-preview-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.chat .chat__preview-open { display: block; width: 100%; padding: 0; border: 0; background: transparent; text-align: left; }
+.chat .chat__preview-open:hover:not(:disabled) { color: var(--text-hi); background: var(--bg-2); }
+.chat__preview-open:focus-visible { outline-offset: -3px; }
+.chat__preview-messages, .chat__preview-message { display: block; }
+.chat__preview-message { padding: 10px 12px; }
+.chat__preview-message + .chat__preview-message { border-top: 1px solid var(--line); }
+.chat__preview-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3;
+  overflow: hidden; overflow-wrap: anywhere; white-space: pre-wrap; }
+.chat__preview-hint { display: block; padding: 6px 12px; border-top: 1px solid var(--line); color: var(--mint-400); font-size: 12px; }
+@media (prefers-reduced-motion: reduce) { .chat__preview { animation: none; transition: none; transform: none; } }
 .chat__body { box-sizing: border-box; position: fixed; width: min(350px, calc(100vw - 24px)); max-height: min(440px, calc(100dvh - 24px)); display: flex; flex-direction: column; background: var(--bg-1); border: 1px solid var(--line-2); box-shadow: 0 6px 20px #000b; }
 .chat__head { display: flex; align-items: center; gap: 4px; padding: 4px; }
 .chat__head button { flex-shrink: 0; padding-inline: 8px; }

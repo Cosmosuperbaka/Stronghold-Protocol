@@ -22,7 +22,7 @@ export async function installSkins(ids, { root = ROOT, offline = false, source =
   const assetRoot = join(root, 'public/assets');
   const dl = new Downloader({ root: assetRoot, ledgerPath: join(root, '.cache/skin-ledger.json'), concurrency: 6, retries: 2, timeoutMs: 30000, source, log });
   await dl.loadLedger();
-  const plan = buildSkinPlan(research, selected);
+  const plan = buildSkinPlan(research, selected, await read('data/seat-art.json').catch(() => null));
   if (!offline) await downloadLeaves(collectLeaves(plan.template), dl, assetRoot, 'skin avatars');
   const parsed = await processModels(plan.models, { root: assetRoot, dl, cachePath: join(root, '.cache/skin-spines.json'), download: !offline, log });
   const resolved = resolveTemplate(plan.template, { root: assetRoot, spine: parsed.entries });

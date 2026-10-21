@@ -29,6 +29,7 @@ export function recoveryIdentity(root) {
 
 export function restoreMatch(m, record) {
   Object.assign(m, record.fixed);
+  if (typeof record.room?.uniteLayerGains === 'boolean') m.uniteLayerGains = record.room.uniteLayerGains;
   // setupMatchWaves hides this on the factions array; neither v8 nor structuredClone retains non-enumerable fields.
   Object.defineProperty(m.factions, 'schedule', { value: record.schedule, enumerable: false });
   // Count only the timeline through the saved PREP boundary, excluding downtime and the abandoned round.
@@ -72,14 +73,14 @@ export function createRecovery({ lobby, root, dir = path.join(root, 'logs', 'rec
     roomClosed(code) { if (!stopping) remove(code); },
     prepareShutdown() { stopping = true; },
     save(room, m, snap) {
-      if (!enabled || stopping || restoring) return;
+      if (!enabled || stopping || restoring || room.test || m.test) return;
       const sessions = [...room.seats, ...room.spectators].filter((s) => s && !s.isBot)
         .map((s) => lobby.registry.byId(s.playerId)).filter(Boolean)
-        .map((s) => Object.fromEntries(['playerId', 'token', 'name', 'loadout', 'ops', 'skins', 'notOwned', 'diy', 'resumeWindowMs'].map((k) => [k, s[k]])));
+        .map((s) => Object.fromEntries(['playerId', 'token', 'name', 'loadout', 'ops', 'skins', 'card', 'cardSkin', 'notOwned', 'diy', 'resumeWindowMs', 'presenceStatus'].map((k) => [k, s[k]])));
       const record = { format: 1, identity, seed: m.seed, matchNo: room.matchCount,
-        room: { code: room.code, mode: room.mode, difficulty: room.difficulty, hostId: room.hostId, seats: room.seats, spectators: room.spectators, aiPicksLast: room.aiPicksLast, createdAt: room.createdAt },
+        room: { code: room.code, mode: room.mode, difficulty: room.difficulty, hostId: room.hostId, seats: room.seats, spectators: room.spectators, aiPicksLast: room.aiPicksLast, uniteLayerGains: room.uniteLayerGains, createdAt: room.createdAt },
         seats: m.order.map((p) => ({ seat: p.seat, playerId: p.playerId, name: p.name, isBot: p.isBot, connected: p.isBot,
-          loadout: p.loadout, ops: p.ops, skins: p.skins, notOwned: p.standIns, diy: p.diy })),
+          loadout: p.loadout, ops: p.ops, skins: p.skins, card: p.card, cardSkin: p.cardSkin, notOwned: p.standIns, diy: p.diy })),
         flags: Object.fromEntries(m.order.map((p) => [p.playerId, { autoplay: p.autoplay, left: p.left }])),
         fixed: Object.fromEntries(FIXED.map((k) => [k, m[k]])), schedule: m.factions.schedule,
         elapsedMs: Math.max(0, snap.at - m.startedAt), snapshot: snap.data, sessions,

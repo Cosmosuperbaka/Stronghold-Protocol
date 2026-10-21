@@ -1,5 +1,6 @@
 import { LobbyMusicButton } from '../ui/lobbyMusic.js';
 import { AccountMeChip } from '../ui/accounts.js';
+import { OnlinePlayersButton, PresenceSelector } from '../ui/social.js';
 import { isOwnerName, decorateOwnerName } from '../ui/ownerName.js';
 import { enabled as federationEnabled } from '../federation.js';
 import { MatchmakingCount } from '../ui/matchmaking.js';
@@ -12,6 +13,7 @@ import { useHubBackdrop, HubBackdrop, HubRadar, BackdropSettings, BackdropGlyph,
 // 快速匹配, create), 搜寻队友 opens the room list. The 密钥加入 dialog joins with a 同盟密钥 (recent codes remembered) —
 // as a player (加入同盟) or in one of its MAX_SPECTATORS spectator seats (观战: room.spectate, also while its match
 // runs; community report #26). The server is picked on the title screen.
+
 //
 // Difficulty descriptions come from data/config.json `modes[modeId]` when present, else from the
 // official act2autochess `modeDataDict` texts embedded below (desc + effectDescList), so the
@@ -21,16 +23,20 @@ import { useHubBackdrop, HubBackdrop, HubRadar, BackdropSettings, BackdropGlyph,
 // Texts go through t() (docs/I18N.md); the module-level tables hold msgids (N_) translated where they are shown, the
 // config.json mode texts come localized from data.js.
 
+import { TestMark } from '../ui/testConsole.js';
 import { ResumeMatchButton } from '../ui/resumeMatch.js';
-import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
+import { useEffect, useLayoutEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS, ROOM_CODE_LEN, MAX_SEATS, MAX_SPECTATORS, modeIdFor, ERR, ERR_TEXT } from '../../../shared/constants.js';
 import { RANDOM_MODE } from '../../../shared/randomMode.js';
-import { html, Button, Icon, MicroLabel, Panel, TextField, PingPill, AvatarFrame, Tooltip, Spinner, DifficultyIcon, doctorNo } from '../ui/components.js';
+import { html, confirmDialog, useDialogFocus, Button, Icon, MicroLabel, Panel, TextField, PingPill, AvatarFrame, Tooltip, Spinner, DifficultyIcon, doctorNo } from '../ui/components.js';
+
 import { toast, toastError } from '../ui/toasts.js';
 import { GuideButton, openGuide } from '../ui/guide.js';
 import { openStats } from './stats.js';
+import { openPersonalData } from '../ui/personalDataPanel.js';
 import { AchievementEntry, AchievementPanel } from '../ui/achievements.js';
 import { FriendsTile } from '../ui/friends.js';
+
 import { SettingsButton } from '../ui/settings.js';
 import { AnnouncementButton } from '../ui/announcement.js';
 import { PwaInstallButton, fullscreen } from '../ui/device.js';
@@ -45,6 +51,8 @@ import { getConfig, getMode, getStage, useData } from '../data.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
 import { PreloadWidget } from '../ui/preload.js';
 import { C2S as SERVER_C2S } from '../../../shared/protocol.js';
+import { NoticesButton } from '../ui/notices.js';
+
 /** Official mode texts (activity_table act2autochess.modeDataDict), fallback when config.json is absent. */
 export const MODE_TEXT = {
   single: {
@@ -262,9 +270,24 @@ export function recentRooms() {
 }
 
 /** @param {string} code */
-export function rememberRoom(code) {
+export function rememberRoom(code, test = false) {
   if (!CODE_RE.test(code)) return;
-  savePref('recentRooms', [code, ...recentRooms().filter((c) => c !== code)].slice(0, 4));
+  const recent = [code, ...recentRooms().filter((c) => c !== code)].slice(0, 4);
+  const marks = loadPref('recentTestRooms', []);
+  savePref('recentTestRooms', recent.filter(c => c === code ? test : Array.isArray(marks) && marks.includes(c)));
+  savePref('recentRooms', recent);
+}
+
+export async function joinKnown(type, key) {
+  try { return await net.request(type, { code: key }); } catch (err) {
+    if (err?.code !== ERR.TEST_CONFIRM) throw err;
+    const text = type === 'room.spectate'
+      ? t('这是测试房间，不计入任何记录。确认观战？')
+      : t('这是测试房间，不计入任何记录。确认加入？');
+    if (await confirmDialog({ title: t('测试'), text })) {
+      return net.request(type, { code: key, testAck: true });
+    }
+  }
 }
 
 const FALLBACK_TIPS = [
@@ -388,7 +411,7 @@ function SweepPlate({ onClick }) {
 function HubEntry({ group, name, en, icon, badge, tone = 'mint', count = null, onClick, disabled = false }) {
   return html`<div class="hub-entry-wrap">
     ${group ? html`<span class="hub-entry__group"><${Icon} name=${group.icon} />${group.label}</span>` : html`<span class="hub-entry__group hub-entry__group--blank"></span>`}
-    <button type="button" class=${`hub-entry hub-entry--${tone}`} onClick=${onClick} disabled=${disabled}>
+    <button type="button" aria-label=${en} class=${`hub-entry hub-entry--${tone}`} onClick=${onClick} disabled=${disabled}>
       <span class="hub-entry__icon"><${Icon} name=${icon} /></span>
       <span class="hub-entry__en">${en}</span>
       <span class="hub-entry__name">${name}${badge ? html`<span class="mode-beta">${badge}</span>` : null}</span>
@@ -409,17 +432,17 @@ function HubTile({ icon, label, en, onClick, children }) {
 
 /** Shared frame of the hub's two dialogs (the start sheet, 密钥加入). */
 function HubDialog({ open, micro, title, onClose, wide = false, children }) {
+  const boxRef = useRef(null);
+  useDialogFocus(open, boxRef, onClose);
   useEffect(() => {
     if (!open) return undefined;
-    const onKey = (e) => { if (e.key === 'Escape') onClose?.(); };
-    addEventListener('keydown', onKey);
     // the lobby chat (z 180, ui/communityChat.js) sits above modals: it steps aside while a hub dialog is open
     document.body.classList.add('hub-dialog-open');
-    return () => { removeEventListener('keydown', onKey); document.body.classList.remove('hub-dialog-open'); };
+    return () => { document.body.classList.remove('hub-dialog-open'); };
   }, [open]);
   if (!open) return null;
   return html`<div class="modal hub-dialog" role="presentation" onMouseDown=${(e) => { if (e.target === e.currentTarget) onClose?.(); }}>
-    <div class=${`modal__box hub-dialog__box brackets${wide ? ' hub-dialog__box--wide' : ''}`} role="dialog" aria-modal="true">
+    <div ref=${boxRef} class=${`modal__box hub-dialog__box brackets${wide ? ' hub-dialog__box--wide' : ''}`} role="dialog" aria-modal="true" aria-label=${title} tabindex="-1">
       <div class="modal__stripe" aria-hidden="true"></div>
       <header class="hub-dialog__head">
         <${MicroLabel} tone="mint">${micro}<//>
@@ -499,8 +522,10 @@ export function ProtoCard({ roomMode, difficulty, selected, onSelect, matchmakin
 function ProtocolSelect({ card, roomMode, random, variant, difficulty, onDifficulty, onClose, matchmaking, brief, privateRoom, onPrivate,
   online, maint, busy, isSearching, onCreate, onQueue, purpose = 'create', onSearch, onCancel, mm, onBrowse, chained = false }) {
   const [leaving, leave] = useLeave(onClose);
+  const pageRef = useRef(null);
+  useLayoutEffect(() => { pageRef.current?.querySelector('.proto-back')?.focus(); }, []);
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('.modal, .guide')) leave(); };
+    const onKey = (e) => { if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing && !document.querySelector('.modal, .guide, .lo, .st, [aria-modal="true"]')) { e.preventDefault(); e.stopPropagation(); leave(); } };
     addEventListener('keydown', onKey);
     document.body.classList.add('hub-dialog-open');
     return () => { removeEventListener('keydown', onKey); document.body.classList.remove('hub-dialog-open'); };
@@ -533,7 +558,7 @@ function ProtocolSelect({ card, roomMode, random, variant, difficulty, onDifficu
       </div>
     </div>`;
   }
-  return html`<div class=${`proto${fx}`} style=${`--d-color:${DIFFICULTY_COLORS[difficulty]}`} data-difficulty=${difficulty} role="dialog" aria-label=${t('选择模拟协议')}>
+  return html`<div class=${`proto${fx}`} style=${`--d-color:${DIFFICULTY_COLORS[difficulty]}`} data-difficulty=${difficulty} ref=${pageRef} role="main" aria-label=${t('选择模拟协议')}>
     <div class="proto__bg" aria-hidden="true"></div>
     <header class="proto-top">
       <button type="button" class="proto-back" onClick=${leave} title=${t('返回大厅 (Esc)')} aria-label=${t('返回大厅')}>
@@ -590,14 +615,14 @@ function ProtocolSelect({ card, roomMode, random, variant, difficulty, onDifficu
  */
 function AllianceSelect({ customCode, onCustomCode, customCodeOk, onClose, code, onCode, codeOk, recent, online, maint, busy, onCreate, onJoin, onSpectate, onBrowse, onSearch, recruiting = 0, difficulty }) {
   const [leaving, leave] = useLeave(onClose);
+  const pageRef = useRef(null);
+  useDialogFocus(true, pageRef, leave);
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('.modal, .guide')) leave(); };
-    addEventListener('keydown', onKey);
     document.body.classList.add('hub-dialog-open');
-    return () => { removeEventListener('keydown', onKey); document.body.classList.remove('hub-dialog-open'); };
+    return () => { document.body.classList.remove('hub-dialog-open'); };
   }, []);
   const joining = busy === 'create' ? t('正在建立同盟') : busy === 'join' ? t('正在加入同盟') : busy === 'spectate' ? t('正在进入观战') : null;
-  return html`<div class=${`proto ally${leaving ? ' is-leaving' : ''}`} role="dialog" aria-label=${t('选择同盟方式')}>
+  return html`<div ref=${pageRef} class=${`proto ally${leaving ? ' is-leaving' : ''}`} role="dialog" aria-modal="true" aria-label=${t('选择同盟方式')} tabindex="-1">
     <div class="proto__bg ally__bg" aria-hidden="true"></div>
     <header class="proto-top">
       <button type="button" class="proto-back" onClick=${leave} title=${t('返回大厅 (Esc)')} aria-label=${t('返回大厅')}>
@@ -630,7 +655,7 @@ function AllianceSelect({ customCode, onCustomCode, customCodeOk, onClose, code,
           <span class="ally-card__art"><${JoinArt} /></span>
           <label class="ally-key"><${Icon} name="search" />
             <input type="text" value=${code} placeholder=${t('输入同盟密钥')} maxlength="64" autocomplete="off" spellcheck="false"
-              onInput=${(e) => onCode(e.currentTarget.value)} onKeyDown=${(e) => { if (e.key === 'Enter') onJoin(); }} />
+              onInput=${(e) => onCode(e.currentTarget.value)} onKeyDown=${(e) => { if (e.key === 'Enter' && !e.isComposing) onJoin(); }} />
             ${codeOk ? html`<button type="button" class="ally-key__spec" disabled=${!online || busy === 'spectate'} onClick=${onSpectate}
               title=${t('以观战者身份进入：不占博士席位，只能观看（每个同盟最多 {MAX_SPECTATORS} 名，模拟进行中也可进入）', { MAX_SPECTATORS })}><${Icon} name="eye" />${t('观战')}</button>` : null}
           </label>
@@ -802,8 +827,13 @@ export function LobbyScreen() {
   const [customCode, setCustomCode] = useState('');
   const customCodeOk = !customCode || CODE_RE.test(customCode);
   const [privateRoom, setPrivateRoom] = useState(false);
+  const [asTest, setAsTest] = useState(false);
+  const testMode = useStore((s) => s.testMode === true);
+
   const [busy, setBusy] = useState(null);
   const [recent] = useState(recentRooms);
+  const marks = loadPref('recentTestRooms', []);
+  const [sweepOpen, setSweepOpen] = useState(false);
   const alive = useRef(true);
   const inFlight = useRef(false); // synchronous guard against double clicks (state updates are async)
   useEffect(() => () => { alive.current = false; }, []);
@@ -815,11 +845,10 @@ export function LobbyScreen() {
   const maint = useStore((s) => s.maintenance, shallowEqual);
   const [modalOpen, setModalOpen] = useState(() => new URLSearchParams(location.search).has('modal'));
   const lobbyStats = useStore((s) => s.lobbyStats, shallowEqual);
-  const [onlineCount, setOnlineCount] = useState(() => lobbyStats?.online ?? 1);
+  const [_onlineCount, setOnlineCount] = useState(() => lobbyStats?.online ?? 1);
   const [rooms, setRooms] = useState(() => (federationEnabled ? [] : lobbyStats?.rooms ?? []));
   const bg = useHubBackdrop();
   const [bgOpen, setBgOpen] = useState(false);
-  const [sweepOpen, setSweepOpen] = useState(false);
   // The Android shell can ask the local network who hosts a key, so a guest never types an address: the code is enough.
   const nativeShell = globalThis.AndroidNative?.isNativeApp?.() ? globalThis.AndroidNative : null;
   const [lanRoom, setLanRoom] = useState(null);
@@ -901,7 +930,7 @@ export function LobbyScreen() {
       return;
     }
     return run('create', () => net.request('room.create', {
-      mode: roomMode, difficulty,
+      mode: roomMode, difficulty, ...(testMode && asTest ? { test: true } : {}),
       ...(roomMode === 'coop' && customCode ? { code: customCode } : {}),
       ...(CAN_FIREPOWER ? { random: randomMode, ...(randomMode ? { variant } : {}) } : {}),
       ...(CAN_PRIVATE ? { private: roomMode !== 'solo' && privateRoom } : {}),
@@ -921,14 +950,16 @@ export function LobbyScreen() {
       setLanNote(t('正在进入 {ip} 的房间…', { ip: lanRoom.ip }));
       return;
     }
-    run('join', () => net.request('room.join', { code: k, ...(federationNode ? { federationNode } : {}) }));
+    run('join', () => joinKnown('room.join', k));
+
   };
   // a spectator seat: no player seat taken, nothing to do but watch (also a match already running)
   const spectate = (c = code, federationNode) => {
     // same guard as join: `onClick=${spectate}` passes the click event, not a code
     const k = codeArg(c, code);
     if (!k) { toast(t('同盟密钥为 {ROOM_CODE_LEN} 位字母或数字', { ROOM_CODE_LEN }), 'warn'); return; }
-    run('spectate', () => net.request('room.spectate', { code: k, ...(federationNode ? { federationNode } : {}) }).catch((err) => {
+    run('spectate', () => joinKnown('room.spectate', k).catch((err) => {
+
       // Clearer than the bare ERR_TEXT: the usual cause is a code that is not the host's (a remembered one from an
       // earlier room, or another machine's) — the server can only answer "no such room".
       if (err?.code === ERR.ROOM_NOT_FOUND) {
@@ -948,16 +979,28 @@ export function LobbyScreen() {
   };
   // hub dialogs: the start sheet of a picked mode, 密钥加入 (opened by an invite code in the URL too)
   const [sheetOpen, setSheetOpen] = useState(false);
+  const modeTrigger = useRef(null);
+  const previousSheet = useRef(false);
+  useLayoutEffect(() => {
+    if (previousSheet.current && !sheetOpen) document.querySelector(modeTrigger.current || '.hub-entry')?.focus();
+    previousSheet.current = sheetOpen;
+  }, [sheetOpen]);
   const [sheetPurpose, setSheetPurpose] = useState('create'); // 'create' | 'search' (搜寻队友)
   const [allyOpen, setAllyOpen] = useState(false);            // 选择同盟方式
   const [sheetChained, setSheetChained] = useState(false);    // opened from 选择同盟方式: no darkening of the hub between
   const [joinOpen, setJoinOpen] = useState(false);
   const [achOpen, setAchOpen] = useState(false);              // 成就统计 (ui/achievements.js)
   // 同盟模拟 → 选择同盟方式; 独立模拟 / 无限火力 → 选择模拟协议
-  const openMode = (m) => { pickMode(m); if (m === 'coop') setAllyOpen(true); else { setSheetPurpose('create'); setSheetChained(false); setSheetOpen(true); } };
+  const openMode = (m) => { modeTrigger.current = m === 'solo' ? '.hub-entry[aria-label="SOLO"]' : '.hub-entry[aria-label="ALLIANCE"]'; pickMode(m); if (m === 'coop') setAllyOpen(true); else { setSheetPurpose('create'); setSheetChained(false); setSheetOpen(true); } };
   const openSearch = () => { pickMode('coop'); setSheetChained(allyOpen); setAllyOpen(false); setSheetPurpose('search'); setSheetOpen(true); };
   const modeCard = MODE_CARDS.find((c) => c.id === simulation) || MODE_CARDS[0];
 
+  if (sheetOpen) return html`<${ProtocolSelect} card=${modeCard} roomMode=${roomMode} random=${randomMode} variant=${variant} difficulty=${difficulty}
+      onDifficulty=${pickDifficulty} onClose=${() => setSheetOpen(false)} matchmaking=${matchmakingCounts}
+      brief=${randomMode ? html`<${FirepowerBrief} variant=${fpVariant} onVariant=${pickVariant} />` : null}
+      privateRoom=${privateRoom} onPrivate=${setPrivateRoom} online=${online} maint=${maint} busy=${busy} isSearching=${isSearching}
+      onCreate=${create} onQueue=${async () => { await queueMatch(); setSheetOpen(false); }}
+      purpose=${sheetPurpose} onSearch=${queueMatch} onCancel=${cancelMatch} mm=${mm} onBrowse=${() => setModalOpen(true)} chained=${sheetChained} />`;
   return html`<div class="screen lobby-screen lobby-hub" data-hub-theme=${backdropTheme(bg)}>
     <${HubBackdrop} bg=${bg} />
     <header class="topbar hub-topbar">
@@ -966,6 +1009,7 @@ export function LobbyScreen() {
         <${PingPill} ms=${conn.ping} online=${online} />
         <span class="topbar__sep" aria-hidden="true"></span>
         <div class="topbar__tools">
+          <${NoticesButton} />
           <${SettingsButton} class="lobby-settings" variant="secondary" square=${true} />
           <${AnnouncementButton} class="lobby-notice" />
           <${GuideButton} class="lobby-guide" variant="secondary" square=${true} />
@@ -977,9 +1021,10 @@ export function LobbyScreen() {
         </div>
       </div>
       <div class="topbar__right">
-        <span class="hub-online"><span class="online-pill__dot"></span><span class="num">${onlineCount}</span><span>${t('名博士在线')}</span></span>
+        <${OnlinePlayersButton} /><${PresenceSelector} />
         <${ResumeMatchButton} />
         <${AccountMeChip} player=${me} onStats=${openStats} />
+
       </div>
     </header>
 
@@ -994,6 +1039,7 @@ export function LobbyScreen() {
         <${AchievementEntry} key=${achOpen ? 'open' : 'shut'} onOpen=${() => setAchOpen(true)} />
         <${HubTile} icon="key" label=${t('密钥加入')} en="JOIN WITH KEY" onClick=${() => setJoinOpen(true)} />
         <${FriendsTile} />
+
         <${TipsPanel} />
       </aside>
 
@@ -1003,6 +1049,8 @@ export function LobbyScreen() {
           <${SweepPlate} onClick=${() => setSweepOpen(true)} />
           <${LoadoutButton} from="lobby" size="lg" class="hub-plate hub-plate--loadout" label=${t('干员调配')} />
         </div>
+        <${HubTile} icon="chart" label=${t('统计数据')} en="LOCAL RECORDS" onClick=${openStats} />
+        <${HubTile} icon="download" label=${t('导出 / 导入个人数据')} en="PERSONAL DATA" onClick=${openPersonalData} />
       </aside>
 
       <section class="hub-entries" aria-label=${t('模拟方式')}>
@@ -1015,6 +1063,10 @@ export function LobbyScreen() {
             <${Button} variant="danger" size="md" loading=${busy === 'cancel'} onClick=${cancelMatch}>${t('取消匹配')}<//>
           </div>` : null}
         ${maint?.active ? html`<div class="hub-maint">${t('服务器即将维护，暂停开启新的模拟')}</div>` : null}
+        ${testMode ? html`<label class="create-box__test" data-testid="create-test">
+          <input type="checkbox" checked=${asTest} onChange=${e => setAsTest(e.target.checked)} />
+          <span>${t('测试房间')}</span><em>${t('不计入战绩。房间会标明「测试」，只有房主能使用测试指令。')}</em>
+        </label>` : null}
         <div class="hub-entries__row">
           <${HubEntry} group=${{ icon: 'user', label: t('独立模拟') }} name=${t('独立模拟')} en="SOLO" icon="user" onClick=${() => openMode('solo')} />
           <${HubEntry} group=${{ icon: 'users', label: t('同盟模拟') }} name=${t('同盟模拟')} en="ALLIANCE" icon="users" count=${matchmakingCounts?.total} onClick=${() => openMode('coop')} />
@@ -1025,13 +1077,6 @@ export function LobbyScreen() {
     </main>
 
     <${PreloadWidget} />
-
-    ${sheetOpen ? html`<${ProtocolSelect} card=${modeCard} roomMode=${roomMode} random=${randomMode} variant=${variant} difficulty=${difficulty}
-      onDifficulty=${pickDifficulty} onClose=${() => setSheetOpen(false)} matchmaking=${matchmakingCounts}
-      brief=${randomMode ? html`<${FirepowerBrief} variant=${fpVariant} onVariant=${pickVariant} />` : null}
-      privateRoom=${privateRoom} onPrivate=${setPrivateRoom} online=${online} maint=${maint} busy=${busy} isSearching=${isSearching}
-      onCreate=${create} onQueue=${async () => { await queueMatch(); setSheetOpen(false); }}
-      purpose=${sheetPurpose} onSearch=${queueMatch} onCancel=${cancelMatch} mm=${mm} onBrowse=${() => setModalOpen(true)} chained=${sheetChained} />` : null}
 
     ${allyOpen ? html`<${AllianceSelect} customCode=${customCode} onCustomCode=${setCustomCode} customCodeOk=${customCodeOk} onClose=${() => setAllyOpen(false)} code=${code} onCode=${(v) => setCode(normalizeCode(v))} codeOk=${codeOk}
       recent=${recent} online=${online} maint=${maint} busy=${busy} difficulty=${difficulty} recruiting=${recruitingRooms(rooms).length}
@@ -1063,6 +1108,7 @@ export function LobbyScreen() {
 
     <${MatchmakingModal} open=${modalOpen} onClose=${() => setModalOpen(false)} onJoin=${join} onSpectate=${spectate} />
     ${achOpen ? html`<${AchievementPanel} me=${me} onClose=${() => setAchOpen(false)} />` : null}
+
     ${sweepOpen ? html`<${SweepReport} onClose=${() => setSweepOpen(false)} />` : null}
   </div>`;
 }

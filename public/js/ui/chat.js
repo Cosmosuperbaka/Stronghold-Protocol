@@ -9,6 +9,8 @@ import { chatMember } from './chatStore.js';
 import { describeError } from './toasts.js';
 import { GIcon } from './gameComponents.js';
 import { useChatPosition } from './chatPosition.js';
+import { ChatPreview } from './chatPreview.js';
+import { useSettings } from './settings.js';
 
 export function chatFacts(state) {
   const member = state.chat?.code === state.room?.code && chatMember(state.room, state.me?.playerId);
@@ -45,17 +47,22 @@ export async function sendChat({ store, net }) {
 }
 
 export function ChatPanel() {
+  const settings = useSettings();
   const state = useStore((s) => ({ chat: s.chat, room: s.room, me: s.me, connection: s.connection }), shallowEqual);
   const chat = state.chat, facts = chatFacts(state);
   const input = useRef(null), log = useRef(null), toggle = useRef(null), composing = useRef(false);
   const open = chat?.open, code = chat?.code;
-  const placement = useChatPosition({ name: state.me?.name, playerId: state.me?.playerId, active: facts.member && state.room?.textChat, open });
+  const previews = settings.chatBubbles && !open ? (chat?.messages || []).filter(m => chat.previewIds?.includes(m.id)) : [];
+  const placement = useChatPosition({ name: state.me?.name, playerId: state.me?.playerId, active: facts.member && state.room?.textChat, open, floating: !!previews.length });
   useLayoutEffect(() => { composing.current = false; }, [code]);
+  useLayoutEffect(() => {
+    if (!settings.chatBubbles && chat?.previewIds?.length) store.patch('chat', { previewIds: [] });
+  }, [settings.chatBubbles, chat?.previewIds]);
   useLayoutEffect(() => { if (open && facts.canSend) input.current?.focus(); }, [open, code]);
   useLayoutEffect(() => { if (open && log.current) log.current.scrollTop = log.current.scrollHeight; }, [open, code, chat?.lastId]);
   if (!facts.member || !state.room?.textChat) return null;
   const setOpen = (value) => {
-    store.patch('chat', { open: value, ...(value ? { unread: 0 } : {}) });
+    store.patch('chat', { open: value, ...(value ? { unread: 0, previewIds: [] } : {}) });
     if (!value) toggle.current?.focus();
   };
   const count = [...chat.draft].length;
@@ -69,6 +76,7 @@ export function ChatPanel() {
       <${GIcon} name="emote" /><span>${t('文字聊天')}</span>
       ${chat.unread ? html`<span class="chat__unread">${t('{n} 条未读', { n: chat.unread })}</span>` : null}
     </button>
+    ${previews.length ? html`<${ChatPreview} key=${code} messages=${previews} body=${placement.body} onOpen=${() => setOpen(true)} />` : null}
     ${open ? html`<section ref=${placement.body} id="room-chat-body" class="chat__body" aria-label=${t('同盟聊天')}>
       <header class="chat__head"><button type="button" class="chat__drag" title=${t('移动聊天位置（拖动或按方向键）')}
         aria-label=${t('移动聊天位置（拖动或按方向键）')} ...${placement.events} onClick=${placement.draggedClick}><strong>${t('同盟聊天')}</strong></button>

@@ -21,7 +21,7 @@ $out = @($l | ForEach-Object { [pscustomobject]@{ pid = $_; name = (Get-Process 
        @($t | ForEach-Object { [pscustomobject]@{ pid = $_; name = 'cloudflared'; tunnel = $true } })
 ConvertTo-Json -InputObject $out -Compress`;
   // -EncodedCommand (UTF-16LE base64) sidesteps every quoting rule between Node, cmd and PowerShell
-  const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(ps, 'utf16le').toString('base64')], { encoding: 'utf8' });
+  const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(ps, 'utf16le').toString('base64')], { encoding: 'utf8', windowsHide: true });
   try { return JSON.parse(r.stdout.trim() || '[]').filter((p) => p.pid > 4); } catch { return []; }
 }
 
@@ -31,7 +31,7 @@ export async function freePort(port) {
   // tunnels first: killing an old launcher's server makes that launcher stop its own cloudflared under our feet
   const found = findProcesses(port).sort((a, b) => b.tunnel - a.tunnel);
   for (const p of found) {
-    const r = spawnSync('taskkill', ['/PID', String(p.pid), '/T', '/F'], { encoding: 'utf8' });
+    const r = spawnSync('taskkill', ['/PID', String(p.pid), '/T', '/F'], { encoding: 'utf8', windowsHide: true });
     console.log(`${r.status === 0 ? mark.ok : mark.err} 结束 ${p.name} (PID ${p.pid}，${p.tunnel ? '公网隧道' : '占用端口'})${r.status === 0 ? '' : '：' + (r.stderr || r.stdout).trim()}`);
   }
   for (const until = Date.now() + 5000; Date.now() < until;) {

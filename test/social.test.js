@@ -1,0 +1,134 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { startServer } from '../server/index.js';
+import { StubMatch } from '../server/match/StubMatch.js';
+import { TestClient } from './helpers/wsClient.js';
+import { resetHostSettings, setSocialSettings } from '../server/match/hostSettings.js';
+import { validateC2S } from '../shared/protocol.js';
+import { INVITE_TTL_MS } from '../shared/social.js';
+
+async function fixture(t) {
+  resetHostSettings();
+  const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, recovery: false, assetIndex: false, studio: false, MatchClass: StubMatch });
+  const clients = [];
+  t.after(async () => { await Promise.all(clients.map(c => c.terminate())); await srv.close(); resetHostSettings(); });
+  const player = async (name, status) => {
+    const client = await TestClient.connect(srv.url.replace('http', 'ws') + '/ws'); clients.push(client);
+    const welcome = await client.hello(name, undefined, status ? { presenceStatus: status } : {});
+    client.id = welcome.playerId; client.token = welcome.token; return client;
+  };
+  const ok = async (c, msg) => { const result = await c.request(msg); assert.equal(result.t, 'ok', JSON.stringify(result)); return result; };
+  const err = async (c, msg, code) => assert.equal((await c.request(msg)).code, code);
+  return { srv, player, ok, err };
+}
+test('social discovery excludes invisible/offline identities, tokens, addresses and room codes', async t => {
+  const { srv, player, ok } = await fixture(t);
+  const a = await player('Visible'), hidden = await player('Hidden', 'invisible'), busy = await player('Busy');
+  await ok(busy, { t: 'social.status', status: 'busy' });
+  let result = await ok(a, { t: 'social.list' });
+  assert.deepEqual(result.players.map(p => p.name).sort(), ['Busy', 'Visible']);
+  assert.equal(result.players.find(p => p.name === 'Busy').available, false);
+  for (const p of result.players) assert.deepEqual(Object.keys(p).sort(), ['activity','available','name','playerId','status']);
+  assert.ok(!JSON.stringify(result).includes(hidden.token));
+  const state = await a.waitFor('social.state', s => s.visibleCount === 2); assert.equal(state.visibleCount, 2);
+  await ok(a, { t: 'social.status', status: 'invisible' });
+  result = await ok(hidden, { t: 'social.list' });
+  assert.equal(result.players.some(p => p.playerId === a.id), false);
+  await busy.terminate();
+  srv.lobby.social.sync();
+  assert.equal((await ok(hidden, { t: 'social.list' })).players.length, 0);
+});
+test('invites require explicit acceptance, reject forged ownership and reuse room join validation', async t => {
+  const { srv, player, ok, err } = await fixture(t);
+  const host = await player('Host'), guest = await player('Guest'), other = await player('Other');
+  await ok(host, { t: 'room.create', mode: 'coop', difficulty: 'NORMAL' });
+  const room = srv.lobby.roomOf(srv.registry.byId(host.id));
+  await ok(host, { t: 'social.invite', playerId: guest.id });
+  const message = await guest.waitFor('social.state', s => s.invites.length === 1);
+  assert.equal(srv.registry.byId(guest.id).roomCode, null);
+  await err(other, { t: 'social.respond', inviteId: message.invites[0].id, accept: true }, 'INVITE_EXPIRED');
+  await ok(guest, { t: 'social.respond', inviteId: message.invites[0].id, accept: true });
+  assert.equal(srv.registry.byId(guest.id).roomCode, room.code);
+  await err(guest, { t: 'social.respond', inviteId: message.invites[0].id, accept: true }, 'INVITE_EXPIRED');
+  await err(host, { t: 'social.invite', playerId: other.id }, 'RATE');
+});
+test('invisible cannot send or receive invitations, queued invitations cancel and policy revocation never reveals them', async t => {
+  const { srv, player, ok, err } = await fixture(t);
+  const host = await player('Host'), guest = await player('Guest');
+  await ok(host, { t: 'room.create', mode: 'coop', difficulty: 'NORMAL' });
+  await ok(host, { t: 'social.invite', playerId: guest.id });
+  const pending = await guest.waitFor('social.state', s => s.invites.length === 1);
+  await ok(guest, { t: 'social.status', status: 'invisible' });
+  assert.equal(srv.lobby.social.invites.size, 0);
+  await err(host, { t: 'social.invite', playerId: guest.id }, 'INVITE_UNAVAILABLE');
+  await err(host, { t: 'social.invite', playerId: 'nonexistent' }, 'INVITE_UNAVAILABLE');
+  await err(guest, { t: 'social.respond', inviteId: pending.invites[0].id, accept: true }, 'INVITE_EXPIRED');
+  await ok(host, { t: 'social.status', status: 'invisible' });
+  await err(host, { t: 'social.invite', playerId: guest.id }, 'INVITE_UNAVAILABLE');
+  setSocialSettings({ invisible: false, statusSelection: false, counts: false }); srv.lobby.social.sync();
+  assert.equal((await ok(guest, { t: 'social.list' })).players.length, 0);
+  assert.equal(srv.registry.byId(guest.id).presenceStatus, 'invisible');
+  const restored = await player('RestoredHide', 'invisible');
+  assert.equal(srv.registry.byId(restored.id).presenceStatus, 'invisible', 'disabled selection never exposes saved invisible login');
+  await err(guest, { t: 'social.status', status: 'away' }, 'SOCIAL_DISABLED');
+  await ok(guest, { t: 'social.status', status: 'online' });
+});
+test('expiry, full/started rooms, busy targets, host-only and disabling features invalidate invitations', async t => {
+  const { srv, player, ok, err } = await fixture(t);
+  const host = await player('Host'), guest = await player('Guest'), member = await player('Member');
+  await ok(host, { t: 'room.create', mode: 'coop', difficulty: 'NORMAL' });
+  const room = srv.lobby.roomOf(srv.registry.byId(host.id));
+  await ok(member, { t: 'room.join', code: room.code });
+  setSocialSettings({ hostOnly: true });
+  await err(member, { t: 'social.invite', playerId: guest.id }, 'INVITE_UNAVAILABLE');
+  await ok(guest, { t: 'social.status', status: 'busy' });
+  await err(host, { t: 'social.invite', playerId: guest.id }, 'INVITE_UNAVAILABLE');
+  await ok(guest, { t: 'social.status', status: 'online' });
+  await ok(host, { t: 'social.invite', playerId: guest.id });
+  const pending = await guest.waitFor('social.state', s => s.invites.length);
+  srv.lobby.social.invites.get(pending.invites[0].id).expiresAt -= INVITE_TTL_MS + 1;
+  await err(guest, { t: 'social.respond', inviteId: pending.invites[0].id, accept: true }, 'INVITE_EXPIRED');
+  setSocialSettings({ directory: false, invitations: false }); srv.lobby.social.sync();
+  await err(host, { t: 'social.list' }, 'SOCIAL_DISABLED');
+  await err(host, { t: 'social.invite', playerId: guest.id }, 'SOCIAL_DISABLED');
+  assert.equal(srv.lobby.social.invites.size, 0);
+});
+test('directory pagination returns every visible player once and invitations recheck room capacity', async t => {
+  const { srv, player, ok, err } = await fixture(t);
+  const host = await player('Host'), guest = await player('Guest');
+  for (let i = 0; i < 103; i++) { const s = srv.registry.create('Doctor' + i); s.connected = true; }
+  const first = await ok(host,{t:'social.list'}), second = await ok(host,{t:'social.list',offset:first.nextOffset});
+  assert.equal(first.players.length,100); assert.equal(second.players.length,5); assert.equal(second.nextOffset,null);
+  assert.equal(new Set([...first.players,...second.players].map(p=>p.playerId)).size,105);
+  await ok(host,{t:'room.create',mode:'coop',difficulty:'NORMAL'});
+  await ok(host,{t:'social.invite',playerId:guest.id});
+  const invite = (await guest.waitFor('social.state',s=>s.invites.length)).invites[0];
+  for(let i=0;i<3;i++) await ok(host,{t:'room.addBot'});
+  await err(guest,{t:'social.respond',inviteId:invite.id,accept:true},'INVITE_EXPIRED');
+  assert.equal(srv.registry.byId(guest.id).roomCode,null);
+});
+test('protocol rejects malformed social messages and accepts explicit invisible hello', () => {
+  assert.equal(validateC2S({ t: 'hello', name: 'Doctor', presenceStatus: 'invisible' }), null);
+  for (const msg of [{ t:'social.status', status:'offline' }, { t:'social.list', offset:-1 }, { t:'social.respond', inviteId:'id', accept:'yes' }, { t:'social.invite', playerId:'' }]) assert.ok(validateC2S(msg));
+});
+test('invitation revocation and room replacement invalidate pending requests; declined requests cannot be reused', async t => {
+  const {srv,player,ok,err}=await fixture(t);
+  const host=await player('Host'),guest=await player('Guest');
+  await ok(host,{t:'room.create',mode:'coop',difficulty:'NORMAL'});
+  const from=srv.registry.byId(host.id);
+  await ok(host,{t:'social.invite',playerId:guest.id});
+  let invite=(await guest.waitFor('social.state',s=>s.invites.length)).invites[0];
+  await ok(guest,{t:'social.respond',inviteId:invite.id,accept:false});
+  await err(guest,{t:'social.respond',inviteId:invite.id,accept:true},'INVITE_EXPIRED');
+  srv.lobby.social.sentAt.delete(from);
+  await ok(host,{t:'social.invite',playerId:guest.id});
+  setSocialSettings({invitations:false}); srv.lobby.social.sync();
+  assert.equal(srv.lobby.social.invites.size,0);
+  setSocialSettings({invitations:true}); srv.lobby.social.sentAt.delete(from);
+  await ok(host,{t:'social.invite',playerId:guest.id});
+  invite=[...srv.lobby.social.invites.values()][0];
+  const room=srv.lobby.roomOf(from);
+  srv.lobby.rooms.set(room.code,Object.assign(Object.create(Object.getPrototypeOf(room)),room));
+  assert.equal(srv.lobby.social.valid(invite),false,'same room code is not the same room instance');
+  srv.lobby.rooms.set(room.code,room);
+});

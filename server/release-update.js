@@ -4,11 +4,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { parseManifest, pathProblem, removalProblem, isSetupArt, verifyFiles } from './update.js';
+import { parseManifest, pathProblem, removalProblem, isSetupArt, verifyFiles, digestFile } from './update.js';
 import { readZip } from './release-zip.js';
+import { ART_STAGE_FILE, releaseTarget, readStagedArt, verifyStagedArt } from './release-art.js';
 import { RELEASE_TAG } from './release-version.js';
 import { SIGNATURE_ASSET, SUMS_ASSET, parseSignature, sumFor, verifySums } from './release-signing.js';
 import { fetch as networkFetch, ProxyAgent } from 'undici';
@@ -53,10 +55,9 @@ export function compareReleaseTags(a, b) {
   return 0;
 }
 export function pickReleaseAsset(release) {
-  // The lite package carries the same program dependencies without hundreds of MB of unchanged art.
+  // Only the full package can supply extracted scenes, effects and their matching manifests.
   const assets = Array.isArray(release.assets) ? release.assets : [];
-  return assets.find((a) => /^Stronghold-Protocol-v[^/\\]+-lite\.zip$/.test(a.name))
-    || assets.find((a) => /^Stronghold-Protocol-v[^/\\]+-assets\.zip$/.test(a.name));
+  return assets.find((a) => /^Stronghold-Protocol-v[^/\\]+-assets\.zip$/.test(a.name));
 }
 function assetUrl(asset) {
   const url = new URL(asset.browser_download_url);
@@ -118,8 +119,10 @@ export function createUpdateRequest(config, { fetchImpl = networkFetch, onSource
 const skip = (rel) => isSetupArt(rel) || removalProblem(rel) !== null;
 
 /** Only manifest-listed program files may be installed; reject traversal, duplicates and incremental archives. */
-export function stageZip(zip, stage, releaseTag) {
+export function stageZip(zip, stage, releaseTag, { root = null } = {}) {
   const seen = new Set();
+  const art = new Map();
+  const checkedParents = new Set();
   let manifestText;
   fs.mkdirSync(stage, { recursive: true });
   readZip(zip, (name, data) => {
@@ -128,8 +131,15 @@ export function stageZip(zip, stage, releaseTag) {
     const key = rel.toLowerCase();
     if (seen.has(key)) throw new Error(`压缩包包含重复文件：${rel}`);
     seen.add(key);
-    if (rel === 'UPDATE.json') throw new Error('必须使用完整包或轻量包，不能使用增量更新包');
+    if (rel === 'UPDATE.json') throw new Error('必须使用完整素材包，不能使用增量更新包');
+    if (rel === ART_STAGE_FILE) throw new Error('安装包包含保留的素材暂存清单');
     if (rel === 'MANIFEST.json') manifestText = data.toString('utf8');
+    else if (isSetupArt(rel) && !removalProblem(rel)) {
+      const digest = { size: data.length, sha256: crypto.createHash('sha256').update(data).digest('hex') };
+      art.set(rel, digest);
+      const local = root ? digestFile(releaseTarget(root, rel, checkedParents)) : null;
+      if (local?.size === digest.size && local.sha256 === digest.sha256) return;
+    }
     else if (skip(rel)) return;
     const target = path.join(stage, rel);
     fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -154,7 +164,27 @@ export function stageZip(zip, stage, releaseTag) {
   for (const required of ['package.json', 'server/index.js']) if (!expected.has(required)) throw new Error(`程序清单缺少 ${required}`);
   const result = verifyFiles(stage, expected);
   if (result.missing.length || result.mismatched.length) throw new Error(`文件校验失败：${[...result.missing, ...result.mismatched].slice(0, 3).join('、')}`);
+  fs.writeFileSync(path.join(stage, ART_STAGE_FILE), JSON.stringify({ format: 1, app: manifest.app, files: Object.fromEntries(art) }));
+  verifyStagedArt(root || stage, stage, readStagedArt(stage, manifest.app));
   return manifest;
+}
+
+/** Keep ongoing matches responsive while the authenticated archive is unpacked and hashed. */
+export function stageReleaseArchive(zip, stage, tag, root) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(new URL('./release-stage-worker.js', import.meta.url), {
+      workerData: { zip, stage, tag, root }, execArgv: [],
+    });
+    let result, failure;
+    worker.once('message', value => { result = value; });
+    worker.once('error', error => { failure = error; });
+    // Wait for exit before retrying or cleaning the staging directory after an error.
+    worker.once('exit', code => {
+      if (failure) reject(failure);
+      else if (code !== 0 || !result) reject(new Error('素材校验工作线程提前退出'));
+      else resolve(result);
+    });
+  });
 }
 
 const UNSIGNED_VIA_MIRROR = '该版本没有发布签名，只能在直连或代理访问 GitHub 时安装';
@@ -191,7 +221,7 @@ async function expectedHash({ release, asset, request, listing, keys }) {
 export async function downloadAndStage({ root, release, fetchImpl = fetch, listing = 'direct', keys, progress = () => {},
   request = async (url, consume, timeout) => consume(await responseFor(url, fetchImpl, timeout), 'direct') }) {
   const asset = pickReleaseAsset(release);
-  if (!asset) throw new Error('这个 Release 没有可用的完整包或轻量包附件');
+  if (!asset) throw new Error('这个 Release 缺少完整素材包，无法保证素材完整');
   const want = await expectedHash({ release, asset, request, listing, keys });
   const base = path.join(root, 'logs', 'update-staging');
   fs.mkdirSync(base, { recursive: true });
@@ -214,7 +244,7 @@ export async function downloadAndStage({ root, release, fetchImpl = fetch, listi
       if (hash.digest('hex') !== want) throw new Error('安装包 SHA-256 校验失败，请重试');
       progress({ state: 'verifying', received, size: asset.size || received });
       const stage = path.join(work, 'Stronghold-Protocol');
-      const manifest = stageZip(zip, stage, release.tag_name);
+      const manifest = await stageReleaseArchive(zip, stage, release.tag_name, root);
       fs.rmSync(zip);
       return { stage, app: manifest.app, tag: release.tag_name, asset: asset.name };
     }, 15 * 60 * 1000);
@@ -264,7 +294,7 @@ export function createReleaseUpdater({ root, log = console, onReady, hasActive =
     const asset = pickReleaseAsset(release);
     let reason = '';
     try {
-      if (!asset) throw new Error('没有完整包或轻量包附件');
+      if (!asset) throw new Error('缺少完整素材包，无法保证素材完整');
       assetUrl(asset);
       const sums = release.assets?.find((a) => a.name === SUMS_ASSET);
       const sig = release.assets?.find((a) => a.name === SIGNATURE_ASSET);
@@ -278,7 +308,7 @@ export function createReleaseUpdater({ root, log = console, onReady, hasActive =
     const delta = compareReleaseTags(release.tag_name, installedTag(root));
     return { tag: release.tag_name, relation: delta > 0 ? 'new' : delta < 0 ? 'old' : 'current',
       asset: asset?.name, size: asset?.size || 0, publishedAt: release.published_at,
-      signed: !!release.assets?.some((a) => a.name === SIGNATURE_ASSET), installable: !reason && delta !== 0, reason };
+      signed: !!release.assets?.some((a) => a.name === SIGNATURE_ASSET), installable: !reason, reason };
   }
   const status = () => {
     const versions = releases.map(releaseView);
@@ -355,13 +385,13 @@ export function createReleaseUpdater({ root, log = console, onReady, hasActive =
         return { ...status(), saved: true };
       } catch (e) { return { ...status(), error: e.message }; }
     },
-    install({ force = false, tag, allowDowngrade = false } = {}) {
+    install({ force = false, tag, allowDowngrade = false, repairAssets = false } = {}) {
       if (BUSY.has(current.state)) return status();
       if (!onReady) return { ...status(), error: '当前启动方式不支持自动重启' };
       const release = releases.find((r) => r.tag_name === tag);
       if (!release) return { ...status(), error: '请先检查更新并选择列表中的 Release' };
       const view = releaseView(release);
-      if (view.relation === 'current') return { ...status(), error: '选中的 Release 已是当前版本' };
+      if (view.relation === 'current' && !repairAssets) return { ...status(), error: '选中的 Release 已是当前版本，请选择修复素材' };
       if (!view.installable) return { ...status(), error: view.reason };
       if (view.relation === 'old' && !allowDowngrade) return { ...status(), error: '回退旧版本需要确认', code: 'DOWNGRADE_CONFIRM' };
       if (hasActive() && !force) return { ...status(), state: 'active-matches', target: tag };

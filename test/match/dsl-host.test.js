@@ -139,7 +139,7 @@ test('a hashed prep spec that skipped the builder fails host boot', { timeout: 3
   hashInput.data.dsl = createHash('sha256').update(files.dsl).digest('hex');
   const cs = contentHashOf(hashInput);
   const child = fork(path.join(ROOT, 'server/match/host/entry.js'), [], {
-    execArgv: ['--max-old-space-size=256'], serialization: 'advanced', stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
+    execArgv: ['--max-old-space-size=256'], serialization: 'advanced', stdio: ['ignore', 'ignore', 'pipe', 'ipc'], windowsHide: true,
   });
   try {
     const msg = await new Promise((resolve, reject) => {

@@ -6,7 +6,8 @@ engine: [design/engine.md](design/engine.md); §6 the match: [design/match.md](d
 client-side combat: [design/network.md](design/network.md); §9 rendering: [design/client.md](design/client.md)), the
 per-release revisions and their evidence in `docs/history/`;
 the details in [SIM.md](SIM.md) (battle engine, hooks, SkillSpec), [META.md](META.md) (match engine, prep-phase
-effects), [DATA.md](DATA.md) (generated data), [ASSETS.md](ASSETS.md) (art and audio), [I18N.md](I18N.md)
+effects), [DATA.md](DATA.md) (generated data), [ASSETS.md](ASSETS.md) (art and audio), [SKINS.md](SKINS.md) (operator
+skins: a cosmetic plugin's `chars[charId].skins`), [I18N.md](I18N.md)
 (languages) and [PLUGINS.md](PLUGINS.md) (plugins and the content hash; [PLUGIN-GUIDE.md](PLUGIN-GUIDE.md) the beginner's guide to
 making one, in Chinese). How to set up, test and send a change: [CONTRIBUTING.md](../CONTRIBUTING.md).
 
@@ -95,6 +96,7 @@ so old imports keep working: `public/js/ui/gameLogic.js` (`public/js/ui/gameLogi
 | `server/plugins/` (packing) | `pack.js` checks a plugin folder and writes its `plugin.lock.json` (Spine clip data parsed from the skeleton), `zip.js` its deterministic zip — for `tools/plugin.mjs` and the studio |
 | `server/studio/` | the plugin studio 插件工作台 (PLUGINS.md §15, DESIGN §32.9): `index.js` serves `/studio/` and its API to this machine and the local network only (`gate.js`; every change carries the studio's key, `key.js`; `paths.js` its URLs for the static server), `files.js` keeps every read and write inside `plugins/<id>/` (no link followed), `templates/` (one module per template), `targets.js` (targets by official name), `edit.js` (fields, slots, one-click fixes), `preview.js` (the temporary composition), `watch.js` (hot reload: fs.watch → rescan → rooms apply again) |
 | `server/studio/` (gameplay authoring) | `gameData.js` reads official data and bundled template files; `authoring.js` validates/revises wizard drafts; `dslExamples.js` supplies examples; `trialOptions.js` lists scenarios; `trialScenario.js` builds BattleSpecs; `trial.js` owns jobs; `trialChild.js` builds content sets; `trialRunner.js` simulates in a disposable child; `trialDraft.js` confines draft writes and cleanup |
+| `server/studio/console.js`, `shared/studio/scenario.js` | standalone test console: keyed validation and match-equivalent BattleSpec building; versioned bounded scenario JSON shared with the browser; no rooms or server battle jobs |
 | `server/match/host/` | where a room with gameplay plugins plays (P1c, DESIGN §32.6): `index.js` one child process — or worker thread, `SP_MATCH_HOST=worker` — per content set, the watchdog and the limits; `childHost.js` adds permission-limited JSON-IPC children for sandbox scripts; `entry.js` inside it checks the set's bytes against `cs`, installs the data and only then imports `Match.js`; `ipc.js` validates and bounds child messages in the parent; `proxy.js` is the lobby's `room.match` for such a match (Promise answers, the room's messages in order) |
 | `server/packs.js` | the content-pack API of 0.2.0 (PACKS.md), a compatibility export of `server/plugins/registry.js` |
 | `server/update.js` | the update package on the player's machine (DEPLOY.md §1.5): before the server starts, an extracted `UPDATE.json` is finished — the install verified against `MANIFEST.json`, the files the new version dropped deleted, or the start refused when the install is another version; doctor's `MANIFEST.json` check |
@@ -121,15 +123,19 @@ so old imports keep working: `public/js/ui/gameLogic.js` (`public/js/ui/gameLogi
 | `public/index.html`, `public/js/main.js` | the page and its entry: boot, the router (title → lobby → room → game) |
 | `public/js/net.js`, `public/js/store.js`, `public/js/data.js` | the socket client, the observable store, the data loader (`/data/*.json`, with the English overlay) |
 | `public/js/ui/chat.js`, `public/js/ui/chatStore.js` | room text panel and transport subscriptions across room/match screens (owner extension; network §8 Room text chat) |
+| `public/js/ui/matchCommunication.js` | in-match reference-style emote/text/history adapter and avatar message bubbles; reuses `room.chat` and the room chat store |
 | `public/js/content.js` | the room's cosmetic plugins and the player's own (PLUGINS.md §9): fetched, checked against `room.state.content.vs` and laid over the art manifest (`public/js/cosmetics.js` cosmetic layers — small; `shared/plugins/visual.js` loads with the first set —, data.js's view of `assets`); the plugin catalogue; the room's 插件 tag is `public/js/ui/pluginTag.js`, its panel `public/js/ui/pluginPanel.js` (loaded when it opens) |
 | `public/js/battle/` | `runner.js` (the local battle clock and reports), `simHost.js` (C4: vanilla InPageSimHost, every gameplay set WorkerSimHost), `simWorker.js` / `simWorkerRuntime.js` (pure Worker engine, no JSON fetch), `simLoader.js` (shared data loader), `rehearsal.js` / `rehearsalWorker.js` (same-origin module Worker: test AI layouts when `SP_BOT_REHEARSAL=host`), `observe.js` (who may watch which field) |
 | `public/js/screens/` | `title.js`, `lobby.js`, `room.js`, `loadout.js` (干员调配), `cultivation.js` (its 潜能 / 练度 controls), `ownership.js` (干员持有), `diy.js` (自选编队), `briefing.js`, `bandDraft.js`, `game.js` with `public/js/screens/game/`, `result.js` |
 | `public/js/ui/` | the HUD components (`hud.js`, `shopBar.js`, `detailPanel.js`, `bondStrip.js`, `teamPanel.js` …); `public/js/ui/gameLogic/` the pure in-match logic, unit-tested in Node |
+| `public/js/ui/hudLayout.js`, `hudDock.js`, `pingTools.js` | visible HUD bounds and obstacle-aware small-screen docks, measured corner clearance, and the persistent collapsible field-ping palette; reuse existing rem, safe areas and browser visual viewport without changing the global scale |
+| `public/css/reference-mobile.css` | compact room and top-HUD rules adapted from the deployed reference site, with source paths and `.rs-*` selector mapping; loaded after devices.css, leaves ordinary desktop rules intact |
 | `public/js/render/` | the field view: `app.js` with `public/js/render/app/`, `units.js` and `spine.js` (models), `tiles.js`, `projection.js`, `interp.js`, `pick.js`, `drag.js`, `public/js/render/fx/` (effects; `kinds.js` maps the fx kinds), `public/js/render/vfx/` (the official battle effects from the local client: a Unity ParticleSystem interpreter, GLSL shader ports, the WebGL2 pass, the event wiring and the skills' plans and their runtime, `skills.js` / `skillfx.js`, the 驭械术士's floating units, `funnels.js` / `funnelfx.js`; DESIGN §9), `public/js/render/board3d/` (the official 3D board) |
 | `public/js/ui/matchInfo.js` | the shared match-info model, bond rows and banned-operator groups for the briefing, strategy draft and in-game info tab; group membership uses `bonds.visibleMembers` |
 | `public/css/`, `public/i18n/<code>.json` | the styles; the UI strings of each language pack (English ships) |
 | `public/studio/` | the plugin studio's page (`/studio/`, local network only): `index.html`, `studio.css`; `public/studio/js/main.js` the shell, `api.js` keyed requests, `create.js` / `picker.js` creation, `slots.js` / `info.js` / `issues.js` editing and findings, `labels.js` display names |
 | `public/studio/js/` (gameplay and import) | `authoring.js` / `validateDraft.js` wizard saves and validation; `editors/` template forms (including `dslForm.js` and shared `controls.js`); `trial.js` trial controls; `preview/` the game's cards, field and sound plus `replay.js` / `layers.js`; `forge.js` and `catalog.js` import/install flows |
+| `public/studio/console.html`, `public/studio/js/console/` | test console page: `main.js` key/JSON/persistence, `editor.js` scenario controls, `view.js` real sim/field host, `runtime.js` fixed-tick driving and bounded inspector/effect logs |
 | `public/js/ui/pluginSettings.js`, `public/js/ui/numberInput.js`, `public/js/ui/uiPlugins.js`, `public/js/ui/pluginFrame.js` | room settings controls, decimal input, personal UI switches and the sandboxed frame host |
 
 ### Data, tools, tests
@@ -200,7 +206,8 @@ public/assets/ ─────────▶ public/js/render/, public/js/audio
 - **Lint and types.** `npm run lint` is a correctness-only ESLint (`eslint.config.js`: warnings are allowed, errors
   are not); `npm run typecheck` checks a JSDoc slice (`jsconfig.json`; `types/README.md` says how to widen it). CI
   runs both once, and the tests on Ubuntu and Windows with Node 22 and 24 (`.github/workflows/ci.yml`).
-- **Tests.** `node --test` runs every suite that needs no browser; the browser suites are opt-in ([CONTRIBUTING.md](../CONTRIBUTING.md) §2).
+- **Tests.** `npm test` runs every suite that needs no browser (`node --test` over the test files; a bare `node --test`
+  also runs the helpers and fixtures under test/); the browser suites are opt-in ([CONTRIBUTING.md](../CONTRIBUTING.md) §2).
   The battle harness `test/helpers/battleHarness.js` (SIM.md §10) sets up a battle in a few lines.
 
 ## 6. Where to start
@@ -229,3 +236,10 @@ public/assets/ ─────────▶ public/js/render/, public/js/audio
 Before changing a rule, read the DESIGN section that owns it (module headers cite their sections; the table in
 DESIGN.md names the file that holds each) and the official source; a rule no source settles is marked `[ASSUMED]`
 ([CONTRIBUTING.md](../CONTRIBUTING.md) §3).
+
+### 本库参考站工具界面（2026-10-17）
+
+`ui/settings.js` 管理快捷键子弹窗；资源 `archive.js` → `transport.js` → `index.js` 传播 download / verify / import，
+`ui/resourcePanel.js` 显示阶段、字节 / 速度或文件数。`shared/announcements.js` 定义格式与长度契约，
+`server/announcements.js` 校验，控制台选择格式，`ui/announcement.js` 按需加载 `announcementMarkdown.js`，
+后者仅将 Marked tokens 转为固定 Preact 节点。Marked 的浏览器模块由 `tools/vendor.mjs` 安装到 vendor。

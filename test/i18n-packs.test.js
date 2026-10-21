@@ -430,7 +430,7 @@ test('tools: template writes a skeleton (or adds the missing msgids to a pack), 
   const root = tmpdir('cli');
   try {
     put(root, 'public/i18n/en.json', EN);
-    const run = (...args) => spawnSync(process.execPath, [path.join(ROOT, 'tools/i18n.mjs'), ...args, '--root', root], { encoding: 'utf8' });
+    const run = (...args) => spawnSync(process.execPath, [path.join(ROOT, 'tools/i18n.mjs'), ...args, '--root', root], { encoding: 'utf8', windowsHide: true });
     const tpl = run('template', 'qaa');
     assert.equal(tpl.status, 0, tpl.stderr);
     assert.match(tpl.stdout, /wrote public\/i18n\/qaa\.json: \d+ msgids — 0 translations kept, \d+ added \(empty\)/);

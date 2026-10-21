@@ -4,6 +4,7 @@ import { UnitThumb } from './gameComponents.js';
 import { battleRunner } from '../battle/runner.js';
 import { t, N_ } from '../../../shared/i18n.js';
 import { combatMetricsLayout } from './combatMetricsLayout.js';
+import { hudFrame } from './hudDock.js';
 
 const TYPES = Object.freeze([
   { id: 'phys', label: N_('物理') }, { id: 'arts', label: N_('法术') },
@@ -37,14 +38,15 @@ export function CombatMetricsPanel({ myId, onClose, runner = battleRunner }) {
       if (!panel || !corner) return;
       const rect = corner.getBoundingClientRect();
       const rootStyle = getComputedStyle(document.documentElement);
+      const frame = hudFrame(panel);
       const layout = combatMetricsLayout({
         cornerTop: rect.top, cornerBottom: rect.bottom,
-        viewportHeight: viewport?.height || window.innerHeight,
-        viewportTop: viewport?.offsetTop || 0,
+        viewportHeight: frame.bottom - frame.top,
+        viewportTop: frame.top,
         rem: parseFloat(rootStyle.fontSize) || 40,
-        safeTop: parseFloat(rootStyle.getPropertyValue('--sa-t')) || 0,
-        safeBottom: parseFloat(rootStyle.getPropertyValue('--sa-b')) || 0,
       });
+      panel.style.setProperty('--combat-viewport-left', `${Math.max(frame.left, rect.left)}px`);
+      panel.style.setProperty('--combat-available-width', `${Math.max(0, frame.right - Math.max(frame.left, rect.left))}px`);
       panel.style.setProperty('--combat-corner-height', `${rect.height || 44}px`);
       panel.style.setProperty('--combat-available-height', `${layout.availableHeight}px`);
       panel.style.setProperty('--combat-viewport-height', `${layout.viewportSpace}px`);
@@ -54,6 +56,8 @@ export function CombatMetricsPanel({ myId, onClose, runner = battleRunner }) {
     measure();
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
     if (corner) observer?.observe(corner);
+    const hud = panel?.closest('.gm__hud');
+    if (hud) observer?.observe(hud);
     window.addEventListener('resize', measure);
     viewport?.addEventListener('resize', measure);
     viewport?.addEventListener('scroll', measure);

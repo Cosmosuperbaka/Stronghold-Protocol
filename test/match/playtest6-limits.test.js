@@ -226,7 +226,7 @@ test('tools/balance.mjs applyBoard: any --profile keeps every bond ≤ 999 (the 
 
 test('tools/matchrun.mjs --layers 2000 --check: the boost stops at 999 (no invariant violation through the Hidden Core)', () => {
   const tool = fileURLToPath(new URL('../../tools/matchrun.mjs', import.meta.url));
-  const r = spawnSync(process.execPath, [tool, '--mode', 'solo', '--difficulty', 'HARD', '--lp', '500', '--layers', '2000', '--check', '--rehearsal', '0', '--seed', '1'], { encoding: 'utf8', timeout: 120000 });
+  const r = spawnSync(process.execPath, [tool, '--mode', 'solo', '--difficulty', 'HARD', '--lp', '500', '--layers', '2000', '--check', '--rehearsal', '0', '--seed', '1'], { encoding: 'utf8', timeout: 120000, windowsHide: true });
   assert.equal(r.status, 0, r.stdout.slice(-2000) + r.stderr.slice(-2000));
   assert.match(r.stdout, /no violations/);
   assert.doesNotMatch(r.stdout, /layers \d{4}/);

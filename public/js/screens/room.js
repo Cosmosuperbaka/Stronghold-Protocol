@@ -38,11 +38,13 @@ import { RANDOM_MODE, RANDOM_MODE_NAME } from '../../../shared/randomMode.js';im
   html, Button, Icon, MicroLabel, AvatarFrame, DifficultyIcon, Tooltip, confirmDialog, doctorNo, Spinner, Modal,
 } from '../ui/components.js';
 import { toast, toastError } from '../ui/toasts.js';
+import { TestMark } from '../ui/testConsole.js';
 import { copyText } from '../ui/clipboard.js';
 import { GIcon } from '../ui/gameComponents.js';
 import { GuideButton } from '../ui/guide.js';
 import { openStats } from './stats.js';
 import { openFriends } from '../ui/friends.js';
+import { RoomInviteButton, PresenceSelector } from '../ui/social.js';
 import { NameCardLayer } from '../ui/namecards.js';
 import { SettingsButton } from '../ui/settings.js';
 import { LoadoutButton } from './loadout.js';
@@ -52,7 +54,7 @@ import { net } from '../net.js';
 import { store, useStore, shallowEqual, emptyMatch, isSpectating, serverNow, loadPref, savePref } from '../store.js';
 import { data, useData } from '../data.js';
 import { chessAvatarUrl } from '../ui/assetUrls.js';
-import { CARD_PREF, CARD_SKIN_PREF, cardOperators, seatPortrait } from '../ui/seatArt.js';
+import { CARD_PREF, CARD_SKIN_PREF, cardOperators, seatPortrait, cardAvatarUrl } from '../ui/seatArt.js';
 import { C2S } from '../../../shared/protocol.js';
 import { difficultyInfo, ProtoCard } from './lobby.js';
 import { ProtocolScene } from '../ui/protocolScene.js';
@@ -241,7 +243,7 @@ function SeatCard({ seat, index, room, facts, myId, busy, online, onKick, onInvi
     <div class=${`rseat__plate${seatAccount?.card ? ' has-nc' : ''}`}>
       <${NameCardLayer} card=${seatAccount?.card} />
       ${isMe ? html`<span class="rseat__me" title=${t('你')}><${Icon} name="info" /></span>` : null}
-      <${AvatarFrame} size="sm" name=${seat.name} src=${seatAccount?.avatar || undefined} seat=${index} bot=${seat.isBot} self=${isMe} />
+      <${AvatarFrame} size="sm" name=${seat.name} src=${cardAvatarUrl(seat.card, seat.cardSkin, portraits.m) || seatAccount?.avatar || undefined} seat=${index} bot=${seat.isBot} self=${isMe} />
       <span class="rseat__who">
         <${TrophyBadge} count=${seatAccount?.trophies} class="tbadge--inline" /><b class=${`rseat__name${owner ? ' sp-owner-name' : ''}`}>${seat.name || t('博士')}</b><${AccountTag} playerId=${seat.isBot ? null : seat.playerId} />
         ${owner ? html`<span class="sp-owner-badge">${t('服主')}</span>` : null}
@@ -375,8 +377,8 @@ function RoomProtocol({ room, variant, onClose, onPick, busy, leaving = false })
   </div>`;
 }
 
-/** ⚙ of the bottom pill: 私密房间, 人数上限 (with the 10-seat constants), AI 队友最后选择, 无限火力 branch. */
-function RoomOptions({ room, facts, myId, busy, online, variant, onPrivate, onMaxSeats, onAiLast, onVariant, onClose, leaving = false }) {
+/** ⚙ of the bottom pill: 私密房间, 人数上限, AI 队友最后选择, room-local 联防叠层, 无限火力 branch. */
+function RoomOptions({ room, facts, myId, busy, online, variant, onPrivate, onMaxSeats, onAiLast, onUniteLayerGains, onVariant, onClose, leaving = false }) {
   const coop = room.mode !== 'solo';
   const host = facts.isHost;
   useEffect(() => {
@@ -394,6 +396,8 @@ function RoomOptions({ room, facts, myId, busy, online, variant, onPrivate, onMa
         ${Array.from({ length: MAX_SEATS - DEFAULT_SEATS + 1 }, (_, k) => DEFAULT_SEATS + k).map((n) => html`<option key=${n} value=${String(n)} selected=${n === facts.seats.length}>${t('{n} 人', { n })}</option>`)}
       </select></label>` : null}
     <${AiLastToggle} option=${aiLastOption(room, myId)} busy=${busy} onToggle=${onAiLast} />
+    ${typeof room.uniteLayerGains === 'boolean' ? html`<label class="rs-opt"><input name="unite-layer-gains" type="checkbox" checked=${room.uniteLayerGains} disabled=${!host || room.canSetUniteLayerGains !== true || !!busy || !online || room.inMatch === true} onChange=${(e) => onUniteLayerGains(e.currentTarget.checked)} />
+      <span>${t('允许联防叠层')}<small>${room.canSetUniteLayerGains === true ? t('仅本房间生效，开局后不可修改；最终攻势和隐秘核心不叠层') : t('主机未允许房主修改联防叠层规则')}</small></span></label>` : null}
     ${room.random === true ? html`<div class="rs-opt rs-opt--variant"><span>${t('模式分支')}</span>
       <div class="dpick" role="radiogroup" aria-label=${t('模式分支')}>
         ${[['blitz', t('快速突袭 {totalRounds} 回合', { totalRounds: RANDOM_MODE.totalRounds })], ['endurance', t('持久鏖战 {totalRounds} 回合', { totalRounds: RANDOM_MODE.endurance.totalRounds })], ['marathon', t('最长时赛 {totalRounds} 回合', { totalRounds: RANDOM_MODE.marathon.totalRounds })]].map(([v, label]) => html`
@@ -541,15 +545,17 @@ export function RoomScreen() {
   const setAiLast = (on) => run('ailast', () => net.request('room.setAiPicksLast', { on }));
   // 玩法扩展 (room.setExtensions): one key per toggle, merged over the room's current switches
   const setExtensions = (patch) => run('ext', () => net.request('room.setExtensions', { extensions: { ...room.extensions, ...patch } }));
+  const setUniteLayerGains = (on) => run('unite-layers', () => net.request('room.setUniteLayerGains', { on }));
   // spectator seats: the host frees one; a spectator takes a free player seat with room.join of this room
   const removeSpectator = (playerId) => run(`rs${playerId}`, () => net.request('room.removeSpectator', { playerId }));
-  const sit = () => run('sit', () => net.request('room.join', { code: room.code }));
+  const sit = () => run('sit', () => net.request('room.join', { code: room.code, ...(room.test ? { testAck: true } : {}) }));
   const copy = async (what) => {
     const modeLabel = firepower ? `${RANDOM_MODE_NAME} · ` : '';
     const ok = await copyText(what === 'code' ? room.code : t('{0} {name}邀请你加入卫戍协议：盟约【{modeLabel}{3}】', { 0: inviteLink(room.code), name: me.name, modeLabel, 3: DIFFICULTY_NAMES[room.difficulty] }));
     if (ok) toast(what === 'code' ? t('同盟密钥复制成功，可前往邀请队友') : t('已复制邀请链接'), 'success');
     else toast(t('复制失败，请手动复制'), 'warn');
   };
+
   const leave = async () => {
     if (inFlight.current) return;
     const othersHere = facts.humans.some((s) => s.playerId !== me.playerId);
@@ -612,6 +618,9 @@ export function RoomScreen() {
         </div>
       </div>
       <div class="rs-top__right">
+        <${PresenceSelector} />
+        ${room.test ? html`<${TestMark} />` : null}
+
         <${PluginTag} room=${room} myId=${me.playerId} />
         ${room.content?.modeId ? html`<span class="room-mode" data-testid="room-mode">${(room.content.modes || []).find((m) => m.id === room.content.modeId)?.name || room.content.modeId}</span>` : null}
         ${facts.mine ? html`<${BondPlanControl} />` : null}
@@ -621,6 +630,7 @@ export function RoomScreen() {
           <b class="rs-key__code num selectable" aria-label=${t('同盟密钥 {code}', { code: room.code })}>${room.code}</b>
           <button type="button" class="rs-key__copy" onClick=${() => copy('code')}>${t('复制')}</button>
           <button type="button" class="rs-key__link" onClick=${() => copy('link')} title=${t('复制邀请链接')} aria-label=${t('复制邀请链接')}><${Icon} name="link" /></button>
+          <${RoomInviteButton} />
           ${openFriends.unavailable ? null : html`<button type="button" class="rs-key__friends" onClick=${() => openFriends('list')} title=${t('从好友列表邀请好友加入同盟')}><${Icon} name="users" /><span>${t('邀请好友')}</span></button>`}
         </div>` : html`<div class="rs-key rs-key--solo"><${MicroLabel}>SINGLE OPERATOR<//><span>${t('仅限 1 名博士')}</span></div>`}
       </div>
@@ -655,7 +665,7 @@ export function RoomScreen() {
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 2h3.4l.5 2.6 1.9.8 2.2-1.5 2.4 2.4-1.5 2.2.8 1.9 2.6.5v3.4l-2.6.5-.8 1.9 1.5 2.2-2.4 2.4-2.2-1.5-1.9.8-.5 2.6h-3.4l-.5-2.6-1.9-.8-2.2 1.5-2.4-2.4 1.5-2.2-.8-1.9L2 13.7v-3.4l2.6-.5.8-1.9-1.5-2.2 2.4-2.4 2.2 1.5 1.9-.8zM12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" fill-rule="evenodd" /></svg>
           </button>
           ${optsShown ? html`<${RoomOptions} room=${room} facts=${facts} myId=${me.playerId} busy=${busy} online=${online} variant=${variant}
-            onPrivate=${setPrivate} onMaxSeats=${setMaxSeats} onAiLast=${setAiLast} onVariant=${setVariant} onClose=${() => setOpts(false)} leaving=${optsLeaving} />` : null}
+            onPrivate=${setPrivate} onMaxSeats=${setMaxSeats} onAiLast=${setAiLast} onUniteLayerGains=${setUniteLayerGains} onVariant=${setVariant} onClose=${() => setOpts(false)} leaving=${optsLeaving} />` : null}
         </div>
         <div class="room-bar__opts">
           <${RoomOptionsButton} room=${room} isHost=${facts.isHost} busy=${busy} onSet=${setExtensions} />

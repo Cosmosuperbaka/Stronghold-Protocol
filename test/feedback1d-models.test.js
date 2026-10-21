@@ -314,18 +314,18 @@ describe('D3 client: the official model only when data/local-assets.json lists i
   });
 });
 
-const PY = ['python3', 'python'].find((bin) => spawnSync(bin, ['--version']).status === 0);
+const PY = ['python3', 'python'].find((bin) => spawnSync(bin, ['--version'], { windowsHide: true }).status === 0);
 describe('D3: tools/local-extract/extract.py enemy Spine job (no UnityPy needed)', { skip: !PY && 'no python3' }, () => {
   const TOOL = path.join(ROOT, 'tools/local-extract');
   const ENV = { ...process.env, PYTHONDONTWRITEBYTECODE: '1' };
   const py = (body) => {
-    const o = spawnSync(PY, ['-c', `import sys, json\nsys.path.insert(0, ${JSON.stringify(TOOL)})\nimport extract as e\n${body}`], { encoding: 'utf8', env: ENV });
+    const o = spawnSync(PY, ['-c', `import sys, json\nsys.path.insert(0, ${JSON.stringify(TOOL)})\nimport extract as e\n${body}`], { encoding: 'utf8', env: ENV, windowsHide: true });
     assert.equal(o.status, 0, o.stderr);
     return JSON.parse(o.stdout);
   };
 
   test('--print-jobs lists the enemy models; container matching and --only selection', () => {
-    const r = spawnSync(PY, [path.join(TOOL, 'extract.py'), '--print-jobs'], { encoding: 'utf8', env: ENV });
+    const r = spawnSync(PY, [path.join(TOOL, 'extract.py'), '--print-jobs'], { encoding: 'utf8', env: ENV, windowsHide: true });
     assert.equal(r.status, 0, r.stderr);
     assert.deepEqual(JSON.parse(r.stdout).enemySpines, { bundles: 'refs/arts/enm_art_*.ab', sub: 'spine/enemy', ids: SLUGS });
     const out = py(`W = set(e.ENEMY_SPINES)\n`

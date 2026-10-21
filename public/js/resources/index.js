@@ -9,7 +9,7 @@
 // The settings panel (public/js/ui/resourcePanel.js) renders `resourceState()`; main.js calls `syncResources()` with the
 // persisted setting at boot and on every settings change.
 
-import { CACHE_PREFIX, MANIFEST_URL, SW_URL, TIER_ESSENTIAL, TIER_REST, checkAbort, formatBytes, isQuotaError, resourceGroup, normalizePreloadVoiceLang, resourceSelection, selectedResourceGroup, validateManifest } from './common.js';
+import { CACHE_PREFIX, MANIFEST_URL, SW_URL, TIER_ESSENTIAL, TIER_REST, checkAbort, formatBytes, isQuotaError, resourceGroup, normalizePreloadVoiceLang, resourceSelection, selectedResourceGroup, validateManifest, validateResourcePacks, PACK_MANIFEST_URL } from './common.js';
 import { ResourceStore } from './store.js';
 import { t } from '../../../shared/i18n.js';
 import { runPreload } from '../ui/preload.js';
@@ -139,7 +139,12 @@ export function resourceContext() {
       return { error: String(err?.message || err) };
     }
     if (!manifest.files.length) return { manifest, empty: true };
-    return { manifest, store: new ResourceStore(manifest) };
+    let packs = validateResourcePacks(manifest.packs);
+    if (!packs.length) {
+      try { const result = await fetch(PACK_MANIFEST_URL, { cache: 'no-cache', signal: AbortSignal.timeout(10000) });
+        if (result.ok) packs = validateResourcePacks(await result.json()); } catch { /* Advisory transport metadata. */ }
+    }
+    return { manifest, packs, store: new ResourceStore(manifest) };
   })();
   return contextPromise;
 }
@@ -172,7 +177,7 @@ async function dropWorker() {
 export async function syncResources(enabled, includeOptional = optional, preloadVoiceLang = voiceLang) {
   enabled = !!enabled;
   const nextVoiceLang = normalizePreloadVoiceLang(preloadVoiceLang);
-  const changed = optional !== !!includeOptional || voiceLang !== nextVoiceLang;
+  const changed = optional !== !!includeOptional || JSON.stringify(voiceLang) !== JSON.stringify(nextVoiceLang);
   if (enabled === current && !changed) { set({ enabled }); return; }
   const revision = ++syncRevision;
   current = enabled;
@@ -274,6 +279,7 @@ async function startDownload(signal) {
       checkAbort(signal);
       // Executable vendor libraries retain normal HTTP caching and always bypass the asset Service Worker.
       await runPreload(['/vendor/pixi.min.js', '/vendor/pixi-spine.js', '/vendor/three.module.js', '/vendor/three.core.js'], { signal });
+      await preloadTransportPacks(store, ctx.packs, signal, onProgress);
       await store.download({ tiers: [TIER_ESSENTIAL], signal, onProgress });
       if (optional) await store.download({ tiers: [TIER_REST], signal, onProgress,
         includeFile: (file) => selectedResourceGroup(resourceGroup(file), true, voiceLang) });
@@ -300,6 +306,50 @@ async function startDownload(signal) {
       : t('预载失败：{0}', { 0: err?.message || err });
     const now = await store.status().catch(() => null);
     set({ ...(now ? counters(now) : {}), phase: 'error', message, error: true });
+  }
+}
+
+
+/** First fills prefer verified category ZIPs; missing/failed packs fall back to individual files. */
+async function preloadTransportPacks(store, packs, signal, onProgress) {
+  if (!packs?.length) return;
+  const [{ fetchTransportPack }, { resourcePath }] = await Promise.all([import('./transport.js'), import('./archive.js')]);
+  const current = new Map(store.files.map((file) => [resourcePath(file.url), file]));
+  const status = await store.status();
+  for (const pack of packs) {
+    checkAbort(signal);
+    const candidates = pack.files.map((row) => ({ row, file: current.get(resourcePath(row.url)) }))
+      .filter(({ row, file }) => file && row.hash === file.hash && (file.size == null || row.size === file.size)
+        && selectedResourceGroup(resourceGroup(file), optional, voiceLang) && !status.present.has(store.keyOf(file.url)));
+    // Small updates stay incremental instead of downloading a mostly cached ZIP.
+    if (!candidates.length || candidates.length < pack.files.length / 2) continue;
+    try {
+      const selectedPaths = new Set(candidates.map(({ row }) => resourcePath(row.url)));
+      let sampleAt = performance.now(), sampleBytes = 0, speed = 0;
+      set({ packProgress: { phase: 'download', id: pack.id, loaded: 0, totalBytes: pack.size } });
+      const entries = await fetchTransportPack(pack, { signal, selectedPaths,
+        onPhase: phase => {
+          if (phase === 'download') { sampleAt = performance.now(); sampleBytes = 0; speed = 0; }
+          set({ packProgress: { phase, id: pack.id, loaded: phase === 'verify' ? pack.size : 0, totalBytes: pack.size } });
+        },
+        onProgress: loaded => {
+          const now = performance.now(), elapsed = now - sampleAt;
+          if (loaded < sampleBytes) { sampleAt = now; sampleBytes = 0; speed = 0; }
+          else if (elapsed >= 200) {
+            speed = Math.max(0, (loaded - sampleBytes) * 1000 / elapsed); sampleAt = now; sampleBytes = loaded;
+          }
+          set({ packProgress: { phase: 'download', id: pack.id, loaded, totalBytes: pack.size, speedBytesPerSecond: speed } });
+        } });
+      set({ packProgress: { phase: 'import', id: pack.id, done: 0, totalFiles: entries.length } });
+      const outcome = await store.importTransportPack(entries.map(({ row, bytes }) => ({ file: current.get(resourcePath(row.url)), bytes })), {
+        signal, onProgress: p => set({ packProgress: { phase: 'import', id: pack.id, done: p.done, totalFiles: p.total } }),
+      });
+      onProgress?.(outcome);
+    } catch (error) {
+      checkAbort(signal);
+      if (isQuotaError(error)) throw error;
+      console.warn('[resources] transport pack unavailable; falling back to individual files', pack.id, error);
+    } finally { set({ packProgress: null }); }
   }
 }
 

@@ -97,6 +97,9 @@ export function createMatchHosts({ contents, log = noopLog, options = {} }) {
       this.idleTimer = null;
       const init = {
         cs, hashInput: set.hashInput, files, bounds: set.bounds ?? null, scripts, sandbox,
+        // PLUGIN API v2: the set's interaction windows (docs/PLUGINS.md §10b) — data only; the host injects them into
+        // every match it runs (server/match/host/entry.js), so the engine owns the window and no plugin code runs here
+        offers: Array.isArray(set.offers) ? set.offers : [],
         options: { heartbeatMs: o.heartbeatMs, matchOptions: o.matchOptions || {}, matchModule: o.matchModule || null, virtualTime: !!o.virtualTime },
       };
       const failed = (e) => {
@@ -115,7 +118,7 @@ export function createMatchHosts({ contents, log = noopLog, options = {} }) {
       if (this.transport === 'process') {
         // a child process: its memory limit is its own (an out-of-memory abort ends it alone — see the header)
         const mb = Math.max(64, Number(o.resourceLimits?.maxOldGenerationSizeMb) || HOST_DEFAULTS.resourceLimits.maxOldGenerationSizeMb);
-        this.child = sandbox ? forkSandbox(ENTRY, { memoryMb: mb }) : fork(ENTRY, [], { execArgv: [`--max-old-space-size=${mb}`], serialization: 'advanced', stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
+        this.child = sandbox ? forkSandbox(ENTRY, { memoryMb: mb }) : fork(ENTRY, [], { execArgv: [`--max-old-space-size=${mb}`], serialization: 'advanced', stdio: ['ignore', 'ignore', 'pipe', 'ipc'], windowsHide: true });
         // the last lines it printed (an abort's "FATAL ERROR …") go into the log when it dies
         this.stderr = '';
         this.child.stderr?.on('data', (d) => { this.stderr = (this.stderr + String(d)).slice(-2000); });

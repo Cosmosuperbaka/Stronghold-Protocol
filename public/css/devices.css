@@ -9,6 +9,7 @@
    3. touch: every small control gets an invisible ≥ 44 px hit area (::before, no layout change); on short touch
       screens (phones) the most used controls also grow visually
    4. reduced motion extras; fullscreen button
+   5. 异形屏适配: the player's own edge insets (设置, js/ui/screenFit.js)
    ========================================================================================== */
 
 :root {
@@ -57,12 +58,12 @@ html:not(.sp-in-match) .toast-host { margin-top: var(--sa-t); }
    control, no layout change. Only controls that do not use ::before themselves are listed. */
 :where(.sp-coarse) :where(.tapx, .gtop__exit, .gtop__iconbtn, .enemybtn, .readybtn, .gm__gear, .fsbtn, .ewheel__btn, .ewheel__nav,
   .toolbtn, .funds__collapse, .team__btn, .effect, .bslot .bond, .vswitch__arrow, .edrawer__close, .dpanel__close, .bpop__close,
-  .modal__close, .uf__btn, .chud__back, .tabs__tab, .btn, .pill-btn, .title-guide, .stephead__guide, .set-toggle, .set-seg button) {
+  .modal__close, .uf__btn, .chud__back, .tabs__tab, .btn, .pill-btn, .title-guide, .stephead__guide, .set-toggle, .set-seg button, .set-fit__step) {
   position: relative;
 }
 .sp-coarse :is(.tapx, .gtop__exit, .gtop__iconbtn, .enemybtn, .readybtn, .gm__gear, .fsbtn, .ewheel__btn, .ewheel__nav,
   .toolbtn, .funds__collapse, .team__btn, .effect, .bslot .bond, .vswitch__arrow, .edrawer__close, .dpanel__close, .bpop__close,
-  .modal__close, .uf__btn, .chud__back, .tabs__tab, .btn, .pill-btn, .title-guide, .stephead__guide, .set-toggle, .set-seg button)::before {
+  .modal__close, .uf__btn, .chud__back, .tabs__tab, .btn, .pill-btn, .title-guide, .stephead__guide, .set-toggle, .set-seg button, .set-fit__step)::before {
   content: '';
   position: absolute; left: 50%; top: 50%; z-index: 0;
   width: max(100%, var(--tap-min)); height: max(100%, var(--tap-min));
@@ -123,16 +124,30 @@ html:not(.sp-in-match) .toast-host { margin-top: var(--sa-t); }
    desktop bottom (1.02rem) it hid ⚙ / 📖 / ⛶. (gameLogic panelSlots keeps the taller desktop slot: conservative.) */
 @media (max-width: 767px) {
   .gm__corner { flex-wrap: wrap-reverse; align-content: flex-start; width: max(72px, calc(3 * .56rem + .2rem)); }
-  .dpanel:not(.dpanel--right) { bottom: calc(.44rem + max(1.51rem, 72px) * 55 / 151 + .56rem); }
+  .dpanel:not(.dpanel--right) { bottom: max(var(--hud-corner-clearance, 0px), calc(.44rem + max(1.51rem, 72px) * 55 / 151 + .56rem)); }
 }
 @media (max-width: 767px) and (pointer: coarse), (max-width: 767px) and (any-pointer: coarse) {
   .gm__corner { width: max(96px, calc(3 * max(.56rem, 34px) + .2rem)); }
-  .dpanel:not(.dpanel--right) { bottom: calc(.44rem + max(1.51rem, 96px) * 55 / 151 + max(.56rem, 34px)); }
+  .dpanel:not(.dpanel--right) { bottom: max(var(--hud-corner-clearance, 0px), calc(.44rem + max(1.51rem, 96px) * 55 / 151 + max(.56rem, 34px))); }
 }
 /* With the shop folded (收起) no bar covers the corner: one row again, so the folded shop's prep camera, which keeps the
    bench above the corner's hit areas (ui/fieldHost.js hudBands), grows the board on narrow phones too (public issue #5). */
 @media (max-width: 767px) {
   .gm.is-collapsed .gm__corner { flex-wrap: nowrap; width: auto; }
+}
+/* Local extensions no longer squeeze three rows of overlapping 44px hit areas into the shop's left margin.
+   Keep the existing communication entry and expose all utility buttons in one touch-scrollable row. */
+@media (max-width: 767px) and (pointer: coarse) {
+  .gm:not(.is-collapsed) .gm__corner { flex-direction: column-reverse; flex-wrap: nowrap; align-items: flex-start; width: var(--corner-available-width, 110px); }
+  .gm:not(.is-collapsed) .gm__corner-actions { display: flex; gap: 4px; width: 100%; padding: 0;
+    overflow-x: auto; overscroll-behavior-x: contain; touch-action: pan-x; scrollbar-width: thin;
+    scrollbar-color: var(--mint-700) var(--bg-1); scroll-snap-type: x proximity; }
+  .gm:not(.is-collapsed) .gm__corner-actions > * { flex: 0 0 44px; min-width: 44px; height: 44px; scroll-snap-align: start; }
+  .gm:not(.is-collapsed) .gm__corner-actions .gm__gear::before { inset: 0; width: 100%; height: 100%; transform: none; }
+  .gm__corner[data-tight] .ewheel { width: 100%; }
+  .gm__corner[data-tight] .ewheel__btn { width: 100%; min-width: 0; height: 44px; padding: 0;
+    background: rgba(8, 11, 10, .85); border: 1px solid var(--line-2); }
+  .gm__corner[data-tight] .ewheel__label { position: static; display: grid; place-items: center; width: 100%; height: 100%; font-size: 14px; }
 }
 
 /* Short landscape phones (≤ 460 CSS px tall, 1rem = 40 px): the lobby's two columns are compressed so the
@@ -158,6 +173,7 @@ html:not(.sp-in-match) .toast-host { margin-top: var(--sa-t); }
 .rotate-hint__pwa[hidden] { display: none; }
 
 /* ---- 6. 异形屏适配 (设置, ui/screenFit.js) ------------------------------------------------------------------------
+
    The player's own insets for a screen whose cutout / curved edge the browser does not report (or reports wrongly in
    fullscreen): .app-root becomes the inset box — every .screen is absolute inset 0, so it lands inside, and the board is
    sized from its host — and the layout root 1rem is computed from that box (theme.css's rule with the insets taken
@@ -170,6 +186,7 @@ html[data-fit] {
 /* the screens' own box (theme.css .app-root: fixed, inset 0) and the full-page panels fixed over the screens (统计,
    S.W.E.E.P., the protocol pages, 干员调配, 玩法说明, 成就统计) */
 html[data-fit] :is(.app-root, .st, .sw, .proto, .lo, .guide, .ach) {
+
   left: var(--fit-l, 0px); right: var(--fit-r, 0px); top: var(--fit-t, 0px); bottom: var(--fit-b, 0px);
 }
 .set-fit { display: flex; flex-direction: column; gap: .06rem; }

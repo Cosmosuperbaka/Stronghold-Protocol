@@ -74,3 +74,5 @@ stronghold-ownership-*.json
 stronghold-diy-*.json
 *.lnk
 *.url
+
+config/r2-sync.json

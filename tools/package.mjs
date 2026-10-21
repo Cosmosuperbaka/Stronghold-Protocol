@@ -15,7 +15,7 @@
 //                          [--keep-stage] [--no-install] [--allow-dirty] [--allow-dev] [--require-local-art] [--root <dir>]
 //
 // The zips hold one folder, Stronghold-Protocol/, with only what a player runs — an allowlist over `git ls-files`, so
-// untracked work, caches, logs and per-machine config never get in: server/, shared/, data/, public/ (not public/dev/),
+// untracked work, caches, logs and per-machine config never get in: server/, shared/, data/, public/ (including the local console developer tools),
 // packs/ (the content packs that ship with the repository, docs/PACKS.md; a pack installed on this machine and not
 // committed stays out), plugins/ (only its readme, author guide and templates — docs/PLUGINS.md; a server's own plugins are git-ignored and
 // never ship), schemas/, the plugin author harness,
@@ -26,14 +26,14 @@
 // `npm ci --omit=dev` in the
 // stage adds the production node_modules and (postinstall) public/vendor. The full zip adds the git-ignored art: the
 // files data/assets.json lists, public/fonts, and the local-client extraction (public/assets/local/,
-// data/local-assets.json) when present, including the 0.2.5 battlefield scenes under public/assets/local/scene/
+// data/local-assets.json) when present, including the battlefield scenes under public/assets/local/scene/
 // when this machine extracted them. Missing scenes are not an error: the board keeps the metal tiles, and the
 // summary says so. Nothing else on disk ships, so art the data no longer lists (焰狐龙梓兰, left out of
 // 自选 in 0.2.0, or files of an old mapping) never ships even when this machine still has it. FULL_ZIP_JP_VOICE (below)
 // decides whether the full zip carries the Japanese voice dub too (default: yes), FULL_ZIP_OPTIONAL_VOICE the English,
 // Korean and own-language dubs (default: yes, so the 0.3.0 full zip ships them; about +180 MB, measured after download).
 // Left out: test/ except test/helpers/battleHarness.js, the maintainer tools (build-data, golden, botbench, i18n, check-imports, this file …),
-// scripts/make-windows-bundle.mjs, the other docs (DESIGN, SIM, the research notes, docs/img …), public/dev/, handoff/,
+// scripts/make-windows-bundle.mjs, the other docs (DESIGN, SIM, the research notes, docs/img …), handoff/,
 // .github/, types/, lint / editor / Docker files (Docker builds from a git clone). Extension screenshots under
 // docs/img/features/ ship in both zips; other docs/img art stays out.
 //
@@ -91,6 +91,7 @@ import { findSpecifiers } from './check-imports.mjs';
 import { rewriteManifest } from '../server/http/assetViews.js';
 import { mergeLocalManifests, planFromManifests } from '../public/js/assetPack.js';
 import { writePackIndex } from './packs.mjs';
+import { RELEASE_TAG } from '../server/release-version.js';
 import { compareVersions, diffBases, manifestText, readBase, updateText } from './package-update.mjs';
 import {
   APPLIED_FILE, MANIFEST_FILE, UPDATE_FILE, affectsRuntime, digestFile, inManifest, isSetupArt, listedArtFiles,
@@ -111,6 +112,7 @@ export const PLAYER_DOC_DIRS = ['docs/img/features/'];
 const PLUGIN_DOCS = ['docs/PLAYING.md', 'docs/DEPLOY.md', 'docs/PLUGINS.md', 'docs/PLUGIN-GUIDE.md',
   'docs/PLUGIN-DSL.md', 'docs/PLUGIN-API.md', 'docs/plugin-catalog.example.json'];
 PLAYER_DOCS.push(...PLUGIN_DOCS);
+
 /** The author harness has no test-only dependencies; the rest of test/ stays out. */
 export const AUTHOR_TEST_FILES = ['test/helpers/battleHarness.js'];
 /** Only these repository-owned plugin resources ship, even if an owner's plugin was accidentally tracked. */
@@ -132,14 +134,14 @@ export const RUNTIME_DIRS = ['server/', 'shared/', 'data/', 'public/', 'packs/',
 export const GENERATED_PACK_INDEX = 'packs/index.json';
 /** Whether shipped files include a content pack (then the stage gets GENERATED_PACK_INDEX). @param {string[]} files */
 export const shipsPacks = (files) => files.some((f) => /^public\/i18n\/[^/]+\.json$/.test(f) || /^packs\/[^/]+\/pack\.json$/.test(f));
-/** Never from the tracked list: the dev pages, and what only the art plan adds (or npm ci writes). */
-const NOT_TRACKED_SHIP = ['public/dev/', 'public/assets/', 'public/fonts/', 'public/vendor/'];
+/** Never from the tracked list: what only the art plan adds (or npm ci writes). */
+const NOT_TRACKED_SHIP = ['public/assets/', 'public/fonts/', 'public/vendor/'];
 /** The npm scripts a player runs: each `node <file>` of them must ship. */
 export const PLAYER_NPM_SCRIPTS = ['start', 'setup', 'doctor', 'launch', 'postinstall', 'vendor', 'assets'];
 /** Markdown copied into the zip. Relative links to anything else are rewritten at stage time. */
 export const PLAYER_MARKDOWN = [...ROOT_FILES, ...PLAYER_DOCS, 'packs/README.md', 'plugins/README.md', 'plugins/AGENTS.md'].filter((f) => f.endsWith('.md'));
 /** Where a packaged doc link points when the file itself is not in the zip. */
-export const GITHUB_REPO = 'https://github.com/sganggs/Stronghold-Protocol';
+export const GITHUB_REPO = 'https://github.com/zhewang448/Stronghold-Protocol';
 
 /**
  * THE SWITCH for the Japanese voice dub in the full zip (`audio.voiceJp` of data/assets.json: 2674 files under
@@ -164,7 +166,7 @@ export const JP_VOICE_DIR = 'public/assets/audio/voice/jp/';
 export const FULL_ZIP_OPTIONAL_VOICE = true;
 /** Where those dubs lie (plan.mjs voiceAlt / nativeVoiceAlt). */
 export const OPTIONAL_VOICE_DIRS = Object.freeze(['public/assets/audio/voice/en/', 'public/assets/audio/voice/kr/', 'public/assets/audio/voice/native/']);
-/** Extracted official battlefield scenes (0.2.5 asset pack). Already ignored with public/assets/. */
+/** Extracted official battlefield scenes (public/assets/local/scene/). Already ignored with public/assets/. */
 const SCENE_ART_PREFIX = 'public/assets/local/scene/';
 /**
  * The official battle effects (tools/local-extract/fx.py, DESIGN §33: public/assets/local/fx/ and their file list
@@ -183,7 +185,15 @@ export const FX_ART_PREFIX = 'public/assets/local/fx/';
  */
 export const REFUSE = ['pv', '3，9，11回合情况', 'review', 'docs/research/10-networking-hosting.md', '.cache', '.claude', '.git',
   'logs', 'test/e2e/out', 'scripts/service.env.cmd', '.env', 'handoff',
-  'test', '.github', 'AGENTS.md', 'public/dev', 'node_modules/.cache'];
+  'test', '.github', 'AGENTS.md', 'node_modules/.cache'];
+
+/** Browser tools exposed by the local console; generated simcheck data and Node-only helpers stay out. */
+export function isDevToolResource(rel) {
+  return /^public\/dev\/(?:game-mock|sim-check|render-demo|fx-viewer|battle-perf|uikit)\.(?:html|js)$/.test(rel)
+    || rel === 'public/dev/frame-stats.js'
+    || /^public\/dev\/simcheck\/(?:core|ui|stronghold)\.js$/.test(rel)
+    || /^public\/dev\/(?:recordings|perf)\/[^/]+\.json$/.test(rel);
+}
 
 /** Home-directory paths: macOS / Linux (case as the OS writes them) and Windows (any case; / or \, JSON-escaped too). */
 const HOME_POSIX = /\/Users\/[A-Za-z]|\/home\/[A-Za-z]/;
@@ -200,6 +210,7 @@ export function isRefused(rel) {
   const base = parts[parts.length - 1];
   if (base === '.env' || base.startsWith('.env.')) return true;
   if (parts.some((s) => s.startsWith('.venv'))) return true;
+  if (p.startsWith('public/dev/') && !isDevToolResource(p)) return true;
   if (p.startsWith('plugins/') && !isPluginResource(p)) return true;
   if (AUTHOR_TEST_FILES.includes(p)) return false;
   return REFUSE.some((r) => p === r || p.startsWith(`${r}/`));
@@ -241,14 +252,14 @@ export function selectTracked(paths) {
 }
 
 export function trackedFiles(root) {
-  const r = spawnSync('git', ['-C', root, 'ls-files', '-z'], { maxBuffer: 64 * 1024 * 1024 });
+  const r = spawnSync('git', ['-C', root, 'ls-files', '-z'], { maxBuffer: 64 * 1024 * 1024, windowsHide: true });
   if (r.error || r.status !== 0) throw new Error('git ls-files failed: the package takes tracked files only, run it in a git checkout');
   return r.stdout.toString('utf8').split('\0').filter(Boolean);
 }
 
 /** Tracked files of `files` with uncommitted changes (staged or not). */
 export function dirtyFiles(root, files) {
-  const r = spawnSync('git', ['-C', root, 'status', '--porcelain=v1', '-z', '--untracked-files=no'], { maxBuffer: 64 * 1024 * 1024 });
+  const r = spawnSync('git', ['-C', root, 'status', '--porcelain=v1', '-z', '--untracked-files=no'], { maxBuffer: 64 * 1024 * 1024, windowsHide: true });
   if (r.error || r.status !== 0) throw new Error('git status failed');
   const want = new Set(files);
   const out = [];
@@ -297,7 +308,7 @@ export const manifestFiles = listedArtFiles;
  * that nothing lists (left out); `held`: listed files the zip holds back on purpose — the JP voice dub when `jpVoice`
  * (FULL_ZIP_JP_VOICE) is off, the English / Korean / own-language dubs when `optionalVoice` (FULL_ZIP_OPTIONAL_VOICE)
  * is off: neither shipped nor missing, and never deleted by an update.
- * `scenes`: the files under public/assets/local/scene/ (the 0.2.5 battlefield scenes). They are also in `files`.
+ * `scenes`: the files under public/assets/local/scene/ (one folder per battlefield, plus the shared scene/tex). They are also in `files`.
  * A lite plan and a machine that has not extracted them return `scenes: []`; packaging still succeeds.
  */
 export function artPlan(root, { lite = false, jpVoice = FULL_ZIP_JP_VOICE, optionalVoice = FULL_ZIP_OPTIONAL_VOICE, fx = FULL_ZIP_FX } = {}) {
@@ -441,12 +452,13 @@ export function playerPackageProblems(pkg, files) {
 }
 
 /**
- * `v` + version, with a trailing `-dev` removed (`0.2.5-dev` → `v0.2.5`, `0.2.4` → `v0.2.4`).
+ * The current base version points at its extension tag; other versions use `v` + version with `-dev` removed.
  * [ASSUMED] an unreleased `-dev` build points player docs at the tag that version will use.
  * @param {string} version
  */
 export function releaseTag(version) {
-  return `v${String(version ?? '').replace(/-dev$/, '')}`;
+  const tag = `v${String(version ?? '').replace(/-dev$/, '')}`;
+  return RELEASE_TAG.split('-extended.')[0] === tag ? RELEASE_TAG : tag;
 }
 
 function docLinkPath(fromFile, href) {
@@ -633,7 +645,7 @@ export function formatSummary(p) {
     lines.push(`art: ${p.art.length} files, ${MB(p.bytes.art)} (data/assets.json, public/fonts${p.localArt ? ', public/assets/local + data/local-assets.json' : '; no local-client art here'})`);
     const sceneFiles = p.scenes?.files;
     if (sceneFiles?.length) {
-      lines.push(`battlefield scenes: ${sceneFiles.length} files, ${MB(p.scenes.bytes || 0)} (0.2.5 asset pack, public/assets/local/scene; the metal board is the fallback when a stage has none)`);
+      lines.push(`battlefield scenes: ${sceneFiles.length} files, ${MB(p.scenes.bytes || 0)} (public/assets/local/scene; the metal board is the fallback when a stage has none)`);
     } else if (p.scenes) {
       lines.push('battlefield scenes: none on this machine (the full bundle ships the metal board; fetch_scenes.py then extract.py --only scene before packaging to include the 11 official scenes)');
     }
@@ -668,9 +680,9 @@ export function packageOutIsUnsafe(out, root = REPO) {
  */
 export function zipFolder(cwd, zipPath, folder = FOLDER) {
   // deflate everything: storing PNG / MP3 as they are made the full zip 8.5 MB larger and saved no real time
-  const z = spawnSync('zip', ['-q', '-r', '-X', zipPath, folder], { cwd, stdio: 'inherit' });
+  const z = spawnSync('zip', ['-q', '-r', '-X', zipPath, folder], { cwd, stdio: 'inherit', windowsHide: true });
   if (!z.error && z.status === 0) return;
-  const t = spawnSync('tar', ['-c', '--format', 'zip', '--options', 'zip:hdrcharset=UTF-8', '-f', zipPath, folder], { cwd, stdio: 'inherit' });
+  const t = spawnSync('tar', ['-c', '--format', 'zip', '--options', 'zip:hdrcharset=UTF-8', '-f', zipPath, folder], { cwd, stdio: 'inherit', windowsHide: true });
   if (t.error || t.status !== 0 || !isFile(zipPath)) throw new Error('zipping failed: install `zip` (or a bsdtar `tar`)');
 }
 
@@ -760,7 +772,7 @@ function makeStage(root, p, stage, { install, env, log }) {
   if (install) {
     log('npm ci --omit=dev …');
     const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    const r = spawnSync(npm, ['ci', '--omit=dev', '--no-audit', '--no-fund'], { cwd: stage, stdio: 'inherit', shell: process.platform === 'win32' });
+    const r = spawnSync(npm, ['ci', '--omit=dev', '--no-audit', '--no-fund'], { cwd: stage, stdio: 'inherit', shell: process.platform === 'win32', windowsHide: true });
     if (r.error || r.status !== 0) throw new Error('npm ci --omit=dev failed in the stage');
     fs.rmSync(path.join(stage, 'node_modules', '.cache'), { recursive: true, force: true });
     for (const file of ['pixi.min.js', 'ses.umd.js', 'acorn.mjs']) {

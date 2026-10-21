@@ -36,6 +36,7 @@ export function createResultSummary(dir) {
         if (!validRecord(rec)) throw new Error('invalid');
       } catch { skipped++; continue; }
       if ((from && rec.savedAt < Number(from)) || (to && rec.savedAt > Number(to)) || (mode && rec.mode !== mode) || (difficulty && rec.difficulty !== difficulty)) continue;
+      if (rec.result.test === true) continue;
       games++; if (rec.result.victory) wins++;
       const key = JSON.stringify([rec.mode, rec.difficulty]);
       const group = groups.get(key) || { mode: rec.mode, difficulty: rec.difficulty, games: 0, wins: 0, rounds: 0 };

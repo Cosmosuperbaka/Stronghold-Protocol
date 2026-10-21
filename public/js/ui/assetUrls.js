@@ -16,7 +16,8 @@ export function uiUrl(m, key) {
  * @param {any} m manifest
  * @param {any} chess chess.json record (or { assets: { avatar } })
  */
-export function chessAvatarUrl(m, chess) {
+export function chessAvatarUrl(m, chess, { skin = null } = {}) {
+  if (skin && chess?.charId && str(m?.chars?.[chess.charId]?.skins?.[skin]?.avatar)) return m.chars[chess.charId].skins[skin].avatar;
   const chars = obj(obj(m)?.chars);
   const id = str(chess?.assets?.avatar) || str(chess?.charId);
   if (!chars || !id) return null;
@@ -24,7 +25,12 @@ export function chessAvatarUrl(m, chess) {
     const base = chars[id.slice(0, -2)];
     return str(base?.avatarE2) || str(base?.avatar);
   }
-  return str(chars[id]?.avatar) || (chess?.charId ? str(chars[chess.charId]?.avatar) : null);
+  // A golden piece whose avatar id is the character key uses that entry's E2 art when it has one.
+  // Official ids are `charId` or `charId_2` (the suffix branch above). Model and voice have no E2
+  // field on the character entry: the composed `spine` / `voice` id is already the form's.
+  const entry = chars[id];
+  if (entry && chess?.isGolden && str(entry.avatarE2)) return str(entry.avatarE2);
+  return str(entry?.avatar) || (chess?.charId ? str(chars[chess.charId]?.avatar) : null);
 }
 
 /**
@@ -51,11 +57,16 @@ export function skinAvatarUrl(m, charId, skinId) {
  * @param {any} m
  * @param {any} chess
  */
-export function chessPortraitUrl(m, chess) {
+export function chessPortraitUrl(m, chess, { skin = null } = {}) {
+  if (skin && chess?.charId && str(m?.chars?.[chess.charId]?.skins?.[skin]?.portrait)) return m.chars[chess.charId].skins[skin].portrait;
   const chars = obj(obj(m)?.chars);
   const id = str(chess?.assets?.portrait);
   if (!chars) return null;
   if (id) {
+    // A golden piece whose portrait id is the character key uses portraitE2 when the entry has one.
+    // An entry with only `portrait` (a custom golden URL included) keeps that URL. Official ids are
+    // `charId_1` / `charId_2` and are not character keys, so they stay on the suffix branches below.
+    if (chars[id]) return (chess?.isGolden ? str(chars[id].portraitE2) : null) || str(chars[id].portrait);
     if (id.endsWith('_2')) {
       const base = chars[id.slice(0, -2)];
       if (base) return str(base.portraitE2) || str(base.portrait);

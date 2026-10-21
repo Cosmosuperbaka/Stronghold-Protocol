@@ -1,3 +1,7 @@
+import { createHash } from 'node:crypto';
+import { deploymentCdn } from './cdnConfig.js';
+import { rewriteAssetPaths } from '../../shared/cdn.js';
+import { routeResourcePacks } from '../../shared/resourcePackRoutes.js';
 // server/http/static.js — the static file server (routes.js hands it every GET / HEAD that is not an API route):
 // (i18n-ignore-file: the error pages are bilingual by design, 中文 · English — docs/I18N.md)
 //
@@ -125,7 +129,8 @@ const CS_FILE = /^\/cs\/([0-9a-f]{16})\/([A-Za-z0-9._\/-]{1,200})$/;
  */
 export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = path.join(ROOT, 'server', 'sim'), packsDir = path.join(ROOT, 'packs'),
   pluginsDir = path.join(path.dirname(path.resolve(packsDir)), 'plugins'), packs = null, content = null, log = noopLog,
-  assetIndex = null, views = null, visual = null, contents = null }) {
+  assetIndex = null, views = null, visual = null, contents = null, cdn = null, cdnBase = '', resourcePackRoutes = [] }) {
+  cdn ||= deploymentCdn({ assetsCdn: cdnBase, resourcePackRoutes });
   const registry = packs || createPluginRegistry({ publicDir, dataDir, packsDir, pluginsDir }, { log: /** @type {any} */ (log) });
   const sets = visual || (typeof registry.pluginFile === 'function' ? createVisualSets({ registry, log }) : null);
   let vanilla = content;
@@ -148,6 +153,7 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
   const shimTag = `"shim-${shimBody.length.toString(16)}"`;
   const gzipCache = new CompressCache(); // brotli and gzip bodies (files.js)
   let resourceManifestPromise = null;
+  const cdnBody = Buffer.from('export const ASSETS_CDN = ' + JSON.stringify(cdn.assetsCdn) + ';\nexport const DATA_CDN = ' + JSON.stringify(cdn.dataCdn) + ';\n');
 
   return async function serveStatic(req, res, rawPath, query) {
     let decoded;
@@ -162,8 +168,20 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
     const hashed = splitHashedPath(decoded);
     const urlHash = hashed.hash;
     decoded = hashed.path;
+    if (decoded === '/js/asset-cdn.js') {
+      await serveBuffer(req, res, { body: cdnBody, hash: createHash('sha256').update(cdnBody).digest('hex'), type: MIME['.js'], cacheControl: 'no-cache', key: 'asset-cdn', cache: gzipCache }); return;
+    }
+    if (decoded === '/data/resource-packs.json') {
+      try {
+        const doc = JSON.parse(await fsp.readFile(path.join(dataDir, 'resource-packs.json'), 'utf8'));
+        doc.packs = routeResourcePacks(doc.packs, cdn.assetsCdn, cdn.resourcePackRoutes);
+        const body = Buffer.from(JSON.stringify(doc));
+        await serveBuffer(req, res, { body, hash: createHash('sha256').update(body).digest('hex'), type: MIME['.json'], cacheControl: 'no-cache', key: 'resource-packs', cache: gzipCache });
+      } catch (error) { sendError(req, res, error.code === 'ENOENT' ? 404 : 503, 'Resource pack index unavailable'); }
+      return;
+    }
     if (decoded === '/data/resource-manifest.json') {
-      resourceManifestPromise ??= buildResourceManifest({ publicDir }).then(manifest => ({ body: Buffer.from(JSON.stringify(manifest)), hash: manifest.version }));
+      resourceManifestPromise ??= buildResourceManifest({ publicDir, dataDir, cdnBase: cdn.assetsCdn, resourcePackRoutes: cdn.resourcePackRoutes }).then(manifest => ({ body: Buffer.from(JSON.stringify(manifest)), hash: manifest.version }));
       try {
         const payload = await resourceManifestPromise;
         await serveBuffer(req, res, { ...payload, type: MIME['.json'], cacheControl: 'no-cache', key: 'resource-manifest', cache: gzipCache });
@@ -267,6 +285,7 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
     if (views && (decoded === '/data/assets.json' || decoded === '/data/local-assets.json' || decoded === '/data/local-fx.json')) {
       const view = await views.get(decoded.slice('/data/'.length));
       if (view) {
+        if (cdn.assetsCdn) { view.body = Buffer.from(JSON.stringify(rewriteAssetPaths(JSON.parse(view.body.toString('utf8')), cdn.assetsCdn))); view.hash = createHash('sha256').update(view.body).digest('hex'); }
         await serveBuffer(req, res, { body: view.body, hash: view.hash, type: MIME['.json'], cacheControl: 'no-cache', key: `view:${decoded}`, cache: gzipCache });
         return;
       }

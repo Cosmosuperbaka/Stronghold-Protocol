@@ -94,7 +94,7 @@ test('a server where the mirror emotes / 玩法说明 pages failed to download k
 });
 
 test('fetch-assets still runs as a script: --help lists --allow-shrink', () => {
-  const r = spawnSync(process.execPath, [join(ROOT, 'tools', 'fetch-assets.mjs'), '--help'], { encoding: 'utf8', timeout: 30000 });
+  const r = spawnSync(process.execPath, [join(ROOT, 'tools', 'fetch-assets.mjs'), '--help'], { encoding: 'utf8', timeout: 30000, windowsHide: true });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /--allow-shrink/);
   assert.match(r.stdout, /--prune .*\n.*implies --allow-shrink/);

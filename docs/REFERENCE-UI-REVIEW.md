@@ -1,0 +1,151 @@
+# 参考站点 UI 源码对照（2026-10-17）
+
+## 手机适配以参考站为基础（2026-10-19）
+
+维护者要求：通用 UI 尽量继承参考站源码；本库独有功能才额外适配，普通电脑布局保持原样。
+本次只移植已经在首页构建 CSS 中交叉核对的规则，不把公开仓库与线上部署当作同一版本。
+
+| 来源 | SHA-256（公开响应文本，UTF-8） | 本库落点 |
+| --- | --- | --- |
+| `https://weishuxieyi.xiaolubao.com/css/utility-mobile.css` | `3b8c4c3731effe81719c5cad3d8ef7746f9f26a035ec48d0dae154a732fbb762` | `public/css/reference-mobile.css` 的顶部 HUD 紧凑、房间可视高度、顶底栏、滚动及热区规则 |
+| `https://weishuxieyi.xiaolubao.com/css/screens/room.css` | `b0ff6091bbfb5f531765d5dc866281740420ffc9401f1afd15fdad2e1aba501a` | 小屏卡片的 1:2 比例、contain、非收缩姓名板 |
+
+- 首页仍使用 `index-D9C2T8_u.js`、`index-C36VqNSA.css`；构建中存在上述卡片规则和顶部紧凑规则。
+- 参考站实际房间采用 `.seats/.topbar/.room-bar`，本库为 `.rs-seats/.rs-top/.rs-foot`；适配文件明确映射，保留本库账号名片、皮肤、AI 控制、聊天和协议，不整体替换组件。
+- 只在宽度 ≤1000px 或高度 ≤600px 启用，超窄 ≤560px 两列；普通桌面不改变。`theme.css` 全局 rem 和战场镜头均不调整。
+- 公开 GitHub 提交 `e01036ae62acf1be17a118e6a6ef116cbb747b13` 已有 `managementScale.js` / `--ui-unit` 迁移；线上仍没有，故本次不混入这套尚未部署的实现。
+- 标点为本库扩展：保留默认展开与折叠记忆，可见尺寸在小屏按 rem 缩到最低 30px，独立热区 44px；拖动、坐标记忆及重置复用聊天 hook，不引入新协议。
+- 原文件和房间测量截图存于忽略目录 `.cache/upstream-mobile-audit/`；本次新增验证为 `test/ui/reference-mobile.e2e.test.js`。
+
+参考：https://weishuxieyi.xiaolubao.com/ 。本次通过公开 HTTP 获取原始 JS / CSS，并与首页实际加载的
+`index-B7-t61a7.js`、`index-CCQriwzN.css` 交叉核对交流组件结构和关键样式。未读取私有后端或加入线上房间。
+原始文件、URL、SHA-256 与对照说明保存在维护者本机 `E:\暂存文件夹\github_data\stronghold-ui-source-20261017`。
+仓库只存本库适配代码和此文档，不复制整个站点或新增游戏美术。
+
+## 2026-10-19 重新抓取与阶段弹窗排查
+
+本次抓取时间为北京时间 2026-10-19 19:04，独立快照保存在本库忽略目录
+`.cache/reference-refresh-20261019/`，未覆盖归档库已有的未提交内容。`site/manifest.json` 记录 URL、
+SHA-256、响应类型和不可用路径，`site/changes.json` 与 `github-compare.json` 分别记录线上及 GitHub 差异。
+抓取仅访问公开前端文本与模块，不加入线上房间，也不调用管理接口。
+
+### 线上部署
+
+- 共请求 777 个路径，取得 661 份公开文件，116 个路径不可获取；未取得的模块不能算作已核对源码。
+- 对比最近快照（北京时间 2026-10-18 04:26）：已获取文件全部 SHA-256 相同，新增、变化、撤去均为 0。
+  当前首页仍加载 `index-D9C2T8_u.js`、`index-C36VqNSA.css` 与 `app-DcNEFZ0_.js`。
+- 对比归档库已提交快照（北京时间 2026-10-17 19:02）：6 个路径变化（`/` 与 `/index.html` 为同一首页），
+  11 个构建块换名。实际功能差异为公告弹窗加宽到 10.8rem、站点赞助侧栏尺寸调整，以及自定义表情
+  通过统一 `assetUrl` 使用 CDN / 缓存路径。公告宽度和表情 CDN 在本库已有适配；赞助区域不纳入本库。
+- 线上 CSS 和构建 CSS 仍含旧 `.mpop--phase .mpop__bot { width: .9rem; }`，不能通过整体复制参考站样式
+  修复本库的新双图标结构。参考站未公开独立 `match-popups.css` / `boss-plates.css`；本库应按现有组件验证。
+
+### GitHub 参考分支
+
+相对上次记录 `e519d29fd9fe`，当前 `master` 为 `e01036ae62ac`，新增 3 个提交、39 个文件变化：
+
+| 提交 | 变化 | 对本库的处理 |
+| --- | --- | --- |
+| [90facfba76be](https://github.com/xinhai-ai/Stronghold-Protocol/commit/90facfba76be) | 按已认证在线玩家限制容量；近期对局重连可优先进入；客户端收到 `SERVER_FULL` / 4003 后停止自动重连并提示满员；单人断线保留改为 6 小时 | 属于服务器接入与保留策略，未移植。本库继续保留现有重连规则 |
+| [d92d26410798](https://github.com/xinhai-ai/Stronghold-Protocol/commit/d92d26410798) | 清理过期、被替代及无人可恢复的检查点；周期保存默认 30 秒；合并开局保存，补正常退出最后保存和阶段耗时指标 | 对方 Redis / Worker 持久化方案的修复，不能直接套用到本库磁盘恢复与回放链路 |
+| [e01036ae62ac](https://github.com/xinhai-ai/Stronghold-Protocol/commit/e01036ae62ac) | 会话 / 房间元数据每批 8 行提交 Worker，批次间让出主线程；复用共享档案，保存中断不写入半份文档，新增最长提交耗时指标 | 可作为后续性能优化参考，本轮未新增后端功能 |
+
+GitHub 新增的客户端满员提示不在本次取得的线上 JS 中，线上部署与公开仓库不能视为同一版本。
+`changes.upstream` 的图标 SVG 哈希变化经比较仅为换行差异，不是新增图标设计。
+
+### 本库已修复的同类问题
+
+- 联防双图标容器被旧单图标宽度限制，整体偏左；删除 `game.css` 中重复的回合 / 联防样式，统一由
+  `match-popups.css` 控制，实际图片和缺素材回退都保持双图标等宽居中。
+- 最终攻势残留旧 `transform` / 负边距，导致 LP 节点、圆环、文字与头像连接线错位；旧绘制组件的
+  `fa__*` / `core__*` 样式限定到 `.bplate`，新版官方素材 `.bpl` 独立定位。
+- 隐秘核心警告素材受到旧 CSS 三角形背景和裁剪影响；隔离后恢复完整素材及透明背景。
+- 联防 / 回合浏览器回归 16 项、首领 / 结局 13 项通过；协议启动、策略提示及淘汰弹窗另有 10 项通过。
+  新增几何断言检查中心、等宽、连接线和视口范围，覆盖手机横屏、桌面、特大字号及两种动态效果设置。
+  截图保存在忽略目录 `.cache/ui-audit/`，未覆盖实体移动设备。
+
+## 后续跟进与私有归档
+
+归档仓库：[zhewang448/stronghold-ui-site-archive](https://github.com/zhewang448/stronghold-ui-site-archive)（私有，需仓库访问权限）。
+参考站：[weishuxieyi.xiaolubao.com](https://weishuxieyi.xiaolubao.com/)；公开源码上游：
+[xinhai-ai/Stronghold-Protocol](https://github.com/xinhai-ai/Stronghold-Protocol)。线上部署与 GitHub 提交可能不同，应分别比较。
+
+1. 更新本机公开上游 checkout `stronghold-ui-upstream-archive-source`。
+2. 在私有归档库目录运行 `python tools/capture.py --upstream ../stronghold-ui-upstream-archive-source`；若上游目录放在其他位置，替换参数路径。
+3. 查看 `changes.json`、`manifest.json` 和 `git diff -- live/ upstream-frontend/`：`live/` 为线上文件，`upstream-frontend/` 为 GitHub 补充；`changes.upstream` 单列上游文件增删和变化。
+4. 按需将变化适配到本库，完成验证后再提交；归档快照的提交与上传也按维护者当次授权执行。
+
+不可获取路径及撤去文件以当次清单为准，磁盘保留的旧文件不代表仍在线。归档只包含可获取的公开前端，
+不包含私有后端、游戏素材或用户数据；目前没有自动定时抓取。
+
+## 已移植：交流面板
+
+以 [原组件](https://weishuxieyi.xiaolubao.com/js/ui/emotes.js) 和
+[原样式](https://weishuxieyi.xiaolubao.com/css/emotes.css) 为外观依据：
+
+- 左侧 40px 图标栏，表情 / 聊天历史切换；历史显示条数、玩家和时间。
+- 桌面 260px 面板、44px 高表情格；移动断点 220px 面板、32px 高表情格；三列两行、4px 间距。
+- 底部单行输入、字数、发送按钮，输入框高 24px，触屏输入保留 16px 防聚焦缩放。
+- 文字气泡复用 `EmoteBubble`：6px 圆角、深绿背景、细边框，无三角尾巴，默认约 3 秒 pop/fade。
+- 单独适配本库 `room.chat`、200 字上限、屏蔽词、观战权限、断线与失败草稿；不采用参考站的 20 字协议。
+- 本库多语言错误 / 只读提示、未读标记与长消息三行上限为兼容补充，正常面板结构与参考站一致。
+
+仅 `emotes.css` 增加交流规则，不改全局 rem、设置面板、HUD 或商店。等待室、开局说明、轮选和结算继续
+使用原可拖动文字聊天。源码公开并不代表所有素材授权一致，本次未下载新美术；致谢见 [NOTICE.md](../NOTICE.md)。
+
+## 本次继续落地（2026-10-17）
+
+- **大厅统计入口**：干员调配下方复用参考站的 `HubTile`，图表图标、统计数据与 LOCAL RECORDS，接本库 `openStats`。
+- **快捷键独立弹窗**：设置正文只留「修改快捷键」入口；子弹窗保留七项键位、重复键交换、恢复默认。
+  编辑时 Esc 取消捕获，再按 Esc 关闭子弹窗并返回入口，设置仍保持打开；触屏显示实体键盘提示。
+- **资源分阶段进度**：现有分包链路增加下载字节 / 采样速度、整包 SHA-1 校验状态、缓存导入文件数。
+  校验阶段不显示虚假百分比；失败继续走原镜像与逐文件回退，暂停仍可取消。
+- **公告长文排版**：主机控制台显式选择 Markdown，最多 20000 个 Unicode 字符；旧纯文本保留 500 字与原样显示。
+  延迟加载 Marked 仅用来分词，固定 Preact 节点渲染标题、列表、表格、引用、代码和安全链接；
+  HTML 按文字显示，图片降为替代文字，超深 / 超多节点回退到纯文本。横幅长文仅提示点击查看详情。
+
+三项均复用本库逻辑，没有恢复整体界面缩放。源码归档保存在维护者私有库
+[stronghold-ui-site-archive](https://github.com/zhewang448/stronghold-ui-site-archive)：661 份线上公开文件，
+另有 663 份 GitHub 前端 / 浏览器共享模块补充。每份线上文件有来源、抓取时间、哈希；未公开路径单列，
+不声称取得私有后端或未暴露源码。归档工具支持重新抓取与差异报告，尚未设置定时抓取。
+
+## 对照与后续可选 UI
+
+下表记录原始对照及建议范围；快捷键、资源进度、公告长文已按上一节实现。
+
+| 建议 | 参考站具体实现 | 本库现状与收益 | 建议范围 |
+| --- | --- | --- | --- |
+| 优先：快捷键独立编辑弹窗 | `js/ui/settings.js` 的 `ShortcutModal`，设置中只放「修改快捷键」入口 | 已改为独立编辑弹窗，设置正文保留入口 | 只移植弹窗结构，保留本库键位、重复键交换和 Esc 取消规则，不整体移植缩放 |
+| 优先：资源包下载进度与导入进度分开 | `js/ui/resourcePanel.js` 显示下载速度、下载进度、正在导入的文件进度 | 本库已有分包下载及 `packProgress`，面板仅显示总状态与 ZIP 操作条；下载 / 校验 / 写缓存时容易分不清阶段 | 先接已有阶段 / 字节字段；速度需要采样，不能把站点的并发数量 UI 直接接到本库逐包实现 |
+| 可选：皮肤总显示开关 | `js/ui/skinPicker.js` 的 disabled 状态和启用按钮，`settings.js` 中 `skinsEnabled` | 本库已移植加载失败 / 重试 / 未安装状态，但没有总开关；低配置设备可保留已选皮肤同时临时显示默认外观 | 需同时适配模型、头像与立绘读取，属于新增产品行为，单独实现；不能只加开关外观 |
+| 可选：公告长文排版 | `js/ui/announcement.js` 按 format 延迟加载 `announcementMarkdown.js` | 已支持显式 Markdown 长文；标题、列表和链接帮助分段阅读 | 需增加受限 Markdown 渲染与链接校验，不执行任意 HTML，不引入其宣传区域 |
+| 小改：游戏内设置提供公告入口 | `settings.js` 的 actions 中含 `AnnouncementButton`，先关闭设置再打开公告 | 本库公告入口主要在标题 / 大厅 / 房间与棋盘角落，设置页只放说明和完成；可在不退出当前流程时重看公告 | 复用本库公告系统，保留内容和焦点返回，不引入站点额外宣传区域 |
+
+以上源码分别可从公开 `/js/ui/settings.js`、`/js/ui/resourcePanel.js`、`/js/ui/skinPicker.js` 获取。
+原站快捷键集合和冲突处理与本库不同；不能整体替换设置 store 或快捷键逻辑。
+
+## 本库已具备、无需重复移植
+
+- 数字表情页码、皮肤未安装 / 失败 / 重试状态、海报与结算立绘、协议独立选择页。
+- 四语语音多选预载、资源分包传输和失败后逐文件回退。
+- 公告提示及本机历史统计已有独立实现；只为“更像”而整体替换会扩大兼容成本。
+
+整体管理界面缩放曾引入比例异常，此次不恢复。参考站的赞助 / 付费区域不属于本库移植范围。
+
+## 验证入口
+
+`test/ui/match-communication.e2e.test.js`：1440×900、844×390、640×360，验证源码几何参数、左侧图标、
+表情与历史切换、输入法、失败草稿、Esc 焦点返回、真实服务器屏蔽词与 200 字消息、头像气泡和观战只读。
+手机翻页使用 Chromium 合成触摸；无法代替真机 Safari、软键盘和刘海屏验收。
+`test/ui/emotes.e2e.test.js`、`chat.e2e.test.js` 与 `chat-preview.e2e.test.js` 为原行为回归。
+
+三项功能验证：`test/ui/hotkeys.e2e.test.js`、`reference-utilities.e2e.test.js`、`announcement-markdown.test.js`、
+`test/resources/resource-packs.test.js` 与 `test/announcements.test.js`。资源阶段组件展示使用固定进度样例；
+真实下载 → 校验 → 导入与失败重试由资源包管线测试覆盖。
+
+本次验证结果（2026-10-17）：655 项静态 / 资源 / 多语言测试通过；73 项公告、分包管线、快捷键与文档测试通过；
+快捷键 4 项、公告与资源展示 1 项、设置入口 1 项、交流移植 2 项浏览器检查通过。`npm run typecheck`、
+四个语言包严格检查与 `git diff --check` 通过；全库 ESLint 无错误（有既存警告）。实现阶段未重复跑全量 CI；正式发布验证见 [RELEASE-CANDIDATE.md](RELEASE-CANDIDATE.md)。
+截图位于忽略的 `test/e2e/out/`：`hotkeys-phone.png`、`reference-announcement-{1440,844,640}.png`、
+`reference-resource-{download,verify,import}-640.png`。浏览器为本机 Edge 无头模式；资源阶段展示使用样例数据，
+真实阶段顺序、校验及镜像回退由分包测试验证。Impeccable 检查只报告既有侧边强调样式，新区域无新增问题。

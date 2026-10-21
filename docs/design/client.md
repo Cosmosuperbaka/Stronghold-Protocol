@@ -2,6 +2,29 @@
 
 Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 
+### 本机个人数据备份与域名迁移（2026-10-19）
+
+大厅「统计数据」下方的「导出 / 导入个人数据」复用同一 HubTile、根字号和屏幕缩放；
+标题页也保留入口。公共弹窗沿用焦点、Esc、滚动及关闭后返回入口的规则。
+旧站网址可由部署机器的忽略配置 `local/personal-data.json` 中的 `migrationSource` 预填，
+通过只读、no-store 的 `/personal-data-config.json` 提供；仅发送校验后的该字段。配置不存在则留空，
+不自动发起迁移、不覆盖用户已输入的网址，不把具体实例地址写入源码。
+恢复码是带版本和 CRC32 损坏校验的完整快照（支持 gzip，非加密、非登录凭证），可以复制或保存为
+`.spdata` 文件。范围包括本机账号标签/头像、昵称、战绩及由战绩推导的成就/奖杯、全部个人偏好、
+干员调配/持有/自选编队、皮肤、盟约预选、语言/字号/屏幕边距、插件个人配置和 IndexedDB 中的背景/音乐。
+不包含素材缓存、插件授权、服务器管理密钥、重连令牌和旧服务器房间记录；不把本机账号描述为云端账号。
+
+导入先校验格式/版本/损坏/体积并显示摘要，用户确认后将战绩按既有记录 ID 去重合并，
+覆盖备份中的同名配置，保留其他配置。拒绝更新版本战绩，写入失败回滚本次配置与媒体；
+恢复成功须刷新页面，成功后关闭弹窗也刷新，避免旧内存配置覆盖恢复结果。处于同盟中时拒绝恢复。
+
+旧域名仍可访问且已部署此功能时，可输入完整旧网址，在同一浏览器打开旧站窗口。
+旧站明确显示目标 origin，用户允许后才发送；新站核对消息窗口、精确 origin 和一次性随机 nonce，
+解码后仍显示摘要并等待确认。数据仅通过 postMessage 定向发送，不写入 URL 或服务器。
+弹出窗口被拦截、取消和 3 分钟超时均有反馈并移除监听；不自动信任第三方消息。
+旧站只做跳转、已停用或没有迁移功能时不能直接读取其 localStorage；须预先备份或让旧站部署支持版本。
+恢复码包含隐私、是静态快照，较大背景/音乐会显著增加长度，提供文件方式保留完整数据。
+
 本库 2026-10-16：生成的素材预载索引 `resource-manifest` 与组队海报目录 `seat-art` 仅用于展示，
 与本机素材清单一样排除在玩法内容指纹 `cs` 之外；增删这些资源不应改变玩法身份。
 
@@ -25,6 +48,13 @@ Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 本回合收入/支出及可叠层盟约的层数；可切换表格，第一回合结算前显示等待记录。
 同一面板内切换「每回合曲线 / 干员伤害排行」。排行复用控制台实现，按回合与玩家筛选、
 默认前 10 并可展开全部，显示干员/玩家、伤害、伤害条、击杀和占本人伤害比例；切换分页保留选择。
+曲线与排行在实时刷新时保留筛选控件节点及焦点，指标选项变化在失焦后同步，选择栏不因刷新收起。
+2026-10-19 手机适配：宽度 ≤1000px 或高度 ≤600px 的主触屏采用紧凑 rem 间距、32px 关闭按钮和
+30px 操作按钮，原生选择框保留 16px 字体；标题、标签和关闭入口不随正文滚走。曲线按正文实际宽度
+重画而非整体缩放 SVG，坐标文字至少 12px，横轴刻度随可用宽度减少并保留首末回合；所有数据点仍保留。
+小屏使用完整玩家图例与点按数值提示，省去重复末端姓名，触屏松手后提示仍可阅读。排行/表格保留
+数值，正文纵向滚动、列过多时内部横向滚动。旋转与文字大小变化重排，筛选与焦点继续保留。
+普通桌面及控制台保持原 720×260 SVG 和字号/布局规则；不修改全局 rem、战场和服务器记录。
 主机设置 `roundCharts` 默认开启，保存后全房间立即生效并持久化；关闭时隐藏入口、关闭已打开面板，
 不停止历史记录。两处图表的盟约选项均排除数据标记 `noStack` 的盟约（含旧记录）；控制台的这类
 盟约保留人数/档位信息，省略层数及加层/设层输入。
@@ -33,18 +63,87 @@ Custom alliance keys (§29.15): the co-op lobby's create section has an optional
 otherwise require four ASCII letters or digits, uppercase the input, and preserve invalid characters / excess length
 so an unintended key is never silently created. Show the format hint, disable creation for invalid input, and report
 occupied keys through the existing localized error toast. The solo create flow omits this field and the custom code.
+The key field and create card enter together as one animated section, using the existing alliance entrance timing
+and reduced-motion preference.
+The alliance selector and hub dialogs reuse the shared modal focus lifecycle: initial focus, Tab containment,
+nested-dialog priority and opener restoration. IME composition does not trigger Escape or alliance-key submission.
+The S.W.E.E.P. report stays mounted during its 300 ms exit (immediate with reduced motion), then restores focus.
+
+Stage plate layout (local fix, 2026-10-19): `match-popups.css` owns round / joint-defense plate sizing. The pair of
+joint-defense faces uses the entire art frame, with equal face sizes and a centred combined bounding box.
+Legacy drawn boss plates in `game.css` scope their `fa__*` / `core__*` rules to `.bplate`; official sprite plates
+(`.bpl`, `boss-plates.css`) keep their LP node, rings, connecting lines and title aligned, and warning sprites uncut.
+Both motion modes and the joint-defense missing-art fallback preserve this layout.
 
 Local optional cosmetic extension (owner request, 2026-10-10): roster and DIY operator details select outfits
 by charId, persisted separately from gameplay loadouts. A roster toolbar action randomizes all supported operators'
 installed non-default outfits (including DIY); operators without an available outfit use the default.
 Views resolve the owner's `m.public.players[].skins`
-without changing simulation input; bots, stand-ins and summons keep their original appearance. Missing or
-failed models use the default fallback. Settings offers manual static-media preloading, progress, cancellation
+using the upstream cosmetic metadata path (never gameplay state). Effective stand-ins use their operator body; bots and summons keep their original appearance. Missing or
+failed models use the default fallback. The shared picker also accepts cosmetic-plugin outfits and the otherSkins display preference. Deployment zoom remains opt-in in this extension (deploymentZoom); legacy prepDeployFold is migrated only when that field is absent. Settings offers manual static-media preloading, progress, cancellation
 and failure counts. Contracts and sources: [SKINS.md](../SKINS.md).
 Shop / reward cards and detail portraits remain the base half-body art; installed outfits currently include avatars
 and battle Spine models only. This affects presentation only, never purchases or simulation inputs.
 
 ## 9. Client rendering contract (public/js/render)
+
+Local host developer previews (owner request, 2026-10-18): ordinary console tool links reuse one preview per
+`/dev/` pathname for the lifetime of the console document. Reopening the current scene focuses it without resetting
+its state; selecting a different scene navigates the existing Game Mock preview. Different tools remain independent.
+Closed previews can reopen; changing console tabs preserves references, while reloading the console starts a new
+set. Modified clicks and middle clicks keep the browser's explicit new-tab behavior. New previews have no opener
+access; blocked or inaccessible previews fall back to the ordinary isolated link. See [LOCAL-DEV.md](../LOCAL-DEV.md).
+
+Local host service controls (owner request, 2026-10-14): the console toolbar offers restart and shutdown with
+explicit confirmation that all matches and connections end. Only the authenticated localhost console accepts
+these actions. Update and service operations exclude each other; duplicate requests cannot spawn another server.
+Direct starts use a detached helper that waits for process exit and preserves game/admin ports and host. The
+bundled Windows task runner recognizes exit code 75 as an intentional shutdown. External supervisors own restart;
+shutdown is disabled unless configured to honor that exit code. Restart refreshes the console with its new token;
+shutdown leaves a persistent closed status. See [DEPLOY.md](../DEPLOY.md) and [LOCAL-DEV.md](../LOCAL-DEV.md).
+
+Local host live view (owner request, 2026-10-14): `/live` reuses the ordinary game UI with a read-only default
+and explicit control toggle. The console reads the selected player's public/private views, runs display-only battle
+replicas and sends allowlisted ordinary player intents through the existing match handler. It never claims a session,
+changes player watch preferences or submits battle results. Changed player state rejects stale intents. See
+[LOCAL-DEV.md](../LOCAL-DEV.md) §5 and [LOCAL-CHANGELOG.md](../LOCAL-CHANGELOG.md).
+
+Local host replay (owner request, 2026-10-14): completed Final Assault / Hidden Core recordings,
+including existing files, may be attempted after confirmation even across simulator versions. They lack live
+shared-pool and team-LP updates, so only the selected field is simulated, bounded by its recorded game duration.
+Always label these attempts as approximate; synthetic and unfinished results stay view-only. See
+[LOCAL-DEV.md](../LOCAL-DEV.md) §5 and [LOCAL-CHANGELOG.md](../LOCAL-CHANGELOG.md).
+**Operator skins (§34.23, [SKINS.md](../SKINS.md)).** [ASSUMED] Retain received skin IDs separately from displayed
+skins so the other-player switch restores loaded units when re-enabled, including boss prep partners. Any-phase
+`room.skins` refreshes owner/private and existing scout views; public seat choices update current battle rendering
+without restarting playback or changing the sim / BattleSpec. Resolve every surface's skin from the effective
+operator body (official `activity_table` `charShopChessDatas.backupCharId` for stand-ins, the pick for DIY slots).
+Outfits following that body and live refresh timing are cosmetic UI assumptions; gameplay and golden results stay unchanged.
+Installed skins reuse available local `seat-art` posters in the picker and enlarged preview. Asset generation resolves
+those optional files to URL strings; missing posters retain the upstream default-picture fallback.
+Stored skin selections are filtered per entry using the wire's ID validators before synchronization. Malformed pairs
+cannot reject valid choices for other operators; well-formed unavailable plugin choices remain stored.
+
+**Studio test console (0.3.1).**
+
+The maintainer's standalone battle sandbox is `/studio/console.html` (history §34.8; format and limits in
+[PLUGINS.md](../PLUGINS.md#test-console)). Its options/build API uses the existing local-network studio gate and key.
+The server validates and builds a vanilla BattleSpec using match wave/placement helpers; the browser's real sim and
+field view run it without rooms or result submissions. Editing resets to tick zero, runs start paused, stepping is
+one or thirty fixed ticks, speed is 0.25×–8×, and a hidden tab pauses. JSON saves the setup and seed; the last valid
+setup persists in this browser. Official/prep effects outside that single battle are named as unsupported.
+A full match is a separate host test room (history §34.8): the sandbox does not open one and does not send `g.test`.
+The lobby only offers creation when `welcome.testMode` is true. Joining/watching requires a test acknowledgement;
+recent room chips, room/briefing headers, HUD/watch views and settlement keep the test mark. The host dock sends
+validated commands and renders the public audit tail. Test results and quits never enter local history, awards,
+statistics or badges; the live marker latches until the match is cleared.
+
+`createFieldView(host, { …, playbackTime: () => gameSeconds })` optionally drives visual animation time from the
+caller's simulation clock, allowing exact pauses/steps in the console. Ordinary views omit it and retain their
+wall-clock/interpolation timing. Official effects still follow the snapshot clock; the console observes only its
+own renderer's loaded instances/procedural calls. These diagnostic counts depend on assets and rendering, never
+participate in simulation results, and are distinct from damage/heal totals. Match test commands are not part of this page.
+
 
 Bond-layer audio (#482): live own preparation gains arrive as `m.layer`; the displayed battle's `layer` tuples
 play the same `bondUp` cue. A gain of several layers plays once, including gains to inactive bonds. The official
@@ -60,7 +159,11 @@ view.setStage(stage)                         // draw tiles (procedural), devices
 view.setCamera(kind /* 'prep'|'normal'|'unite'|'boss' */, { rect, side, shop, ms })  // animates camera; shop: false = the
                                              //   folded shop's prep camera (official shop-collapsed framing, §21.27);
                                              //   ms overrides the flight duration — the shop fold / unfold zoom takes
-                                             //   the short FOLD_CAMERA_MS (render/app/tune.js, GitHub #602);
+                                             //   the short FOLD_CAMERA_MS (render/app/tune.js, GitHub #602).
+                                             //   设置「部署时收起商店」 (prepDeployFold, default on) is that zoom;
+                                             //   off, a pickup changes neither the shop fold nor the camera (§34.3).
+                                             //   Opening 敌方情报 during a held drag leaves that one-shot restore owed
+                                             //   until the pen closes [ASSUMED] (§34.3).
                                              //   'pen' pans to the enemy preview pen in 0.25 s (see below)
 view.setPrep(privateState, { editable })     // render hand/temp/board pieces as chibis (spine or fallback); editable enables drag;
                                              //   a merge's new elite on the board plays fx.promote instead of fx.deploy (render/promote.js, §20.11),
@@ -110,7 +213,8 @@ history and the open points: DESIGN §32.14.25.
 - **Simulation.** `psys.js` interprets Unity's ParticleSystem: the main module, emission (rate over time and distance,
   bursts with cycles and probability), the shapes, velocity / limit velocity / force / inherit velocity / noise /
   rotation / size / colour over lifetime and by speed, texture sheets, trails, sub-emitters, prewarm, start delay,
-  simulation spaces and scaling modes, in fixed sub-steps of at most 1/30 s with a seeded generator. `clips.js` samples
+  simulation spaces and scaling modes (a particle's size × the scaling mode's scale per axis, a local-space one's as it
+  is now: DESIGN §33.5), in fixed sub-steps of at most 1/30 s with a seeded generator. `clips.js` samples
   the prefabs' clips (transforms, active flags, material, renderer and system properties). `effect.js Effect` runs the
   hierarchy and the behaviours: ParticleEffect (delays, loop and stop fade, max lifetime, direction helpers, spawn
   location), ProjectileEffect, FxDelay, FxUVTweener(Advance), FxUVRotation, FxLODSetting, FollowMountPoint /
@@ -169,9 +273,13 @@ history and the open points: DESIGN §32.14.25.
   HeadPoint, Special points; front / back skeleton, mirrored for a unit facing left) at the unit's feet — a point a
   BoneFollower keeps on a Spine bone where the model draws that bone (`UnitView.boneOffset`) —; an effect with a
   FollowMountPoint follows its point, a weapon effect (and a MUZZLE_POINT / Special-point spawn) with the point's
-  rotation; a mode's facing variant plays for the unit's facing (DESIGN §32.14.36). An effect played before its prefab
-  loaded is placed by index.json's summary (`prefabs[key].spawn`, its FollowMountPoint's `follow` point from the first
-  frame) and takes up its rotation, direction and pause behaviours once loaded (round 46).
+  rotation; a mode's facing variant plays for the unit's facing (DESIGN §32.14.36). A prefab root's authored position is
+  dropped and its rotation is the spawn location's — the unit's Graphic tilt at FOOT / HIT / HEAD (`mounts.js
+  spawnRotation`, `graphicRotation`), none at MUZZLE_POINT_WITHOUT_ROTATION, NONE, the ground spawns and a point of the
+  ground — so an effect authored standing stands facing the camera (荒芜拉普兰德 S3's seal, 能天使 S3's light bars); a shot
+  whose movement comes back (跃跃's boomerang) flies back to the thrower's HitPoint after its hit (DESIGN §34.6). An
+  effect played before its prefab loaded is placed by index.json's summary (`prefabs[key].spawn`, its FollowMountPoint's
+  `follow` point from the first frame) and takes up its rotation, direction and pause behaviours once loaded (round 46).
 - **Skills** (0.3.0 Phase 3b – 3d, `skillfx.js SkillFx`, owned by the wiring; the plans of `skills.js`, DESIGN §33.12
   and §33.16). A battle unit resolves once to its official skill and plan (its data record: `ctx.lookupDef`) and its
   秘术师 charge plan. ['skill', id, 1] plays the plan's `start` and `range` and starts its `loop` (held for the skill:
@@ -187,7 +295,7 @@ history and the open points: DESIGN §32.14.25.
   no hit), its own projectile for a ranged one —, else its `each` rows join the mode's; the buffs of its attacks loop
   on their targets for the blackboard's duration (a status loop of the same key takes over); `trigger` plays on the
   owner's damage (once a frame). An instant skill whose kit made no attack between 1 and 0 plays its attack's cast
-  once. 深靛's stored energies (b.snap `energy`, sent whatever 设置「秘术师能量」 says): each store plays its one-shot and
+  once. 深靛's stored energies (b.snap `energy`, sent whatever 设置「显示弹药与能量数量」 says): each store plays its one-shot and
   lights the next slot's loop at its Special point; an attack flies one projectile per stored energy from its slot
   beside the shot (the sim's 1 + n hits) and the slots go dark; a death or redeploy dims them. When the official layer
   shows a skill, its procedural activation burst and aura are not drawn, and neither are the kit 'fx' it stands for
@@ -243,7 +351,15 @@ history and the open points: DESIGN §32.14.25.
   extraction (`tools/local-extract`), served to every player of that server: a remote player sees the host's effects,
   whatever client they have. The effects draw on the 3D board with WebGL2 only; the 2D board and the simplified board
   keep the procedural effects. A tier switch clears the effects; the skill loops that should run start again quietly.
-- **Dev.** `public/dev/fx-viewer.html` plays any effect key (`?key=`, on a unit's mount points with `&unit=`;
+- **Plugin effects** (0.3.1, [§34.18](../history/0.3.1.md#3418-plugin-operator-effects)). Explicit `fx.unit` requires
+  an exact index key for both skills and attack/talent wiring; a miss skips `fx.skills` and keeps the old fallback.
+  [ASSUMED] Borrowed talents use the borrower's equipped indices and active module. Author flipbooks draw on both
+  boards; compiled prefabs remain 3D-only. The browser rechecks unit ownership and prefab bodies before merge.
+  [ASSUMED] Only an identified source whose custom hit draws replaces that damage spark: ranged arrivals are
+  estimated and cannot claim source-less damage on the target. Owner/target death cancels pending arrivals.
+  Replacing the visual set or destroying the player releases flipbook base textures after their sprites.
+- **Dev.** `public/dev/fx-viewer.html` plays any effect key (`?key=`, on a unit's mount points with `&unit=`, turned as
+  the wiring turns it for its spawn location;
   `?attack=<unit id>` repeats that unit's attack from index.json through the wiring; `?skilldemo=<unit id>&s=<slot>`
   cycles its skill through the wiring — on, an attack a second, off — with `&instant=1`, `&passive=1`, `&charge=<n>`,
   `&ready=1`, `&hits=<n>` (damage events per blow: a MultiHit attack's groups); an enemy's opens its window with the
@@ -259,9 +375,11 @@ history and the open points: DESIGN §32.14.25.
 
 Look & feel: research 06 §11–§12 (near-black green-grey panels, mint `#4ed8af` accents, gold prices, bracket frames, hexagon badges, bond discs, 7-segment countdown). Fonts: Noto Sans SC (Google Fonts with local fallback), Bender/Novecento self-hosted for numerals and Latin micro-labels.
 
-Screens: **Title** (season art backdrop, 开始 → nickname), **Lobby** (独立模拟 / 同盟模拟 → create or join; recent rooms; a 设置 button left of 玩法说明 opens the title screen's settings dialog, GitHub #238), **Room** (4 seats, invite code + copy link, difficulty picker (host), the co-op 「AI 队友最后选择」 switch (host, off by default; read-only for the others), add/remove AI, ready, start; the same 设置 button), **Briefing** (INFO_CHECK: stage, factions, disabled bonds, banned chess, boss silhouette, ready x/4), **Band draft** (grid of 40 bands with icon/name/LP/effect; turn order list; skip; 查看禁用盟约与干员 under the order list opens the briefing's bond rows, legend and banned operators again in a read-only dialog — one component, `ui/matchInfo.js`, §21.28), **Game** (Pixi field + DOM HUD: top bar with round/phase capsule (the kill counter reads 已解决 / the round's own enemies: a leak counts, a split child or summon is in neither number, §14)/LP (live during the own battle, §17.5)/timer/ready, and beside the latency a 观战席 capsule (eye + count, a roster with the host's ✕) while the room has spectators (GitHub #120); bond strip + popups; left team panel with LP/status/emote bubbles, click to watch (a boss round frames the viewer's pair in green, §15); bottom shop bar (level card, 3–5 chess cards — a slot the upgrade just opened is a bare frame until the next refresh, GitHub #332 —, item card, funds, refresh, freeze, collapse; 准备就绪 folds it and cancelling unfolds it, GitHub #138; picking up a piece on the own prep board — 部署干员 / 装备 / reposition, and a legal drop's direction wheel — folds it and zooms to the shop-collapsed prep camera for the interaction's duration, then restores the player's own fold state (the drag never writes it), GitHub #602); detail panel on click/hover (header with bonds, then 特质 — the operator's own effect — right under it, 特性, stats (live: the battle's own numbers / the start-of-battle ones in prep, §18.5), skill, module, equipped items, talents: §17.5); enemy preview drawer (next round enemies with counts, factions; its 本局信息 tab lists the briefing's disabled bonds and banned operators, §21.28); 机变 overlay (the official card: framed icon + name, the effect text — data `descRaw` — under it, the taker's round avatar at the top-right; two taps, §18.2, §20.7); merge reward overlay (the promotion reward, or a special offer — 凯瑟琳's 定向投放 … — as item / chess cards under its source's label, with the count of offers queued behind it, §21.2); phase banners; the round's result box at SETTLE (the official 「作战结束」 + 「全员无伤！」 / 「生命值减少 −N」 for the viewer's own LP — after a 联防 the server's charge, `m.public.uniteResult.losses` — with the matching BATTLEOVER sound; none in the boss rounds or for a viewer not in the round; GitHub #235, PR #112); ticker (by broadcast priority, highest first; a leader-damage line plays only in its round and a player's newer one replaces the older, §21.10); toasts; emote wheel; settings (volume, quality, show damage numbers, the optional ammo count)), **Result** (victory/defeat, rounds, per-player lineup, stats, titles, back to room).
+Screens: **Title** (season art backdrop, 开始 → nickname), **Lobby** (独立模拟 / 同盟模拟 → create or join; recent rooms; a 设置 button left of 玩法说明 opens the title screen's settings dialog, GitHub #238; the top bar's S.W.E.E.P. opens the read-only **S.W.E.E.P.报告** — `screens/sweep.js`, a full-screen `Modal`: 盟约报告 / 策略报告 / 敌方资料 after the event's report screen, and the enemy codex whose per-stat letter grades are the official handbook bands, factions.json `handbookLevels` from enemy_handbook_table `levelInfoList`, the enemy's own number beside each), **Room** (4 seats, invite code + copy link, difficulty picker (host), the co-op 「AI 队友最后选择」 switch (host, off by default; read-only for the others), add/remove AI, ready, start; the same 设置 button), **Briefing** (INFO_CHECK: stage, factions, disabled bonds, banned chess, boss silhouette, ready x/4), **Band draft** (the official 请选择策略 band when the pick becomes the player's, co-op, `ui/turnBanner.js`; grid of 40 bands with icon/name/LP/effect; turn order list; skip; 查看禁用盟约与干员 under the order list opens the briefing's bond rows, legend and banned operators again in a read-only dialog — one component, `ui/matchInfo.js`, §21.28), **协议启动！** (BATTLE_CHECK: the official battleReady/* boot screen — the Rhodes Island ship zooming in, a card per doctor with lines into it, 协议启动！ — once its sprites are loaded, else the 协议启动 banner; `ui/protocolBoot.js`), **Game** (Pixi field + DOM HUD: top bar with round/phase capsule (the kill counter reads 已解决 / the round's own enemies: a leak counts, a split child or summon is in neither number, §14; at each phase change the capsule plays a 2–3 s scene of the official hudPanel/trans_* sprites — kettles at 回合开始, the robot meeting the enemy at 作战 / 联防 — none with reduced motion or without the art pack, `ui/hud.js` capsuleFxKind)/LP (live during the own battle, §17.5)/timer/ready, and beside the latency a 观战席 capsule (eye + count, a roster with the host's ✕) while the room has spectators (GitHub #120); bond strip + popups; left team panel with LP/status/emote bubbles, click to watch (a boss round frames the viewer's pair in green, §15); bottom shop bar (level card, 3–5 chess cards — a slot the upgrade just opened is a bare frame until the next refresh, GitHub #332 —, item card, funds, refresh, freeze, collapse; 准备就绪 folds it and cancelling unfolds it, GitHub #138; picking up a piece on the own prep board — 部署干员 / 装备 / reposition, and a legal drop's direction wheel — folds it and zooms to the shop-collapsed prep camera for the interaction's duration, then restores the player's own fold state (the drag never writes it), GitHub #602); detail panel on click/hover (header with bonds, then 特质 — the operator's own effect — right under it, 特性, stats (live: the battle's own numbers / the start-of-battle ones in prep, §18.5), skill, module, equipped items, talents: §17.5); enemy preview drawer (next round enemies with counts, factions; its 本局信息 tab lists the briefing's disabled bonds and banned operators, §21.28); 机变 overlay (the official 悬赏决策 look, the event's video 9:59 – 10:16: the header 「name | description」 over the timing line, the player deciding or 当前轮到你决策 and the countdown at the right — the pick order is no list of its own but a ✓ (picked) / ••• (deciding) on the team panel's portraits, `choiceOverlay.js spMarks`; the official card: a charcoal card in a light frame, framed icon + name, the effect text — data `descRaw` — under it, the taker's round avatar on the top-right corner, a taken card flat grey; two taps — the armed card in a white frame with a ☑ 确认选择 strip, §18.2, §20.7; when a shared draft's pick comes round to the player the official 轮到你选 disc — effectChoose/* sprites, `ui/turnPopup.js` — pops over it for 1.2 s with the 轮到你 sound, none without the art pack or with reduced motion); merge reward overlay (the promotion reward, or a special offer — 凯瑟琳's 定向投放 … — as item / chess cards under its source's label, with the count of offers queued behind it, §21.2); phase banners, and the official round plate at 回合开始 (`ui/matchPopups.js`, the `roundStartDialog` sprites: the robot · 回合 NN · 获得 +N, the income as m.private.funds rose since the phase before; a watcher — eliminated or a spectator seat — gets 观战中 under it and no 获得, GitHub #236; the 剩余 N 回合 strip from three rounds before the final assault; inside 回合开始's 2 s) and, for 联防, the same plate in orange with the official 联防 faces (`hudPanel/trans_coop4` / `trans_coop3`) and the banner's words; and, once their official art is in, 最终攻势 opens with the merged-LP plate and 隐秘核心 with 隐秘核心已解锁, and the run's end (击败了全部领袖！ / 未能击破隐秘核心 / 模拟中断) shows inside the server's pause before RESULT, never delaying it (`ui/bossPlates.js`); the round's result box at SETTLE (the official 「作战结束」 + 「全员无伤！」 / 「生命值减少 −N」 for the viewer's own LP — after a 联防 the server's charge, `m.public.uniteResult.losses` — with the matching BATTLEOVER sound; none in the boss rounds or for a viewer not in the round; GitHub #235, PR #112); ticker (by broadcast priority, highest first; a leader-damage line plays only in its round and a player's newer one replaces the older, §21.10); toasts; the 协议已失效 dialog when the player's own LP runs out while the team plays on (the project's Modal over the official map, an original pixel face — no sprite exists —, 继续观战 / 离开模拟; `ui/downedPlate.js`); emote wheel; settings (volume, quality, show damage numbers, the optional ammo count)), **Result** (the official settlement flow in the official `settle/*` art, each sprite with a text / CSS fallback, `screens/settle.js`: a radar intro; 个人战报 — the viewer's own outcome (模拟完成 / 模拟中断), rounds, leader medals, the ten lineup slots, bonds, trophies and the level settlement against the official 60 cumulative 卫戍认证 levels (`config.rewards.milestones`) with 每日防卫目标 (`config.rewards.daily`), counted from this device's official records [ASSUMED]; 同盟 — a card per seat, the team's rounds, time and date, the 「非官方」 mark and the `result.tab` plugin slot, 数据详情 = the full report `screens/result.js ResultView` (victory/defeat, rounds, per-player lineup, stats, titles), back to room; a spectator opens on 同盟).
 
 盟约栏支持「收起／展开盟约」（GitHub #142）：收起时隐藏完整列表并关闭由列表打开的浮层，让原图标区域的指针事件到达棋盘，只保留至少 44×44 CSS px 的恢复按钮。折叠状态在本局阶段变化、观看队友时保留；展开后仍按当前观看对象显示最新盟约。按钮支持 Enter / Space，聚焦按钮时 Space 不触发准备或暂停。
+
+禁用干员按所属盟约分组显示（GitHub #484 的分组建议）：开局简报、策略选择的本局信息弹窗和局内本局信息共用 `matchInfoModel.bannedGroups` / `BannedOperatorGroups`。组顺序沿用盟约的 `bondOrder`、`identifier`，组内按阶级排列；成员取 `visibleMembers` 与本局 `bannedChess` 的交集，只显示非空组。多盟约干员在每个所属组显示，各组显示人数，总数仍按干员计算；有重复展示时说明总数不重复计算。缺少盟约成员数据的已知禁用干员归入「其他」，不丢失。自选禁用提示独立保留，局内头像仍可点击打开详情。
 
 A bond the mode never activates (标准: official `inactiveBondIdList`) reads 本局禁用 on shop / reward cards (struck through), detail chips and the popup — no 在场 count, no 当前效果 (§21.7); a strategy built around one carries a 本局禁用 tag and note in the strategy draft and stays selectable (bands.json `bondIds`, §21.26).
 
@@ -276,7 +394,7 @@ its board-space position and facing, including on a mirrored boss half. They can
 from this preview. The inspection affordance does not make the preview a combat unit; the battle sim still creates
 the selected variant at battle start (§30.22).
 
-Audio: autochess BGM per phase, UI SFX (buy/sell/refresh/level/merge/ready/timer), a prep piece's landing sound (its battle deploy sound, once per landing, in landing voices of its own that take over the oldest, §31.8), per-unit attack/hit SFX (throttled; an impact plays for a hostile attack's phys / arts / true damage only, never an operator's skill-mode file for a normal attack, ≤ 2 copies of one battle sound — §18.4; a skill cue that reaches the client before its unit — the sim emits a deploy-tick cast ahead of the unit's `['spawn']` — is held and sounds once when the unit is tracked, `AudioManager.pendingSkill`, GitHub PR #292 by @LimitlessHPPK; entering a field late hands the sound the buffered `spawn` tuples only, `screens/game/early.js audioEarly`, so no old death, deploy or cast replays), boss music in R14/15. While the music is silent — muted, or the BGM volume at 0 — no BGM is downloaded: the track the screen wants is remembered, a different one still playing stops, and the wanted track is fetched once the music is audible again (`AudioManager.bgmSilent`; about 14 MB a match for a player who turned the music off).
+Audio: autochess BGM per phase, UI SFX (buy/sell/refresh/level/merge/ready/timer), a prep piece's landing sound (its battle deploy sound, once per landing, in landing voices of its own that take over the oldest, §31.8), per-unit attack/hit SFX (throttled; an impact plays for a hostile attack's phys / arts / true damage only, never an operator's skill-mode file for a normal attack; each bank's own instance limit, pitch and delay — §34.25; a skill cue that reaches the client before its unit — the sim emits a deploy-tick cast ahead of the unit's `['spawn']` — is held and sounds once when the unit is tracked, `AudioManager.pendingSkill`, GitHub PR #292 by @LimitlessHPPK; entering a field late hands the sound the buffered `spawn` tuples only, `screens/game/early.js audioEarly`, so no old death, deploy or cast replays), boss music in R14/15. While the music is silent — muted, or the BGM volume at 0 — no BGM is downloaded: the track the screen wants is remembered, a different one still playing stops, and the wanted track is fetched once the music is audible again (`AudioManager.bgmSilent`; about 14 MB a match for a player who turned the music off).
 
 ---
 
@@ -293,7 +411,7 @@ HTTPS or localhost. Files already imported are not requested again. See [ASSETS.
 
 `tools/local-extract/extract.py` (Python: UnityPy + lz4 + Pillow; decodes Arknights' custom **LZ4AK** bundle compression via `aklz4.py`) extracts the art the web download does not include (some of it, most official HUD sprites among it, is on the public mirror too — §22.5) from a locally installed client (CrossOver Windows build or PlayCover iOS build) into `public/assets/local/**` and writes `data/local-assets.json` (`{ groups: { '<subdir>': { name: { path, w, h, kind } } } }`). Everything here is **optional**: clients must render correctly when the file or any entry is missing (fall back to the web assets / procedural art). The emotes and the guide pages below are on the public mirror too (§22.5): fetch-assets downloads them (data/assets.json `ui['emoticon/<dir>/<picId>']`, `ui['guide/<key>']`) and the client shows the local copy first, then that one (`data.js artUrls`); docs/DEPLOY.md §6 lists what still needs the client.
 - `map/autochess/TX_autochessi_*` — the real autochess board atlas (`_D` diffuse 2048² with floor tiles, gold-framed high-ground plates, REINFORCEMENTS bench pads, EQUIPMENTS pads, crates, gates; `_N/_M/_E` normal/mask/emission; `common_D` device icons; `BG` backdrop). `map/autochesssand/*` — the textures and materials of the sand theme (the theme of nine of the eleven battlefield scenes, §15).
-- `scene/<stageId>/` and `scene/tex/` — the official scene of a battlefield (§15 "Official battlefield scenes", DESIGN §30.21): `scene.json` (materials, key light, chunk records), `scene.bin` (the meshes in board space), the lightmap pages `lm<i>`, the reflection atlas `env`, and the materials' albedo, normal and metallic-gloss textures shared by the scenes. Read from the scene bundles `scenes/activities/<season>/level_<stage>/…`, which the client carries only while the season runs: `extract.py --only scene` takes them from the client or from `--scenes <dir>` / `.cache/official-scenes/*` (`tools/local-extract/fetch_scenes.py` downloads them from the official CDN's in-season version). The 0.2.5 full release zip includes the extracted files when the maintainer extracted them before packaging; a lite zip and a source install may fetch and extract them (`node tools/setup.mjs --scenes`). The repository never stores the bundles or the extracted files.
+- `scene/<stageId>/` and `scene/tex/` — the official scene of a battlefield (§15 "Official battlefield scenes", DESIGN §30.21): `scene.json` (materials, key light, chunk records), `scene.bin` (the meshes in board space), the lightmap pages `lm<i>`, the reflection atlas `env`, and the materials' albedo, normal, metallic-gloss and emission textures shared by the scenes. Normal, metallic-gloss and emission WebP copies are lossless (emission is exported only when `_EMISSION` is on); albedo and lightmaps stay lossy. `env` stays PNG. Read from the scene bundles `scenes/activities/<season>/level_<stage>/…`, which the client carries only while the season runs: `extract.py --only scene` takes them from the client or from `--scenes <dir>` / `.cache/official-scenes/*` (`tools/local-extract/fetch_scenes.py` downloads them from the official CDN's in-season version). The 0.2.5 full release zip includes the extracted files when the maintainer extracted them before packaging; a lite zip and a source install may fetch and extract them (`node tools/setup.mjs --scenes`). The repository never stores the bundles or the extracted files.
 - `ui/{common,battle,outer}/*` — every sprite of the three official autochess UI bundles (tier chips I–VI, bond disc rings, frames, banners, HUD pieces, badges, backgrounds, mode art).
 - `emoticon/<dir>/<picId>.png` — the 36 official battle emotes, 6 themes (`shared/constants.js → EMOTE_THEMES / EMOTES`, `emoteArtPath`; data/emotes.json); also downloaded from the mirror (§22.5).
 - `guide/autochess_{home,shop,handbook}_N.png` — the 19 official tutorial pages; stored squashed to 1024² — **display at 16:9** (the mirror copies too, §22.5). `extract.py` writes a WebP copy (lossy, quality 90) beside each page and the manifest lists the copy (`GUIDE_WEBP_MODE`; 25.6 MB → 4.2 MB); the viewer preloads only the next page (`ui/guide.js guidePreloadUrl`), not the previous one too.
@@ -310,7 +428,28 @@ Findings (2026-09-28): 卫戍协议 levels have no scene bundle (`mapId` null; t
 
 Correction (2026-10-11, GitHub #532; PR #533 by @andrew05060414): the first finding above was made off season and is wrong. While a season runs, the official hot-update list carries **one prebuilt scene per battlefield** — `scenes/activities/act1autochess/level_act1autochess_m01…m07` and `scenes/activities/act2autochess/level_act2autochess_m01…m04` (each with `…/lightingdata.ab` and `…_lighting_settings.ab`; Android versions `25-11-21-15-21-44_ee1197`, `26-03-13-06-11-47_14fb99`, `26-04-13-12-31-42_e9b560`); the lists of 2026-09-13 and 2026-10-08 have none, and no 卫戍协议 level data either. The asset index of those versions (`<hash>.idx`: each bundle's dependencies) gives each scene's art: act1 m01–m07 and act2 m02 / m04 depend on `arts/maps/map_autochesssand` (m05 and act2 m04 also on `map_doss_shore`), act2 m01 on `map_lakegarden` + `map_syracuse_metro`, act2 m03 on `map_kxmr` + `map_lm_center`. **No battlefield scene depends on `arts/maps/map_autochess`** (the metal theme the procedural board below draws; in the current client the 矢量突破 scenes `act3break` use it). A scene holds the logic tiles (`(row,col)#tileKey` at anchor-local (col, row, −height), high ground 0.4), the art under `GraphicHolder` (static parts merged into "Combined Mesh (root: scene)" objects, lightmapped: Shadowmask mode, one directional key light), and three sub-graphics `HIDDEN@1…3` (`MapSubGraphicHolder`) that the game switches on: the left normal field, the right normal field and the boss field — the areas of `layout.js AREAS`.
 
-Official battlefield scenes (`board3d/load.js loadScenePack`, `scene.js setScenePack`, `materials.js sceneMaterial`): when `data/local-assets.json` lists `scene/<stageId>`, the 3D board draws that scene instead of the procedural tiles, cliffs and background plane; the devices, gate / objective boxes, field edges and terrain overlays stay as below, and so do the device slabs — 射击台, 特制水上平台, 封印的地面 (`layout.js buckets.raised`, their sides reaching 0.08 under the scene's ground): they are runtime devices the scenes do not contain, while the scenes do model the 'h' high ground (act2 m01 / m02), which is not repeated (0.2.6, GitHub #569). The 射击台 is drawn as the official model on both boards when the local art has it (0.3.0, round 40, DESIGN §32.14.10): `trap_1106_achplat` of the 卫戍协议 device bundle `arts/maps/common/trap/trap_110.ab` (extracted to `mesh/trap_110`: the mesh at its prefab scale 0.01 — 1.05 tiles square, 0.465 high — its texture and its material), lit by `materials.js trapMaterial` (`Torappu/Scene/Trap/Shadow`: albedo × (`_Ambient` 0.895 + `_Diffuse` 0.197 · N·L) in display values, with an official scene's own key light; **[ASSUMED]** the formula, from the material's parameters, and no realtime shadow on the model); units stand on its top (`style.js TILE_H.platform` 0.465, on the 2D board too); without the model the slab of that height stays. The base part is always drawn; a `HIDDEN@n` part is drawn when its centre lies in one of the built areas. Chunks of those shown parts that share a material and a lightmap page are one mesh when the area is built (`load.js mergeSceneChunks`); water shares a mesh across pages because its shader has no lightmap. A switched-off part stays out of that mesh. Without the scene (not extracted, a load failure, an unknown `version`) the procedural metal board is drawn as before. The lit materials follow the official GLES program of `Torappu/Scene/StandardRealtimeShadow` (`shaders/standardrealtimeshadow.ab` of the in-season Android version, read 2026-10-12; `materials.js SCENE_LIGHT` has the formula): Unity's mobile Standard BRDF in display (gamma) values — the diffuse colour albedo × 0.779 · (1 − metallic) lit by the lightmap's baked light and by the key light · N·L · the baked shadow mask, the key light's specular highlight, and the reflection of the scene's default reflection cubemap by roughness and Fresnel (from 0.221), with N bent by the normal map, clamped to 1. The client is in gamma colour space: its PlayerSettings give gamma colour space (`m_ActiveColorSpace` 0) and an LDR camera, the scene's key light is Mixed / Shadowmask, and the lightmap pages are RGBM (`m_LightmapFormat` 2), which Unity reads there as 5 · A · RGB. Not drawn: emission maps, the units' realtime shadow map (`_ShadowStrength` scales only that one; the baked shadow is used whole), the vertex-colour blend (`_HG_VERTEX_COLOR_BLEND_ON`; **[ASSUMED]** read as a tile buried in sand that the client uncovers at run time by a rule not found yet — drawn as the program writes it, it covers every patterned tile of the field), the sky box, the map effects (`mapeff_*`) and the post-processing profile are not drawn; water is described below (0.3.0, GitHub #549; DESIGN §32.14.6); crates cast no shadow on a scene. `SCENE_LIGHT` `direct` 1 and `indirect` 1 are the scene's own light values (no tuning); `scenes.py decode_rgbm` writes the pages as 5 · A · RGB / `lightRange` (3.0) and marks scene.json `lightEncoding: 'gamma'`; **[ASSUMED]** a scene extracted before that (no `lightEncoding`: pages in the earlier linear reading, range 8) still draws through an approximate read-back in the shader (`SCENE_LM_V1`: within a few percent, bright), exact only after it is extracted again. Correction (2026-10-12, DESIGN §32.14.2): 0.2.5 added the two terms in linear light with gains 0.8 / 0.4 tuned by eye, which came out about half as bright as the client; 0.2.6 set both gains to 1, still in linear light (GitHub #549, PR #554 by @xcdoge); the sum is now made in display values as the client does. Measured against 0.2.5 (sand of 战场 act2autochess_m02: 97 against the client's ≈ 183 of 255; with the client's sum 196, and 170 under the focus falloff kept below). `scenes.py` writes each scene's default reflection cubemap decoded as the atlas `env.png` (scene.json `env`: size, mips, range; RGBM read as 5 · A · RGB × the scene's reflection intensity, the client's own pre-filtered mips) and the materials' normal (`normal_rgb`) and metallic-gloss maps to `scene/tex`; **[ASSUMED]** the tangent frame comes from screen-space derivatives, t along +u and b along +v, the bump's sign not checked against the client surface by surface (scene.bin has no tangents). A scene extracted before the atlas (no `env`) draws the plain sum albedo × (lightmap + key light · N·L · shadow), within about 10 % of the full formula. Measured on act2autochess_m02 (prep camera, 0–255; the client's screenshot in brackets, another framing): light stone tiles 186 (186), planks 203 (206), sand outside the field 164 under the focus falloff kept below (183). **[ASSUMED]** `SCENE_LIGHT.ambient` 0.5 (a mesh without a lightmap page); one reflection cubemap per scene, chosen at the board's anchor — the baked cubemap of the ReflectionProbe whose box holds the board at the probe's intensity (act2autochess_m01 / m03), else the scene's default reflection (scene.json `env.source`); a renderer outside the probe's box and the blend at its edge are not reproduced. The vertex-colour blend is, in that program, `mix(albedo, _BlendColor, smoothstep(_BlendRangeCtrl.x, _BlendRangeCtrl.y, colour.r) · _BlendStrength)` with the geometric normal — a tile buried in sand; it is not drawn because the meshes carry colour.r = 1 on tiles the client shows uncovered (which tiles the client uncovers, and when, is not known yet); the focus falloff outside the lit field rect also dims the scene (`uFocusDim` 0.72) — the client shows no such falloff, the owner chose to keep it (2026-10-12). Owner decision (2026-10-12): these extracted files belong to the 0.2.5 asset pack and may ship in the full release zip; a lite package or a source install may download and extract them on that machine. Missing extractor dependencies keep the metal board. The repository still never stores the official files.
+Official battlefield scenes (`board3d/load.js loadScenePack`, `scene.js setScenePack`, `materials.js sceneMaterial`): when `data/local-assets.json` lists `scene/<stageId>`, the 3D board draws that scene instead of the procedural tiles, cliffs and background plane; the devices, gate / objective boxes, field edges and terrain overlays stay as below, and so do the device slabs — 射击台, 特制水上平台, 封印的地面 (`layout.js buckets.raised`, their sides reaching 0.08 under the scene's ground): they are runtime devices the scenes do not contain, while the scenes do model the 'h' high ground (act2 m01 / m02), which is not repeated (0.2.6, GitHub #569). The 射击台 is drawn as the official model on both boards when the local art has it (0.3.0, round 40, DESIGN §32.14.10): `trap_1106_achplat` of the 卫戍协议 device bundle `arts/maps/common/trap/trap_110.ab` (extracted to `mesh/trap_110`: the mesh at its prefab scale 0.01 — 1.05 tiles square, 0.465 high — its texture and its material), lit by `materials.js trapMaterial` (`Torappu/Scene/Trap/Shadow`: albedo × (`_Ambient` 0.895 + `_Diffuse` 0.197 · N·L) in display values, with an official scene's own key light; **[ASSUMED]** the formula, from the material's parameters, and no realtime shadow on the model); units stand on its top (`style.js TILE_H.platform` 0.465, on the 2D board too); without the model the slab of that height stays. The base part is always drawn; a `HIDDEN@n` part is drawn when its centre lies in one of the built areas. Chunks of those shown parts that share a material and a lightmap page are one mesh when the area is built (`load.js mergeSceneChunks`); water shares a mesh across pages because its shader has no lightmap. A switched-off part stays out of that mesh. Without the scene (not extracted, a load failure, an unknown `version`) the procedural metal board is drawn as before. The lit materials follow the official GLES program of `Torappu/Scene/StandardRealtimeShadow` (`shaders/standardrealtimeshadow.ab` of the in-season Android version, read 2026-10-12; `materials.js SCENE_LIGHT` has the formula): Unity's mobile Standard BRDF in display (gamma) values — the diffuse colour albedo × 0.779 · (1 − metallic) lit by the lightmap's baked light and by the key light · N·L · the baked shadow mask, the key light's specular highlight, and the reflection of the scene's default reflection cubemap by roughness and Fresnel (from 0.221), with N bent by the normal map, clamped to 1. The client is in gamma colour space: its PlayerSettings give gamma colour space (`m_ActiveColorSpace` 0) and an LDR camera, the scene's key light is Mixed / Shadowmask, and the lightmap pages are RGBM (`m_LightmapFormat` 2), which Unity reads there as 5 · A · RGB. Emission is added after that sum when `_EMISSION` is on and `emissionMap` loaded: `toDisplay(texture(_EmissionMap)) * _EmissionColor.rgb`, the same term at the end of `Torappu/Scene/StandardRealtimeShadow` and `Torappu/Scene/Standard` (Android `26-04-13-12-31-42_e9b560`, the normal set and the cutout set). A map without the keyword (`MT_Syracuse_metro_floor`) stays unlit. Not drawn: the units' realtime shadow map (`_ShadowStrength` scales only that one; the baked shadow is used whole), the vertex-colour blend (`_HG_VERTEX_COLOR_BLEND_ON`; **[ASSUMED]** read as a tile buried in sand that the client uncovers at run time by a rule not found yet — drawn as the program writes it, it covers every patterned tile of the field), the sky box, the map effects (`mapeff_*`) and the post-processing profile are not drawn; water is described below (0.3.0, GitHub #549; DESIGN §32.14.6); crates cast no shadow on a scene. `SCENE_LIGHT` `direct` 1 and `indirect` 1 are the scene's own light values (no tuning); `scenes.py decode_rgbm` writes the pages as 5 · A · RGB / `lightRange` (3.0) and marks scene.json `lightEncoding: 'gamma'`; **[ASSUMED]** a scene extracted before that (no `lightEncoding`: pages in the earlier linear reading, range 8) still draws through an approximate read-back in the shader (`SCENE_LM_V1`: within a few percent, bright), exact only after it is extracted again. Correction (2026-10-12, DESIGN §32.14.2): 0.2.5 added the two terms in linear light with gains 0.8 / 0.4 tuned by eye, which came out about half as bright as the client; 0.2.6 set both gains to 1, still in linear light (GitHub #549, PR #554 by @xcdoge); the sum is now made in display values as the client does. Measured against 0.2.5 (sand of 战场 act2autochess_m02: 97 against the client's ≈ 183 of 255; with the client's sum 196, and 170 under the focus falloff kept below). `scenes.py` writes each scene's default reflection cubemap decoded as the atlas `env.png` (scene.json `env`: size, mips, range; RGBM read as 5 · A · RGB × the scene's reflection intensity, the client's own pre-filtered mips) and the materials' normal (`normal_rgb`, lossless WebP), metallic-gloss (lossless WebP) and, only when `_EMISSION` is on, emission map (lossless WebP, like the normal and metallic-gloss maps) to `scene/tex`; **[ASSUMED]** the tangent frame comes from screen-space derivatives, t along +u and b along +v, the bump's sign not checked against the client surface by surface (scene.bin has no tangents). A scene extracted before the atlas (no `env`) draws the plain sum albedo × (lightmap + key light · N·L · shadow), within about 10 % of the full formula. Measured on act2autochess_m02 (prep camera, 0–255; the client's screenshot in brackets, another framing): light stone tiles 186 (186), planks 203 (206), sand outside the field 164 under the focus falloff kept below (183). **[ASSUMED]** `SCENE_LIGHT.ambient` 0.5 (a mesh without a lightmap page); one reflection cubemap per scene, chosen at the board's anchor — the baked cubemap of the ReflectionProbe whose box holds the board at the probe's intensity (act2autochess_m01 / m03), else the scene's default reflection (scene.json `env.source`); a renderer outside the probe's box and the blend at its edge are not reproduced. The vertex-colour blend is, in that program, `mix(albedo, _BlendColor, smoothstep(_BlendRangeCtrl.x, _BlendRangeCtrl.y, colour.r) · _BlendStrength)` with the geometric normal — a tile buried in sand; it is not drawn because the meshes carry colour.r = 1 on tiles the client shows uncovered (which tiles the client uncovers, and when, is not known yet); the focus falloff outside the lit field rect also dims the scene (`uFocusDim` 0.72) — the client shows no such falloff, the owner chose to keep it (2026-10-12). Owner decision (2026-10-12): these extracted files belong to the 0.2.5 asset pack and may ship in the full release zip; a lite package or a source install may download and extract them on that machine. Missing extractor dependencies keep the metal board. The repository still never stores the official files.
+
+**[ASSUMED]** Source-scene correction (maintainer decision, 2026-10-17; GitHub #684, DESIGN §34.24): extractor
+version 4 drops only complete duplicate renderers, keeping the normal lightmap bake. Compare all submeshes,
+oriented triangles, UV0, extra UV channels, colours, materials/textures and lightmap-independent renderer state;
+world transforms, positions, normals and tangents must agree within an absolute `1e-6` float32-bake tolerance. Partial overlaps stay. A keeper
+must cover the removed renderer's visibility (the same group or the always-visible base), so a lone hidden object
+and separately switched groups remain. Prefer non-collapsed lightmap UVs, then base visibility, then static baking,
+then the lower renderer id. Existing extracted scenes require re-extraction; mesh format version stays 1.
+
+阻隔工事 (`trap_1105_accrate`, renderer `crate`; 0.3.1, GitHub #663, DESIGN §34.7): static prep crates and
+battle DeviceViews use the client's own 636-vertex / 344-triangle model and `TX_trap_1105_accrate`, extracted under
+`mesh/trap_110`, with its authored UVs. The battle prefab's identity parents, model rotation −90° about X and scale
+0.01 map the OBJ to board coordinates (−x, z, y) × 0.01; the authored pivot stays, footprint ≈ 1.013 × 1.019 tiles,
+base 0.00175 and top 0.83772. `trapMaterial` uses `MT_trap_1105_accrate` (`Torappu/Scene/Trap/Shadow`, `_Ambient`
+0.809, `_Diffuse` 0.271), the active scene's key light and the existing focus falloff. **[ASSUMED]** the shader formula
+and omitted realtime shadows are the same approximation as 射击台 above; the client's separate sprite shadow is not
+reproduced. Battle crates retain the existing shrinking / opacity death fade and have independent opacity uniforms;
+their HP bars use the actual model height plus the existing 0.35 offset. A board-mode switch changes the dimensions
+and HUD height on the same frame. Without the mesh, normals, UVs or texture, crates keep the old `s_common_box_01`
+box with projected atlas UVs and `mat.board` (procedural box if that mesh is missing too). Mounds always retain that
+old box. The 2D board keeps its atlas crops and 0.84 × 0.74 device box; `boxProjectUV` and the atlas rects remain.
 
 Water (`materials.js waterMaterial`, `applyWaterMaterial`; issue #549, idea from PR #555): the board's water tiles
 and the official scene's **StylizedWater surfaces use one shader**, with the active map's own deep/shallow colours,
@@ -363,13 +502,29 @@ Explicit false and unmarked raw displacements face the travel direction. Normal 
 
 ### Local preferences and recovery (§28.14, §28.18–20)
 
+Settings「部署时镜头缩放」 (`deploymentZoom`, default false, stored in `sp.pref.settings`) explicitly enables the
+temporary shop fold and camera zoom of deploy / reposition / equip interactions (§32.14.30). When enabled, pickup, the
+direction wheel, cancellation and equipping use the folded-shop camera, on normal and boss boards. Manual shop folding /
+unfolding and 准备就绪 still adjust the camera. This is a local UI preference requested by the maintainer (2026-10-17),
+with no simulation or match-rule change.
+
 Settings persist `textSize` (sm/md/lg/xl; default sm), `voiceLang` (cn/jp/en/kr; default cn), `voiceNative` (the
-本土语言 switch; default false) and `voiceOverrides` (charId → cn/jp/en/kr/native; default empty). CSS text uses `--t`;
+本土语言 switch; default false), `voiceOverrides` (charId → cn/jp/en/kr/native; default empty), `prepDeployFold`
+(部署时收起商店; default true — only an explicit false turns the 0.3.0 deploy fold off) and `ammoEnergyCount`
+(显示弹药与能量数量; default false). A saved `ammoCount` or `mysticEnergy` of `true` migrates into `ammoEnergyCount`
+on read and is not written back. CSS text uses `--t`;
 the layout rem, camera and board geometry stay unchanged. Larger text and translated controls wrap within the settings
 modal. The normal roster detail and chosen DIY cards expose each operator's voice preference, shared across that
 charId's forms, listing only the dubs this server has and offering a preview. An absent override follows the global
 preference, then the own-language dub when the switch is on and the operator has one, then Chinese. A missing line
 falls back to the Chinese file of the same name. Changing the global language does not clear per-operator choices.
+
+异形屏适配 (`ui/screenFit.js`) persists `sp.pref.screenFit` — four whole pixel offsets `{ l, r, t, b }` in ±100 (inward
+positive; the settings show each as a 0–100 slider, 50 = 0, 2 px a step) — on this device only. While any offset is
+non-zero, `<html data-fit>` with `--fit-l/r/t/b` makes `.app-root` and the full-page panels (统计数据, 干员调配, 玩法说明)
+the inset box and computes the layout rem from it (css/devices.css §5); dialogs and toasts keep the whole screen. The
+board is sized from its host, and `fieldHost.js hudBands` measures the HUD from the host's top. All zero leaves no
+attribute: the page is exactly the unmoved one.
 Overrides are local listening preferences, absent from room loadouts and their exports.
 
 The title and lobby offer explicit recovery of a previously saved local match seat. `sp.matches` stores bounded name /
@@ -407,9 +562,31 @@ localhost and browser support still govern installation.
 ### Skill-mode sound and delayed models (§28.17, §28.22)
 
 The audio manifest can carry `attacks` / `hits` plus independent `attackMix` / `hitMix` by skill index. Only an active
-skill uses a mode bank. Impacts remember the mode at the time of the attack; an end event cancels a queued start for
+skill uses a mode bank. The slot is the skill that switches to that attack mode (§34.3), not the `_d` / `_h` / `_s`
+letter on the file. An unclaimed mode named exactly `S<n>` is skill n [ASSUMED]; a mode another skill links is not taken. Impacts remember the mode at the time of the attack; an end event cancels a queued start for
 an unknown unit, and a late-join snapshot restores the current mode. A mode without a bank falls back to its normal
 sound. A selected mode with no mix uses its own default volume/probability, not the ordinary bank's mix.
+
+Attack / hit playback follows `excel/audio_data.json soundFXBanks` (§34.25, GitHub #680):
+`audio.sfx.pools` retains each selected bank's `maxSoundAllowed` / `popOldest` and each candidate file's
+`minPitch` / `maxPitch` / `delay` (seconds). Unit `pools` and per-skill `attackPools` / `hitPools` identify the bank.
+A full pool with `popOldest: true` stops its oldest instance for the new one; otherwise the new sound is dropped.
+Aliases share their target bank's pool; distinct banks using one file keep separate limits. Pitch is drawn uniformly
+within the played file's own range with client-only randomness ([ASSUMED] uniform distribution); playback starts after its own delay on the audio clock.
+The maintainer chose 0.3.1 for this change (reply draft A). [ASSUMED] The remake retains its global 8-voice budget,
+160 ms per-unit/role cooldown and 45 ms per-URL gap at playback admission to guard high game speeds. Decoding and
+delayed requests reserve no playing slots: admission and takeover happen only when the file's delay has elapsed
+after decoding, on the audio clock (a suspended context does not consume that delay). This keeps a sustained stream
+audible even when attacks arrive faster than the delay; Chen's official attack bank has cap 2, takeover and delay 0.6 s.
+[ASSUMED] At most 64 decoding/delayed requests wait independently of playing slots. A stalled URL has one decode
+subscriber and retains only the latest request per bank/unit-role; at most 64 unresolved URL subscriptions survive
+across fields, so repeated field changes cannot grow a stalled promise's handler list. Undecoded requests older than
+2500 real ms are discarded when decoding finishes. Field replacement, returning to prep and game-screen cleanup
+invalidate pending callbacks with a field generation token, cancel delay timers and stop playing pool sources.
+These queue bounds, expiry and lifecycle/scheduling choices are web-client guards [ASSUMED]. A zero bank limit means no
+bank cap, still subject to the global budget. Missing pool metadata keeps the legacy two-copy behavior; sparse/custom
+banks default to cap 2, no takeover, pitch 1 and delay 0. A cosmetic replacement absent from the bank's file list uses
+pitch 1 and delay 0 with the bank's cap. These are client presentation choices; no sim or golden change.
 
 A model that arrives after an actual deployment continues Start at the elapsed game time; after the clip's duration it
 shows the current base pose. A subsequent attack/death supersedes that pending entrance. That change (0.2.3) added no
@@ -451,7 +628,7 @@ Title-count display uses the following 20-award boundary, confirmed in the offic
 | Exactly 20 | Full fill and count highlight. |
 | Above 20 | Full fill and count highlight; the number continues to show the actual count. |
 
-Community UI and recovery (§29.6): DIY reuses roster stats and skill previews; Swire's coins and, with 设置「秘术师能量」 on, a 秘术师's stored attack energies (GitHub #633, PR #636) show current/cap. The lobby player chip opens statistics and the responsive header keeps optional controls from overlapping its title. Settlement's summary scrolls separately from Return. Failed board art can retry, and failed three.js imports use two bounded fresh URLs. Failed engine initialization can remount on online/visibility, at most twice consecutively, cleaning up each previous view; explicit fallback/2D stays selected.
+Community UI and recovery (§29.6): DIY reuses roster stats and skill previews; Swire's coins and, with 设置「显示弹药与能量数量」 on, a 秘术师's stored attack energies (GitHub #633, PR #636) show current/cap. The lobby player chip opens statistics and the responsive header keeps optional controls from overlapping its title. Settlement's summary scrolls separately from Return. Failed board art can retry, and failed three.js imports use two bounded fresh URLs. Failed engine initialization can remount on online/visibility, at most twice consecutively, cleaning up each previous view; explicit fallback/2D stays selected.
 
 Replacing a field renderer also resets the game screen's entered-view identity. Frames are buffered while the replacement loads; after subscribing, the local runner re-shows full current metadata/snapshot, or the server resends the watched field. Real local and server-streamed battles preserve the same simulation object and clock through recovery, including enemies spawned before the new renderer existed.
 
@@ -465,6 +642,14 @@ The developer simulation checker and its bounded verification claims are specifi
 Operator attack clips play once per actual attack (§30.7), retaining their interval-based speed. A prepared wind-up
 is consumed without replay; a later queued attack may start during the previous recovery. Without another attack
 the actor returns to base/skill idle. Late operator events still start at the strike frame; no sim timing changes.
+
+§34.31: Blemishine's S2 strikes use her official S2 mode's `Attack` (`Attack_Down` when facing down and available),
+while `Skill_2` remains the cast; S3 retains `Skill_3`. Read only the effects index the field already loaded.
+The same verified S2 mapping applies without it: the manifest's cast has OnAttack, so absence of that event alone
+cannot identify this cast. The legacy index omits per-mode animation remaps and skin key-to-clip tables; until
+those are exported, every other skill retains its existing roles with or without the index [ASSUMED], rather than
+treating every raw `Attack` key as the normal skeleton clip. Held loops (§34.4/§34.4.1) and distinct skill idles
+(§23.13) keep their rules. History §34.31 lists the further cross-checked candidates, unchanged in 0.3.1.
 
 Connection recovery sits above the AI-away overlay and below global modals (§30.8), so a replaced session can
 be reclaimed by pointer while away. This does not change the stacking behavior of modals nested inside a screen.
@@ -499,31 +684,75 @@ lands in a hidden tab. Battle deploys keep the silent `onDeploy`; audio.handleBa
   elite land; so does a piece that a new state puts on a board tile it was not on (from the bench, another tile, a swap),
   when that state arrives. Turning in place, a retreat and bench moves do not.
 
-### Optional ammo count (§31.9)
+### Optional ammo and stored-energy counts (§31.9, §32.14.28, §34.3)
 
-设置 →「弹药数量」 (`ammoCount`, PR #552 by @IceCodeNew) defaults off — the official HUD has no such number (the
-maintainer's decision of 2026-10-13). On, an operator's ammo bar carries `left/magazine` under it (`UnitView._updateAmmoCount`,
-the exact b.snap `ammo` counts, extra rounds and refills included), centred in the bar's yellow; the rows under the bars
-move down by its height. It hides with the magazine, in the prep view and after death. The simplified board has no ammo
-bar and so no count.
+设置 →「显示弹药与能量数量」 (`ammoEnergyCount`) is one switch, off by default. It replaces 「弹药数量」
+(`ammoCount`, PR #552 by @IceCodeNew) and 「秘术师能量」 (`mysticEnergy`, PR #636 by @zasx77771, GitHub #633).
+The official HUD has neither number (the maintainer's decisions of 2026-10-13 and 2026-10-15). A saved profile is
+read once: the merged switch is on when either old key was the boolean `true`; a stored boolean `ammoEnergyCount`
+wins, and the old keys are not written back. [ASSUMED] that precedence, so turning the merged switch off stays off.
 
 Room text chat is an owner-requested remake extension: the global `public/js/ui/chat.js` panel is available in the
 room and every match phase, independent of the official emote wheel. Its transport store (`public/js/ui/chatStore.js`)
 follows room membership across route changes. The in-match entry sits below the ready controls and timer.
 Limits and frames: network §8, Room text chat.
 
-Field pings are another owner-requested remake extension [ASSUMED] (2026-10-14). A five-button HUD group selects
-attention, attack, danger, retreat or question; choosing one arms the next tap/click on a board tile (occupied tiles
+2026-10-17 修订：棋盘阶段文字聊天融合到表情「交流」，依据参考站公开源码保留左侧图标栏、共用表情 / 历史
+正文和底部单行输入，桌面宽 260px，触屏手机 220px。数据仍来自本库房间聊天，观战只读，保留 200 字上限、
+屏蔽词、输入法保护与失败草稿；等待室、开局说明、轮选、结算保留原聊天窗口。
+新玩家文字在对应头像旁复用表情气泡的圆角、颜色与默认 3 秒 pop/fade；长文截三行，历史中保留全文。
+不补播历史同步，主机消息只在历史中显示；消息提示关闭后重开不补播旧气泡。
+下面的可拖动入口预览规则继续用于原聊天窗口；棋盘阶段由头像气泡替代。
+
+Collapsed chat also previews newly received peer and host messages (owner request, 2026-10-17). The floating preview
+follows the draggable entry, stays inside the viewport, shows the latest two messages (three text lines each) and a
+count of further new messages. It fades after 6 seconds since the latest incoming message; hovering or keyboard focus
+pauses the countdown. Clicking opens chat and clears unread/preview state. Expiry preserves unread counts. Own echoes,
+history/reconnect backfills and messages received while chat is expanded do not create previews; moderator clearing
+also removes pending previews. No chat notification sound is added. Player settings →「显示消息提示气泡」
+(`chatBubbles`) defaults on, including older saved profiles, and persists locally. Switching off immediately hides
+and discards pending previews while preserving unread counts; switching back on only previews subsequent messages.
+Previews enter with a 220 ms fade and 6 px upward movement, and leave with a 180 ms fade and 4 px upward movement.
+Reduced-motion preferences disable both animations and transitions.
+
+Field pings are another owner-requested remake extension [ASSUMED] (2026-10-14; heart added at the owner's request on
+2026-10-17). A six-button HUD group selects attention, attack, danger, retreat, question or heart; choosing one arms the next tap/click on a board tile (occupied tiles
 included), then exits placement. Each marker displays its server-authored sender name as escaped text, with long names ellipsized. Click the same button again or press Esc to cancel. Right-clicking empty ground
 sends the selected kind directly. Both the engine and DOM fallback use BOARD coordinates and `view.tileScreen`
 viewport geometry. Matching-field markers last 2.5 s and follow the camera: a 56–80 px SVG badge drops above the target,
 with two expanding ground rings and a pointer stem. Short screens use a shorter drop; reduced motion keeps the badge
-and a static ground ring. Five distinct synthesized cues use the existing AudioManager SFX/mute buses, require an
+and a static ground ring. Six distinct synthesized cues use the existing AudioManager SFX/mute buses, require an
 unlocked visible page, and suppress bursts within 180 ms. Only newly received pings on the currently shown field sound;
 switching fields never replays old cues. No audio assets or downloads are required.
-The 44 px controls sit above the bottom-left communication/settings corner, away from the shop's refresh/freeze buttons.
-Hidden while the emote wheel is open, in the enemy pen, during dragging/facing, and for spectator seats (they still
-see/hear markers). Text uses all language packs. Changes of phase/round/room clear recent markers.
+The palette starts expanded on both desktop and mobile. Its explicit collapse/expand choice is kept in this browser
+(`sp.pref.pingsCollapsed`, default false); sending never changes it. Collapsing cancels pending placement and removes
+the palette's hit area. Temporary hiding during other HUD tasks never writes the preference. Hidden while the
+communication, detail, bond, information, settings or statistics panels are open, during choices, in the enemy pen,
+during dragging/facing, and for spectator seats (they still see/hear markers).
+Desktop keeps the bottom-left dock and six-button row with an added collapse control. Constrained HUDs intersect
+the actual safe/inset HUD with the visual viewport, measure existing controls, and prefer an unobstructed slot outside
+the board, bench and temporary row. A limited slot narrows the horizontally scrollable palette rather than its 44 px
+controls; compact visual buttons use `max(.44rem, 30px)` while separated 44px pointer areas preserve touch input.
+The desktop 44px visuals stay unchanged. A localized swipe hint exposes the remaining choices. It reserves no full-width camera band. Temporary
+communication panels dock above the complete wrapped corner; narrow detail cards also clear its measured top.
+Below 768px on primary-touch screens, local utility extensions share a horizontal 44px scroll row instead of
+overlapping invisible hit areas in three wrapped rows. The corner width also respects the shop's actual left edge
+after screen-fit; when too tight for its art, communication uses a compact text entry. Desktop uses display:contents
+for the utility group and preserves its original flex geometry.
+Statistics and floating chat use the same visible bounds, including screen-fit and browser/keyboard viewport changes.
+Only panel bodies scroll; their close controls remain available. Text uses all language packs. Changes of
+phase/round/room clear recent markers. This owner-requested presentation behavior is [ASSUMED]; gameplay is unchanged.
+The collapse arrow also uses the existing chat pointer-drag lifecycle: drag moves the whole palette without toggling
+or sending, normalized browser-local `sp.pref.pingPosition` restores its position across mounts/refreshes.
+Orientation/safe-area changes clamp the saved position to the visible HUD. Arrow keys move it; reset returns to the
+automatic dock. Manual folding and position remain independent. Pointer cancellation restores the previous position.
+
+Compact room presentation (owner request, 2026-10-19) reuses the reference site's `utility-mobile.css` and
+`screens/room.css` in `reference-mobile.css`: retained 1:2 artwork with contain, a scrollable card grid and wrapping
+chrome, mapped from the site's `.seats/.topbar/.room-bar` to this fork's `.rs-seats/.rs-top/.rs-foot`.
+Only width <=1000px or height <=600px activates these rules; ordinary desktop presentation stays unchanged.
+Do not import repository-only management-unit changes as if they were deployed-site code. Source details and hashes:
+[reference review](../REFERENCE-UI-REVIEW.md#手机适配以参考站为基础2026-10-19).
 
 ### Optional stored-energy count (§32.14.28)
 
@@ -534,6 +763,15 @@ from `snapshot.js mysticView`: `trait.stored` against `profile.storeMax`, zero i
 the element gauge moves down by its height. Allies only; kits with a store of their own (维伊, 黑键) have no row. The
 official effect is the default display: with 设置「官方特效」 on, the same readout lights 深靛's stored energies on the
 operator (§9 "Official battle effects", Skills) whatever this setting says.
+On, an operator's ammo bar carries `left/magazine` under it (`UnitView._updateAmmoCount`, the exact b.snap `ammo`
+counts, extra rounds and refills included), centred in the bar's yellow; the rows under the bars move down by its
+height. It hides with the magazine, in the prep view and after death. The simplified board has no ammo bar and so no
+count. The same switch puts a 秘术师's `stored/cap` in the row stack under the purse (`UnitView._updateEnergy`,
+b.snap `energy` from `snapshot.js mysticView`: `trait.stored` against `profile.storeMax`, zero included), in a violet
+orb of its own; the element gauge moves down by its height. Allies only; kits with a store of their own (维伊, 黑键)
+have no row. The official effect is the default display: with 设置「官方特效」 on, the same readout lights 深靛's
+stored energies on the operator (§9 "Official battle effects", Skills) whatever this setting says.
+
 
 ### Plugin studio gameplay previews (§32.9.1)
 
@@ -550,6 +788,44 @@ Authoring checks (DESIGN §32.9.1): numeric fields display the shared official b
 
 设置 →「作战统计」 (`combatMetrics`, PR #618 by @robll-v1) defaults on in this extension (owner request, 2026-10-16);
 an explicitly saved false preference is preserved. Off, the corner button is not rendered and `trackCombat` is not called (no `damaged`
+0.3.1 (§34.29) adds bond/item/trait/offers/rules templates with actual fields and official-name pickers. Full-draft
+validation uses the existing keyed validate-dsl endpoint, ordinary folder checks and data-only composition; no new
+plugin grammar or route. Reopen reads current document fields; save merges only form-owned changes, retaining
+other fields/declarations/required permissions and their unchanged raw JSON bytes. Validation, unsaved trials and
+save check the complete merged folder before writing. Their dummy/wave/duel trials add an explicit
+single-holder prep event and active-bond/equipped-item fixture [ASSUMED], plus real Match offer choice, refresh and
+virtual-clock timeout with before/after feedback. Bond income/refresh and trait gain/deploy use their own hook
+vocabularies; Auto selects the first prep rule or roundStart [ASSUMED]. Rules trials compare real refresh, prep
+loadout, morph equipment and unequip actions with vanilla; replay carries actual equipment/loadout and morphPairing.
+These fixed bounded fixtures are [ASSUMED], not a full economy/room;
+golden scenes and the independent vanilla console keep their previous behavior. New UI uses the four language packs.
+
+Presentation authoring (§34.30): theme, notices, fx and skins each have a template and form. Theme applies only
+validated tokens to the studio root and restores the previous inline declarations on unmount [ASSUMED]. Notices
+preview uses the announcement popup's localization and plain text. Skins previews use the actual picker rows and
+fallbacks; file-slot changes hydrate the form before subsequent saves. FX drafts use the existing trial replay in
+both board modes; locally indexed borrowed official effects remain 3D-only. All four forms hydrate current declarations
+and reuse the gameplay authoring delta merge. Form saves require complete folders and staged media to pass strict checks;
+invalid retained content is refused with contextual errors, without requiring gameplay data for cosmetics. FX images
+are saved with their form; default bindings use the equipped skill. Unsupported summon carriers are refused [ASSUMED].
+Skin uploads isolate shared paths, including Spine, and validate bytes before replacement; numeric directory suffixes
+are [ASSUMED]. Skin slot uploads and the files PUT route use a no-new-problems strict gate (code + where/file),
+allowing incremental missing-image repair; each uploaded file must validate. The 0.3.0 slots keep writing directly. Every PNG encoding is inflated to its exact scanline size, including Adam7,
+with a 256 MiB raw cap [ASSUMED]; only declared FX sheets (inline/file overlays; upload checks ignore extension case) use the
+2048px non-interlaced 8-bit RGB/RGBA subset. Candidates hardlink unchanged files (clone-copy fallback) after refusing
+all links; only changed files face upload limits, with aggregate limits checked on the candidate. [ASSUMED] Hidden
+`.sp-studio-*` candidates inside the real plugins directory share its volume and are excluded by registry scanning.
+HTTP link staging and complete checks use bounded children (two concurrent, 20 seconds, 512 MiB heap [ASSUMED]);
+cleanup runs on every outcome. Changed media commits before plugin.json with rollback. FX reads merge into the
+latest draft and disable save while pending. Trial bodies match the 160 MiB authoring limit; staged replay PNGs
+are embedded for the replay lifetime (8 MiB compressed image total inside the 16 MiB result cap [ASSUMED]).
+No new route or gameplay rule is introduced.
+
+### Combat metrics (作战统计) — ported from the xinhai-ai fork, opt-in
+
+设置 →「作战统计」 (`combatMetrics`, PR #618 by @robll-v1) defaults off, the same kind of decision as 显示弹药与能量数量: the
+official HUD has no such panel. Off, the corner button is not rendered and `trackCombat` is not called (no `damaged`
+
 hook, `battle.heal` is not wrapped). On, the corner's 作战统计 button (`gm__metrics`, `ui/combatMetrics.js`) opens a
 modeless panel over the running battle: the fight keeps playing behind it, ✕ / Esc closes it, and the next frame's
 prep keeps it usable.
@@ -579,6 +855,89 @@ enters b.progress / b.result, and a tracked battle's result and rendered events 
 
 帧率上限（本库回归核对，2026-10-16）：不限 / 30 / 60 / 120 通过玩家设置即时应用于 Pixi ticker，
 影响同一 ticker 驱动的单位、特效与棋盘绘制；持久化并在重载后重新应用，不改变战斗 runner 的独立时钟。
+设置「显示帧率」(`showFps`) 位于帧率上限之后，默认开启；旧配置自动开启，显式关闭与刷新恢复保留。
+对局左上角延迟旁展示实际渲染器 `stats().fps`，每秒更新一次，窄屏在延迟下方排列；关闭后停止采样。
+渲染器加载中、简化棋盘及后台页面显示 `-- FPS`，不使用独立 RAF 频率冒充棋盘帧率。
 浏览器回归同时检查选中状态、实际 ticker 上限与回调频率，实际 FPS 可因设备性能低于上限。
+选中项沿用设置按钮的高亮样式；手机端帧率按钮独占一行，触控目标至少 44×44px，互不覆盖。
+触摸设备（包括带触屏的桌面）上，设置中的选项按钮至少高 44px，隐形点击范围限制在按钮自身，
+语音语言等分行选项不能覆盖相邻行。
+窄屏语音选项排成两列，保留特大字号可读性；屏幕边距调节行沿用标签、减号、滑杆、加号、数值的五列，
+不受普通设置行的响应式列数覆盖。大厅背景卡片按可用宽度与字号自动换行，主题名称允许换行，不能溢出卡片。
 
 每回合统计补充（2026-10-16）：干员排行可在单回合与累计至指定回合之间切换；作战进行时，现有 `b.progress` 以有界字段广播各战场的当前干员伤害，面板以「进行中」回合显示实时数据（只读，不参与结算）。结算页的按钮复用同一面板，使用 `m.result.roundHistory`；首页「统计 → 对局记录」保存并恢复该字段，因此包含第 15 回合的完整结算数据。
+
+## 本库参考站工具界面适配（2026-10-17）
+
+2026-10-18 跟进：自定义表情与预载清单共用 CDN URL 规则，保留本库无哈希 CDN 磁盘路径；
+公告弹窗设计宽度为 10.8rem，最大宽度为视口减 32px，沿用安全区域和正文滚动。
+大厅右栏「干员调配」下方提供「统计数据」入口，复用现有 HubTile 和 openStats，读取本库已有统计数据。
+结算自选立绘读取的 `seat-art` 目录随 `GAME_FILES` 在等待室预热，避免结算时才开始请求；缺失时继续走原回退。
+设置的快捷键表使用独立子弹窗；编辑时 Esc 仅取消捕获，普通 Esc 只关闭最上层弹窗并恢复入口焦点。
+移动设备保留实体键盘提示，使用本库既有界面比例和可滚动弹窗。键位、保存与冲突交换规则不变。
+资源分包管理依次显示 download（字节与采样速度）、verify（无百分比）、import（已处理 / 总文件数）。
+公告仅显式 `format: 'markdown'` 启用长文排版和 20000 字上限，缺省 / plain 保留 500 字与纯文本。
+Markdown 分词后生成固定 Preact 元素，不注入 HTML；只允许无凭据 HTTP(S) 与站内根路径链接，
+图片仅显示替代文字，嵌套 / 节点超限回退纯文本。代码与表格在自身区域横向滚动，正文不撑破弹窗。
+### Forge compact metadata (0.3.1)
+
+Forge import (CLI and the studio's explicit preview/import) and setup's startup/update gap preparation fetch missing
+official tables only when out-of-roster operators need them (maintainer decision 2026-10-17, §34.33). The cache uses
+the voice indexes' source/mirror policy; offline flags refuse downloads and failures retain the reported local fallback.
+The studio's offline box clears the previous report and applies to preview and confirm. Gameplay never fetches tables.
+The table set, validation limits and installation options are specified in [PLUGINS §16](../PLUGINS.md#16-forge-import).
+
+Compact operators may declare `chess.hidden`, explicit `chess.ids.normal/elite`, exact `art.assets` and official
+`origin` references ([PLUGINS §16](../PLUGINS.md#16-forge-import)). Hidden records remain addressable for grants,
+but never enter shops, visible handbook/loadout lists or owned DIY selection. Explicit pair IDs drive upgrades.
+[ASSUMED] Provenance is descriptive only, hiding applies to both forms and both identities, and borrowed voice
+preferences belong to the borrowed bank. Evidence and migration: [0.3.1 history](../history/0.3.1.md).
+
+[ASSUMED] One installed lang plugin may overlay each built-in language, in sorted plugin order; supplied UI/game-text
+keys override and missing/invalid entries retain built-in text. Scope remains browser-local choice, independent of
+room content and simulation. Pure geometry SDK helpers return frozen values and accept at most 1024 range cells.
+Forge UI mounts without an equivalent slot require an explicit manual-adaptation report, separate from script copying.
+Art/audio templates ship original CC0 sample media; the studio fills the target's first editable slot [ASSUMED].
+
+### Room-local 联防 stack option
+
+Waiting-room 同盟设置 (the bottom protocol pill's gear) shows 允许联防叠层 with its room-only, match-locked
+behavior and boss/hidden exclusion. It uses `room.state.uniteLayerGains` and sends `room.setUniteLayerGains {on}`;
+only the room host may edit before starting when `room.state.canSetUniteLayerGains` is true. Otherwise the disabled
+control explains that the server has not allowed edits; guests and spectators always read it. Inputs are disabled
+while offline or busy. Console permission saves update existing rooms immediately. An older server without the
+rule boolean hides the option; absent permission fails closed. Compact layouts keep the options panel inside
+the viewport. The four shipped language packs translate the control and help text.
+
+### Local announcement authoring
+
+The local host console's announcement editor separately persists up to 30 named drafts, with create/update/copy,
+load/delete and refresh. Four editable Markdown templates cover maintenance, releases, room rules and incidents.
+Live preview shares the player announcement renderer (escaped HTML, no remote images, safe links). Desktop uses
+two columns and compact screens stack them. Replacing unsaved text asks for confirmation; leaving a dirty editor
+warns. Draft storage and template/preview actions never publish or withdraw a notice; publication is explicit.
+Draft details and authenticated endpoints: [LOCAL-DEV](../LOCAL-DEV.md#公告草稿模板与正文预览).
+
+### Local online players and room invitations
+
+The lobby's 名博士在线 is a directory button with an expansion chevron. It lists this server's visible connected
+human sessions (no account service), with search, room/match activity and 100-player pagination. Visible counts
+exclude invisible users. The top-right selector offers online, away, busy and invisible. The browser persists it
+and sends it in hello before discovery. Saved invisible logins stay hidden even if the administrator later disables
+invisible selection. Invisibility governs discovery/invitations, not room membership visible during shared play.
+
+Waiting-room 邀请玩家 opens the directory. Available players outside rooms may be invited; acceptance is explicit
+and runs normal join checks. Busy, invisible, disconnected and room-bound players cannot be invited; invisible
+players cannot send invitations. Invites expire after 60 seconds, with a 10-second sender cooldown and at most five
+pending per recipient. Full/started/disbanded rooms, disconnects and invisibility invalidate pending invites.
+
+Console 设置 → 交流管理 → 在线玩家与邀请 controls directory, invitations, status selection, invisible selection,
+visible counts and host-only invitations. All except host-only default on. Settings persist and apply immediately.
+Disabling invitations cancels pending invites; disabling selection preserves existing privacy.
+
+### 公告重启保留
+
+本机控制台「服务器 → 全站公告」提供「重启后保留有效公告」复选框及独立保存按钮，默认开启，
+已有关闭选择保持关闭。开启会保存当前及以后发布的公告；只恢复未过期内容，沿用原起止时间，
+定时公告和直到撤下公告均保留原语义。关闭不撤下当前公告。读取/保存错误可重试，不影响编辑中的草稿。
+持久化设置与正文位于控制台设置同目录的 announcement-state.json；普通玩家协议保持不变。

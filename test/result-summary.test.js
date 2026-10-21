@@ -11,6 +11,7 @@ test('summary filters, old records, nested damage, corruption and cache invalida
   const record = { savedAt: 100, mode: 'solo', difficulty: 'NORMAL', result: { victory: true, roundsPassed: 3, players: [{ lineup: [{ name: '甲' }], bonds: [{ name: '盟约', active: true }] }] }, history: [{ round: 4, players: [{ units: [{ name: '甲', dmg: 25 }], bonds: [] }] }] };
   const put = (name, r) => fs.writeFileSync(path.join(dir, name + '.json'), JSON.stringify(r));
   put('a', record); put('old', { ...record, savedAt: 200, history: undefined, result: { ...record.result, victory: false } });
+  put('test-room', { ...record, result: { ...record.result, test: true } });
   put('broken', { ...record, history: {} }); fs.writeFileSync(path.join(dir, 'invalid.json'), '{');
   const summary = createResultSummary(dir);
   assert.equal(summary().games, 2); assert.equal(summary().skipped, 2); assert.equal(summary().winRate, 0.5);

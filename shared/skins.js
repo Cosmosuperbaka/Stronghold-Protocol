@@ -1,4 +1,5 @@
 // Cosmetic preferences, keyed by operator so normal, elite and DIY pieces share a choice.
+import { checkSkinSelection } from './protocol.js';
 export const SKIN_LIMIT = 256;
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -18,10 +19,11 @@ export function isSkinSelection(value) {
 }
 export function cleanSkins(value, catalogue = null) {
   const out = {};
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
-  for (const [id, skin] of Object.entries(value).slice(0, SKIN_LIMIT)) {
-    if (!isSkinSelection({ [id]: skin })) continue;
-    if (catalogue && !catalogue.chars?.[id]?.some((s) => s.id === skin)) continue;
+  const checked = checkSkinSelection(value, () => true);
+  if (!('ok' in checked)) return out;
+  for (const [id, skin] of Object.entries(checked.skins)) {
+    const record = catalogue?.chars?.[id];
+    if (catalogue && !(Array.isArray(record) ? record.some(s => s.id === skin) : record?.skins?.[skin])) continue;
     out[id] = skin;
   }
   return out;

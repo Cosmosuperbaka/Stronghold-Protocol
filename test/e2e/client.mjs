@@ -168,13 +168,14 @@ export async function startRealServer(opts = {}) {
     if (opts.fast.botChess?.length) env.SP_BOT_CHESS = opts.fast.botChess.join(',');
     if (opts.fast.autoPlace) env.SP_AUTO_PLACE = '1';
     if (opts.fast.eliminate?.length) env.SP_ELIMINATE = opts.fast.eliminate.join(',');
+    if (opts.fast.seatPairs) env.SP_SEAT_PAIRS = '1';
     if (opts.fast.stage) env.SP_STAGE = String(opts.fast.stage);
     if (opts.fast.level) env.SP_START_LEVEL = String(opts.fast.level);
     if (opts.fast.finishAfter) env.SP_FINISH_AFTER = String(opts.fast.finishAfter);
     if (opts.fast.slowSpawns) env.SP_SLOW_SPAWNS = String(opts.fast.slowSpawns);
     if (opts.pluginsDir) env.SP_PLUGINS_DIR = opts.pluginsDir;
   }
-  const child = spawn(process.execPath, [entry], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, [entry], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   const logs = [];
   const onData = (buf) => { for (const line of String(buf).split('\n')) if (line.trim()) logs.push(line); if (logs.length > 400) logs.splice(0, logs.length - 400); };
   child.stdout.on('data', onData);

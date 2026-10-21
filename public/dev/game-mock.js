@@ -19,6 +19,7 @@ import { settingsStore } from '/js/ui/settings.js';
 import { awayStore } from '/js/ui/matchChrome.js';
 import { GAME_FILES } from '/js/ui/gameComponents.js';
 import { PHASE, GEO, PING_KEEP } from '/shared/constants.js';
+import { DEV_SCENES } from '/shared/devtools.js';
 
 const params = new URLSearchParams(location.search);
 const SHOT = params.get('shot') === '1';
@@ -337,7 +338,9 @@ function setPhase(phase, variant) {
       break;
     case PHASE.RESULT:
       pub.round = 14;
-      store.patch('match', { result: buildResult(!VARIANTS.has('defeat')) });
+      // late: the RESULT phase first, m.result a moment later (as from the server)
+      if (VARIANTS.has('late')) setTimeout(() => store.patch('match', { result: buildResult(!VARIANTS.has('defeat')) }), 800);
+      else store.patch('match', { result: buildResult(!VARIANTS.has('defeat')) });
       break;
     default:
       break;
@@ -784,7 +787,7 @@ function applyUiVariants() {
       store.set({ emotes: [{ seq: now, playerId: 'p3', id: 'autochess_battle_nice_cooperate', at: now }, { seq: now + 1, playerId: 'ai_2', id: 'slug_autochess_battle_thanks', at: now }] });
     }, 300);
   }
-  if (VARIANTS.has('settings')) clickSel('.gm__gear', 400);
+  if (VARIANTS.has('settings')) clickSel('[data-testid="settings-btn"]', 400);
   if (VARIANTS.has('collapsed')) clickSel('.funds__collapse', 400);
   // the first tap on a shop card selects it and opens its detail (there is no ⓘ corner)
   if (VARIANTS.has('detail')) clickSel('.shopbar__cards .scard:not(.scard--sold)', 500);
@@ -797,26 +800,15 @@ function applyUiVariants() {
 }
 
 // ---- switcher --------------------------------------------------------------------------------------------------------------
-const SWITCH = [
-  ['INFO_CHECK', PHASE.INFO_CHECK, ''], ['BAND_DRAFT', PHASE.BAND_DRAFT, ''], ['BAND_DRAFT solo', PHASE.BAND_DRAFT, 'solo'],
-  ['BATTLE_CHECK', PHASE.BATTLE_CHECK, ''], ['PREP', PHASE.PREP, ''], ['PREP + reward', PHASE.PREP, 'reward'],
-  ['PREP + temp', PHASE.PREP, 'temp'], ['PREP frozen', PHASE.PREP, 'frozen'], ['PREP dead', PHASE.PREP, 'dead'],
-  ['PREP boss (L)', PHASE.PREP, 'boss'], ['PREP boss (R)', PHASE.PREP, 'bossR'], ['PREP 标准 同构体 + 调和', PHASE.PREP, 'funny,morph,harmony'],
-  ['SP bounty', PHASE.SP_DRAFT, 'bounty'], ['SP supply', PHASE.SP_DRAFT, 'supply'], ['SP shop', PHASE.SP_DRAFT, 'shop'], ['SP tactic', PHASE.SP_DRAFT, 'tactic'], ['SP solo', PHASE.SP_DRAFT, 'solo'],
-  ['COMBAT', PHASE.COMBAT, ''], ['COMBAT done', PHASE.COMBAT, 'done'], ['UNITE', PHASE.UNITE, ''], ['UNITE leaker', PHASE.UNITE, 'leaker'], ['SETTLE', PHASE.SETTLE, ''],
-  ['FINAL_ASSAULT', PHASE.FINAL_ASSAULT, ''], ['FA overtime soon', PHASE.FINAL_ASSAULT, 'overtime'], ['FA draining', PHASE.FINAL_ASSAULT, 'drain'],
-  ['HIDDEN_CORE', PHASE.HIDDEN_CORE, ''], ['COMBAT solo (pause)', PHASE.COMBAT, 'solo'], ['FA solo paused', PHASE.FINAL_ASSAULT, 'solo,paused'],
-  ['RESULT win', PHASE.RESULT, ''], ['RESULT lose', PHASE.RESULT, 'defeat'],
-];
 function Switcher() {
   const cur = store.get().match.public?.phase;
-  return html`<h4>PHASE</h4>${SWITCH.map(([label, ph, v]) => html`<button class=${cur === ph ? 'on' : ''} onClick=${() => { VARIANTS.clear(); setPhase(ph, v); renderBar(); }}>${label}</button>`)}
-    <h4>EVENTS</h4>
-    <button onClick=${() => { const now = Date.now(); store.set((s) => ({ emotes: [...s.emotes, { seq: now, playerId: pick(['p3', 'ai_2', 'p4']), id: pick(['autochess_battle_happy', 'slug_autochess_battle_thanks', 'autochess_battle_call', 'autochess_battle_fooldoctor_05', 'autochess_battle_foolamiya_03', 'autochess_battle_foolwisdel_01']), at: now }] })); }}>teammate emote</button>
-    <button onClick=${() => store.set((s) => ({ ticker: [...s.ticker, { id: Date.now(), text: `<@ba.vup>${pick(['Doctor·B', '灰烬'])}博士</>将调度中心等级提升为5级`, at: Date.now() }] }))}>ticker</button>
-    <button onClick=${() => toast('资金不足', 'error')}>error toast</button>
-    <button onClick=${() => { if (S.priv) { S.priv.shop.rewardOffer = { tier: 5, slots: shuffle(visibleChess(5)).slice(0, 3).map((c) => ({ kind: 'chess', id: c.chessId, price: 0, sold: false })) }; refreshPrivate(); } }}>merge reward</button>
-    <button onClick=${() => { S.priv.funds += 10; refreshPrivate(); }}>+10 funds</button>`;
+  return html`<h4>模拟阶段</h4>${DEV_SCENES.map(([label, ph, v]) => html`<button class=${cur === ph ? 'on' : ''} onClick=${() => { VARIANTS.clear(); setPhase(ph, v); renderBar(); }}>${label}</button>`)}
+    <h4>模拟事件</h4>
+    <button onClick=${() => { const now = Date.now(); store.set((s) => ({ emotes: [...s.emotes, { seq: now, playerId: pick(['p3', 'ai_2', 'p4']), id: pick(['autochess_battle_happy', 'slug_autochess_battle_thanks', 'autochess_battle_call', 'autochess_battle_fooldoctor_05', 'autochess_battle_foolamiya_03', 'autochess_battle_foolwisdel_01']), at: now }] })); }}>队友表情</button>
+    <button onClick=${() => store.set((s) => ({ ticker: [...s.ticker, { id: Date.now(), text: `<@ba.vup>${pick(['Doctor·B', '灰烬'])}博士</>将调度中心等级提升为5级`, at: Date.now() }] }))}>局内播报</button>
+    <button onClick=${() => toast('资金不足', 'error')}>错误提示</button>
+    <button onClick=${() => { if (S.priv) { S.priv.shop.rewardOffer = { tier: 5, slots: shuffle(visibleChess(5)).slice(0, 3).map((c) => ({ kind: 'chess', id: c.chessId, price: 0, sold: false })) }; refreshPrivate(); } }}>晋升奖励</button>
+    <button onClick=${() => { S.priv.funds += 10; refreshPrivate(); }}>增加 10 资金</button>`;
 }
 const bar = document.getElementById('mockbar');
 function renderBar() { render(html`<${Switcher} />`, bar); }

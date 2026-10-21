@@ -59,6 +59,20 @@
   .scroll { max-height: 280px; overflow: auto; }
   .on { color: var(--mint); }
   .note { color: var(--warn); font-size: 12px; margin: 4px 0 0; }
+  #devtools { max-width: 1000px; margin: 0 auto; width: 100%; }
+  .devtools-intro { margin-bottom: 16px; }
+  .devtools-intro h2 { font-size: 22px; }
+  .devtools-intro p { margin-top: 6px; }
+  .devtools-list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+  .devtools-list li { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 4px; border-bottom: 1px solid var(--line); }
+  .devtools-list li > div { min-width: 0; }
+  .devtools-list h3 { margin: 0; font-size: 15px; }
+  .devtools-list p { margin: 3px 0 0; color: var(--dim); }
+  .devtools-list a { flex: none; color: var(--mint); text-underline-offset: 3px; }
+  .devtools-scenes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 0 24px; }
+  .devtools-scenes a { padding: 10px 0; color: var(--mint); text-underline-offset: 3px; border-bottom: 1px solid var(--line); }
+  #devmode-toggle[aria-pressed="true"] { border-color: var(--mint); color: var(--mint); }
+  @media (max-width: 600px) { .devtools-list li { align-items: flex-start; flex-direction: column; gap: 8px; } }
   input.small { width: 64px; }
   nav { display: flex; gap: 4px; }
   nav button[aria-pressed="true"] { border-color: var(--mint); color: var(--mint); }
@@ -126,12 +140,43 @@
   [hidden] { display: none !important; }
   header { flex-wrap: wrap; }
   header > .meta { flex: 1 1 380px; font-size: 12px; }
-  nav { flex-wrap: wrap; }
+  nav { flex-wrap: wrap; max-width: 100%; }
   nav a { font: inherit; color: var(--text); background: #1e2421; border: 1px solid var(--line); border-radius: 4px; padding: 3px 8px; text-decoration: none; }
   nav a:hover { border-color: var(--mint); }
   .status-bar { padding: 8px 20px; border-bottom: 1px solid var(--line); color: var(--dim); font-variant-numeric: tabular-nums; }
   .status-bar .tag { color: var(--mint); }
   #site-announcement textarea { display: block; width: 100%; margin: 6px 0 12px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); padding: 8px; resize: vertical; }
+  .notice-draft-tools { margin-top: 10px; }
+  .notice-draft-tools label { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+  .notice-draft-tools :is(select, input) { min-width: 0; max-width: 100%; }
+  #site-notice-drafts { max-width: min(480px, 58vw); }
+  #site-notice-draft-status[data-error="true"] { color: var(--red); }
+  .notice-editor-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; margin: 14px 0; }
+  .notice-editor-grid > * { min-width: 0; }
+  .notice-preview-wrap { border: 1px solid var(--line); padding: 12px; background: var(--bg); }
+  .notice-preview-wrap h3 { margin: 0; font-size: 14px; }
+  .notice-preview-wrap > p { margin: 6px 0 12px; }
+  #site-notice-preview { min-height: 180px; max-height: 480px; overflow: auto; line-height: 1.75; overflow-wrap: anywhere; user-select: text; }
+  #site-notice-preview :is(.notice-preview-plain, .announcement-content__plain) { white-space: pre-wrap; }
+  #site-notice-preview .announcement-markdown > * + * { margin-top: 1em; }
+  #site-notice-preview :is(h1,h2,h3,h4,h5,h6) { line-height: 1.4; color: var(--text); margin: 1.25em 0 .5em; }
+  #site-notice-preview :first-child { margin-top: 0; }
+  #site-notice-preview h1 { font-size: 1.6em; }
+  #site-notice-preview h2 { font-size: 1.35em; }
+  #site-notice-preview h3 { font-size: 1.15em; }
+  #site-notice-preview :is(ul,ol) { padding-left: 1.8em; }
+  #site-notice-preview li + li { margin-top: .3em; }
+  #site-notice-preview a { color: var(--mint); text-underline-offset: .18em; }
+  #site-notice-preview pre { max-width: 100%; overflow-x: auto; padding: .8em; border: 1px solid var(--line); }
+  #site-notice-preview code { font-family: ui-monospace, monospace; font-size: .9em; }
+  #site-notice-preview blockquote { margin-left: 0; padding: .7em 1em; border: 1px solid var(--line); background: var(--panel); }
+  #site-notice-preview hr { border: 0; border-top: 1px solid var(--line); margin-block: 1.2em; }
+  #site-notice-preview .announcement-markdown__table { overflow-x: auto; max-width: 100%; }
+  #site-notice-preview table { min-width: 100%; margin: 0; }
+  #site-notice-preview :is(th,td) { border: 1px solid var(--line); padding: .4em .7em; color: var(--text); }
+  #site-notice-preview .announcement-markdown__cell--center { text-align: center; }
+  #site-notice-preview .announcement-markdown__cell--right { text-align: right; }
+  @media (max-width: 800px) { .notice-editor-grid { grid-template-columns: minmax(0, 1fr); } }
   .room-summary button { width: 100%; text-align: left; }
   .room-summary tr.is-selected { background: #20382e; }
   .room-tabs { margin: 12px 0; }
@@ -153,7 +198,7 @@
 <body>
 <header>
   <h1>主机控制台</h1>
-  <nav aria-label="页面"><button data-tab="rooms" aria-pressed="true">房间</button><button data-tab="records" aria-pressed="false">对局记录</button><button data-tab="settings" aria-pressed="false">设置</button><button data-tab="server" aria-pressed="false">服务器</button><a href="/resources" target="_blank" rel="noopener">资源 ↗</a></nav>
+  <nav aria-label="页面"><button data-tab="rooms" aria-pressed="true">房间</button><button data-tab="records" aria-pressed="false">对局记录</button><button data-tab="settings" aria-pressed="false">设置</button><button data-tab="server" aria-pressed="false">服务器</button><button data-tab="devtools" aria-pressed="false" hidden>模拟页面</button><button id="devmode-toggle" type="button" aria-pressed="false">开发者模式</button><a href="/resources" target="_blank" rel="noopener">资源 ↗</a></nav>
   <span class="meta">只能在这台电脑上打开 · 修改直接生效、不扣金币；只有「加层」「补发机变卡」「装备」会触发游戏效果</span>
   <span id="status" aria-live="polite"></span>
 </header>
@@ -167,19 +212,38 @@
 <section id="site-announcement" class="room" aria-label="全站公告">
   <h2>全站公告</h2>
   <p class="meta" id="site-notice-status">暂无公告</p>
-  <label>公告正文 <textarea id="site-notice-text" maxlength="1000" rows="3" aria-label="公告正文"></textarea></label>
+  <div class="row notice-draft-tools"><label><input id="site-notice-persist" type="checkbox" disabled aria-describedby="site-notice-persist-help" /> 重启后保留有效公告</label><button type="button" id="site-notice-persist-save" disabled>保存保留设置</button></div>
+  <p class="meta" id="site-notice-persist-help">默认开启。保存当前和之后发布的公告；重启时恢复尚未过期的公告，沿用原起止时间。定时公告仍按原计划开始，「直到撤下」持续保留。关闭只取消下次恢复，不撤下当前公告。</p>
+  <p class="meta" id="site-notice-persist-status" role="status" aria-live="polite"></p>
+  <div class="row notice-draft-tools"><label>公告草稿 <select id="site-notice-drafts"><option value="">选择已保存草稿</option></select></label>
+    <button type="button" data-notice-editor="load">载入草稿</button><button type="button" data-notice-editor="refresh">刷新草稿</button><button type="button" data-notice-editor="delete" class="danger">删除草稿</button></div>
+  <div class="row notice-draft-tools"><label>草稿名称 <input id="site-notice-draft-title" maxlength="160" placeholder="例如：下次更新公告" /></label>
+    <button type="button" data-notice-editor="save">保存草稿</button><button type="button" data-notice-editor="new">另存为新草稿</button></div>
+  <div class="row notice-draft-tools"><label>常用模板 <select id="site-notice-template"><option value="">选择模板</option></select></label><button type="button" data-notice-editor="template">使用模板</button></div>
+  <p class="meta" id="site-notice-draft-status" role="status" aria-live="polite">草稿保存在服务器，最多 30 份。保存草稿不会发布公告。</p>
+  <div class="notice-editor-grid">
+    <label>公告正文 <textarea id="site-notice-text" maxlength="40000" rows="14" aria-label="公告正文" aria-describedby="site-notice-count"></textarea><span class="meta" id="site-notice-count"></span></label>
+    <section class="notice-preview-wrap" aria-label="公告正文预览"><h3>正文预览</h3><p class="meta">实时预览，与玩家端使用同一 Markdown 渲染规则；纯文本原样显示。</p><div id="site-notice-preview"></div></section>
+  </div>
+  <label>正文格式 <select id="site-notice-format"><option value="plain">纯文本（最多 500 字）</option><option value="markdown">Markdown 长文（最多 20000 字）</option></select></label>
+  <p class="meta">Markdown 支持标题、列表、强调、代码、引用、表格与链接；HTML 和图片不会执行或加载。长文横幅只提示点击查看。</p>
   <div class="row">
     <label>级别 <select id="site-notice-level"><option value="info">通知</option><option value="warning">提醒</option><option value="urgent">紧急通知</option></select></label>
     <label>开始 <select id="site-notice-delay"><option value="0">立即</option><option value="600000">10 分钟后</option><option value="3600000">1 小时后</option></select></label>
     <label>持续 <select id="site-notice-duration"><option value="600000">10 分钟</option><option value="3600000" selected>1 小时</option><option value="untilRemoved">直到撤下</option></select></label>
     <button data-site-notice="save">发布全站公告</button><button data-site-notice="remove" class="danger">立即撤下</button>
   </div>
-  <p class="meta">默认立即开始、持续 1 小时；可选择定时开始或直到撤下。发布会替换当前公告，重启服务后清空。</p>
+  <p class="meta">默认立即开始、持续 1 小时；可选择定时开始或直到撤下。发布会替换当前公告；重启是否保留取决于上方设置，草稿始终独立保存。</p>
 </section>
 </main>
 <main id="rooms"></main>
 <main id="records" hidden></main>
 <main id="settings" hidden></main>
+<main id="devtools" hidden>
+  <section class="devtools-intro"><h2>开发者模式</h2><p class="meta">集中打开项目的模拟与预览页面。工具用于开发和排查，不会影响正式对局。</p></section>
+  <section aria-label="开发工具"><ol class="devtools-list" id="devtools-list"></ol></section>
+  <section aria-label="对局模拟场景"><h2>直接打开模拟场景</h2><p class="meta">同类工具复用已打开的预览页；Ctrl / ⌘ 点击或中键可另开。右侧中文面板可继续切换场景，按反引号键（`）收起面板。</p><div id="devtools-scenes" class="devtools-scenes"></div></section>
+</main>
 <datalist id="chess-list"></datalist>
 <datalist id="item-list"></datalist>
 <datalist id="equip-list"></datalist>
@@ -187,6 +251,8 @@
 <div id="msg" role="status" aria-live="polite"></div>
 <script type="module">
 import { drawRoundChart, drawUnitRounds } from '/js/ui/roundChart.js';
+import { DEV_PAGES, DEV_SCENES, devSceneUrl } from '/shared/devtools.js';
+import { initAnnouncementEditor } from '/js/ui/announcementEditor.js';
 const chartBonds = await fetch('/data/bonds.json').then((r) => r.ok ? r.json() : {}).catch(() => ({}));
 import { showReleaseNotes, showReleaseUpdatePrompt } from "/js/ui/releaseNotes.js";
 const TOKEN = '__TOKEN__';
@@ -194,8 +260,55 @@ const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const api = (p, body) => fetch(p, { method: body ? 'POST' : 'GET', headers: { 'X-Admin-Token': TOKEN, 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) })
   .then((r) => r.json());
+const DEV_MODE_KEY = 'sp.admin.developer-mode';
+const storedDevMode = () => { try { return localStorage.getItem(DEV_MODE_KEY) === '1'; } catch { return false; } };
+let devMode = storedDevMode();
 let servicePending = false, recoveryEnabled = false;
 let roomPoll;
+const devPreviews = new Map();
+
+function openDevPreview(e, link) {
+  if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+  const url = new URL(link.href);
+  if (url.origin !== location.origin || !url.pathname.startsWith('/dev/')) return;
+  let preview = devPreviews.get(url.pathname);
+  if (!preview || preview.closed) {
+    // Keep a handle for reuse, but sever opener access before loading the tool.
+    preview = window.open('about:blank', '_blank');
+    if (!preview) return; // Let the ordinary noopener link handle popup blockers.
+    preview.opener = null;
+    devPreviews.set(url.pathname, preview);
+  }
+  try {
+    if (preview.location.href !== url.href) preview.location.replace(url.href);
+    preview.focus();
+    e.preventDefault();
+  } catch {
+    // A preview navigated away from this origin: leave it alone and use the ordinary link.
+    devPreviews.delete(url.pathname);
+  }
+}
+
+async function drawDevTools() {
+  const list = $('#devtools-list');
+  list.innerHTML = '<li class="meta" role="status">正在读取开发页面…</li>';
+  try {
+    const result = await api('/api/devtools');
+    if (!Array.isArray(result.pages)) throw new Error(result.error || '页面清单无效');
+    const available = new Set(result.pages.filter(p => p.available).map(p => p.file));
+    list.innerHTML = DEV_PAGES.map(([file, name, description]) => `<li data-devtool="${esc(file)}"><div><h3>${esc(name)}</h3><p>${esc(description)}</p></div>
+      ${available.has(file) ? `<a data-dev-preview href="/dev/${esc(file)}" target="_blank" rel="noopener noreferrer">打开${esc(name)} ↗</a>` : '<span class="meta">当前安装包未包含</span>'}</li>`).join('');
+    $('#devtools-scenes').innerHTML = available.has('game-mock.html') ? DEV_SCENES.map(([label, phase, variant]) =>
+      `<a data-dev-preview href="${esc(devSceneUrl(phase, variant))}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`).join('') : '<p class="meta">当前安装包未包含对局模拟页面。</p>';
+  } catch (e) {
+    list.innerHTML = `<li role="status">读取开发页面失败：${esc(e.message)} <button type="button" data-devtools-retry>重新读取</button></li>`;
+    $('#devtools-scenes').textContent = '';
+  }
+}
+
+function saveDevMode() {
+  try { localStorage.setItem(DEV_MODE_KEY, devMode ? '1' : '0'); } catch { /* The mode remains usable for this page view. */ }
+}
 async function loadService() {
   try {
     const state = await api('/api/service');
@@ -892,14 +1005,14 @@ function drawReleaseUpdate() {
     idle: '首次打开控制台会自动检查更新，也可手动刷新版本列表。', checking: '正在获取 Release 版本列表…',
     available: '发现新版本，请选择要安装的版本。', 'up-to-date': '未发现比当前版本更新的正式 Release。可选择旧版本回退。',
     downloading: `正在下载安装包…${d.received ? ` ${(d.received / 1048576).toFixed(1)} / ${(d.size / 1048576).toFixed(1)} MB` : ''}`,
-    verifying: '正在校验程序文件…', 'active-matches': '有正在进行的对局，安装前需要确认结束对局。',
+    verifying: '正在校验程序与素材，比较本机已有文件…', 'active-matches': '有正在进行的对局，安装前需要确认结束对局。',
     scheduled: '更新已校验，服务器即将重启。恢复连接后此页面会自动刷新。',
     reconnecting: '正在安装并等待服务器恢复…',
   };
   host.innerHTML = `<h2>版本更新</h2>
     <p><label><input type="checkbox" id="auto-update" ${d.automatic?.enabled ? 'checked' : ''} ${updateRequest ? 'disabled' : ''}> 空闲时自动安装新版本</label> <button data-auto-update-save ${updateRequest ? 'disabled' : ''}>保存自动更新设置</button></p>
     <p class="meta" role="status">自动更新：${esc(({ disabled: '已关闭', idle: '等待检查', waiting: '等待全部对局结束', announcing: '已公告，等待一分钟', installing: '正在安装', error: '失败', 'up-to-date': '暂无新版' })[d.automatic?.state] || '已关闭')} ${esc(d.automatic?.error || '')} ${d.automatic?.lastCheck ? ' · 上次检查 ' + esc(new Date(d.automatic.lastCheck).toLocaleString()) : ''} ${esc(d.automatic?.target || '')}</p>
-    <p class="meta">从 ${esc(d.repository || 'zhewang448/Stronghold-Protocol')} 下载正式 Release。保留本机素材、主机设置和对局记录；替换前备份程序文件，安装完成后自动重启。</p>
+    <p class="meta">从 ${esc(d.repository || 'zhewang448/Stronghold-Protocol')} 下载正式 Release 完整包，补齐缺失或变更的素材及清单，已有相同素材跳过写入。保留额外素材、主机设置和对局记录；替换前备份程序与素材，完成后自动重启。选择当前版本可修复素材。</p>
     <div class="row"><span>当前版本：<strong>${esc(d.currentVersion || '读取中…')}</strong></span>
       ${d.latestVersion ? `<span>最新版本：<strong>${esc(d.latestVersion)}</strong></span>` : ''}</div>
     <p><label for="release-version-select">选择版本</label><br><select id="release-version-select" ${busy || d.state === 'reconnecting' ? 'disabled' : ''}>
@@ -910,7 +1023,7 @@ function drawReleaseUpdate() {
     <p id="release-update-state" role="status" aria-live="polite" ${d.error ? 'class="bad"' : 'class="meta"'}>${esc(d.error ? `更新失败：${d.error}。可重新检查后重试。` : messages[d.state] || '')}</p>
     <div class="row"><button data-update-check ${busy || d.state === 'reconnecting' || d.state === 'active-matches' ? 'disabled' : ''}>检查更新</button>
       ${d.hasMore ? `<button data-update-more ${busy ? 'disabled' : ''}>加载更早版本</button>` : ''}
-      <button class="primary" data-update-install ${busy || d.state === 'reconnecting' || !d.canInstall || !selected?.installable ? 'disabled' : ''}>${selected?.relation === 'old' ? '回退并重启' : d.state === 'active-matches' ? '继续安装并重启' : '下载并安装'}</button></div>
+      <button class="primary" data-update-install ${busy || d.state === 'reconnecting' || !d.canInstall || !selected?.installable ? 'disabled' : ''}>${d.state === 'active-matches' ? '继续安装并重启' : selected?.relation === 'current' ? '修复素材并重启' : selected?.relation === 'old' ? '回退并重启' : '下载并安装'}</button></div>
     ${d.canInstall === false ? '<p class="meta">当前启动方式不支持自动重启，请通过启动脚本或 npm start 启动服务器。</p>' : ''}
     ${d.source ? `<p class="meta">最近请求：${{ direct: 'GitHub 直连', proxy: '通过配置的代理访问 GitHub', mirror: '镜像站（GitHub 访问失败后自动切换）' }[d.source]}</p>` : ''}
     <details class="stats" ${networkExpanded ? 'open' : ''}><summary>更新网络配置</summary>
@@ -1015,7 +1128,8 @@ async function updateRelease(action, force = false, allowDowngrade = false) {
   if (action === 'check' || action === 'more') releaseUpdate = { ...releaseUpdate, state: 'checking', error: undefined };
   drawReleaseUpdate();
   try {
-    releaseUpdate = await api('/api/update', { action, tag: selectedRelease, force, allowDowngrade });
+    releaseUpdate = await api('/api/update', { action, tag: selectedRelease, force, allowDowngrade,
+      repairAssets: action === 'install' && releaseUpdate.versions?.find((r) => r.tag === selectedRelease)?.relation === 'current' });
     if (releaseUpdate.state === 'active-matches' && action === 'install' && !force) {
       updateRequest = false;
       drawReleaseUpdate();
@@ -1104,11 +1218,19 @@ async function showSettings() {
       <p class="meta">实时伤害默认开启。关闭后仅显示已结算回合，累计与结算记录继续保存；不影响玩家本机的 DPS / HPS 作战统计。</p>
       <div class="row"><button class="primary" data-round-charts-save>保存</button><button data-round-charts-reset>撤销修改</button><span class="meta" id="round-charts-saved" role="status"></span></div>
     </form></section>
+    <section class="room" id="social-settings"><h2>在线玩家与邀请</h2>
+    <p class="meta">仅管理当前服务器的会话，无需注册账号。保存后立即生效；隐身玩家始终从名单和可见人数中排除，也不能发送或接收邀请。关闭隐身选择不会强制公开已隐身玩家。</p>
+    <form id="social-form" class="stats-body" onsubmit="return false">
+      ${[['directory','启用在线玩家名单'],['invitations','启用房间直接邀请'],['statusSelection','允许玩家设置在线状态'],['invisible','允许玩家选择隐身'],['counts','显示可见在线人数'],['hostOnly','仅房主可以发送邀请']].map(([key,label]) => `<label><input type="checkbox" data-social-option="${key}" ${d.social?.[key] ? 'checked' : ''}> ${label}</label>`).join('')}
+      <p class="meta">忙碌玩家不接收邀请；对局中、已有房间、离线及隐身玩家均不能被邀请。邀请 60 秒过期，每人发送间隔至少 10 秒，单个玩家最多收到 5 份待处理邀请。关闭邀请会撤销待处理邀请。</p>
+      <div class="row"><button class="primary" data-social-save>保存</button><button data-social-reset>撤销修改</button><span class="meta" id="social-saved" role="status"></span></div>
+    </form></section>
     <section class="room" id="unite-settings"><h2>联防叠层</h2>
-    <p class="meta" id="unite-layers-help">自定义规则，默认关闭。开启后，援助干员可在联防中继续叠层，每场战斗的叠层额度重新获得；新增层数在结算时保留，盟约层数上限仍为 999。最终攻势和隐秘核心不受此开关影响。</p>
-    <p class="meta">适用于所有房间，从下一次联防开始生效。设置保存在 ${esc(d.file)}，重启服务器后保留。</p>
+    <p class="meta" id="unite-layers-help">联防叠层默认关闭，新建房间沿用下方默认规则。只有开启「允许房主自行设置联防叠层」，房主才能在等待室「同盟设置」中修改，开局后固定。关闭权限会立即锁定已有房间的修改入口，但保留房间已选规则和正在进行的对局。开启叠层后，每场战斗额度重新获得，结算保留新增层数，上限仍为 999；最终攻势和隐秘核心仍不叠层。</p>
+    <p class="meta">修改权限保存后立即生效，默认叠层规则仅用于新建房间。设置保存在 ${esc(d.file)}，重启服务器后保留。</p>
     <form id="unite-layers-form" class="stats-body" onsubmit="return false">
-      <label><input id="unite-layers-enabled" type="checkbox" aria-describedby="unite-layers-help" ${d.uniteLayerGains ? 'checked' : ''}> 允许联防叠层</label>
+      <label><input id="unite-layers-enabled" type="checkbox" aria-describedby="unite-layers-help" ${d.uniteLayerGains ? 'checked' : ''}> 新建房间默认允许联防叠层</label>
+      <label><input id="unite-layers-host-control" type="checkbox" aria-describedby="unite-layers-help" ${d.allowRoomUniteLayerGains ? 'checked' : ''}> 允许房主自行设置联防叠层</label>
       <div class="row"><button class="primary" data-unite-layers-save>保存</button><button data-unite-layers-reset>撤销修改</button><span class="meta" id="unite-layers-saved" role="status"></span></div>
     </form></section>
     <section class="room" id="prep-settings"><h2>休整期时长</h2>
@@ -1158,7 +1280,7 @@ function arrangeSettings() {
   sections.set(chat.id, chat);
   const groups = [
     ['game', '对局设置', ['prep-settings', 'unite-settings', 'round-charts-settings']],
-    ['chat', '交流管理', ['chat-policy-settings', 'chat-settings']],
+    ['chat', '交流管理', ['social-settings', 'chat-policy-settings', 'chat-settings']],
     ['history', '记录与恢复', ['replay-settings', 'recovery-settings']],
     ['system', '维护与扩展', ['release-update', 'plugin-settings']],
     ['cleanup', '数据清理', ['storage-settings']],
@@ -1176,7 +1298,7 @@ function arrangeSettings() {
 
 async function loadRecovery() {
   const d = await api('/api/recovery');
-  $('#recovery-content').innerHTML = `<p>恢复至最近休整期开始，保留当时的机变；作战中重启需重打本回合。版本指纹不一致时保留文件供检查。</p><label><input id="recovery-enabled" type="checkbox" ${d.enabled ? 'checked' : ''} ${d.unavailable ? 'disabled' : ''}> 启用恢复</label> <button data-recovery-save ${d.unavailable ? 'disabled' : ''}>保存恢复设置</button>${d.unavailable ? '<p>当前启动方式未启用恢复管理。</p>' : ''}${d.issues.map(x=>`<p>${esc(x.id)}：${esc(x.error)} <button class="danger" data-recovery-delete="${esc(x.id)}">删除恢复文件</button></p>`).join('')}`;
+  $('#recovery-content').innerHTML = `<p>恢复至最近休整期开始，保留当时的机变；作战中重启需重打本回合。版本指纹不一致时保留文件供检查。</p><label><input id="recovery-enabled" type="checkbox" ${d.enabled ? 'checked' : ''} ${d.unavailable ? 'disabled' : ''}> 启用恢复</label> <button data-recovery-save ${d.unavailable ? 'disabled' : ''}>保存恢复设置</button>${d.unavailable ? '<p>当前启动方式未启用恢复管理。</p>' : ''}${(d.issues || []).map(x=>`<p>${esc(x.id)}：${esc(x.error)} <button class="danger" data-recovery-delete="${esc(x.id)}">删除恢复文件</button></p>`).join('')}`;
 }
 async function changeRecovery(button) {
   const id = button.dataset.recoveryDelete, enabled = $('#recovery-enabled').checked;
@@ -1401,6 +1523,22 @@ async function refresh(force = false) {
 }
 
 document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-social-reset]')) {
+    for (const input of document.querySelectorAll('[data-social-option]')) input.checked = settingsData.social?.[input.dataset.socialOption] === true;
+    $('#social-saved').textContent = ''; return;
+  }
+  const socialSave = e.target.closest('[data-social-save]');
+  if (socialSave) {
+    const inputs = [...document.querySelectorAll('[data-social-option]')];
+    const social = Object.fromEntries(inputs.map(input => [input.dataset.socialOption, input.checked]));
+    socialSave.disabled = true; for (const input of inputs) input.disabled = true;
+    $('#social-saved').textContent = '保存中…';
+    api('/api/settings', { social }).then(result => {
+      if (!result.ok) throw new Error(result.error || '保存失败');
+      settingsData.social = result.social; $('#social-saved').textContent = '已保存，立即生效';
+    }).catch(error => { $('#social-saved').textContent = '保存失败：' + error.message; }).finally(() => { socialSave.disabled = false; for (const input of inputs) input.disabled = false; });
+    return;
+  }
   const roomButton = e.target.closest('[data-open-room]');
   const pageButton = e.target.closest('[data-record-page]');
   if (pageButton) { recordPage = Number(pageButton.dataset.recordPage); drawRecordList(); return; }
@@ -1412,10 +1550,19 @@ document.addEventListener('click', (e) => {
     const startAt = Date.now() + Number($('#site-notice-delay').value);
     const untilRemoved = $('#site-notice-duration').value === 'untilRemoved';
     const endAt = untilRemoved ? 8640000000000000 : startAt + Number($('#site-notice-duration').value);
-    act('*', 'announce', null, notice.dataset.siteNotice === 'remove' ? null : { text: $('#site-notice-text').value, level: $('#site-notice-level').value, startAt, endAt, untilRemoved }, '全站公告'); refreshStatus(); return;
+    act('*', 'announce', null, notice.dataset.siteNotice === 'remove' ? null : { text: $('#site-notice-text').value, format: $('#site-notice-format').value, level: $('#site-notice-level').value, startAt, endAt, untilRemoved }, '全站公告'); refreshStatus(); return;
   }
   const serviceButton = e.target.closest('button[data-service]');
   if (serviceButton && !serviceButton.disabled) { controlService(serviceButton.dataset.service); return; }
+  if (e.target.closest('#devmode-toggle')) {
+    devMode = !devMode;
+    saveDevMode();
+    setTab(devMode ? 'devtools' : 'rooms');
+    return;
+  }
+  const previewLink = e.target.closest('a[data-dev-preview]');
+  if (previewLink) { openDevPreview(e, previewLink); return; }
+  if (e.target.closest('[data-devtools-retry]')) { drawDevTools(); return; }
   const tab = e.target.closest('button[data-tab]');
   if (tab) { setTab(tab.dataset.tab); return; }
   const recoveryButton = e.target.closest('[data-recovery-save], [data-recovery-delete]');
@@ -1501,24 +1648,29 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('button[data-unite-layers-reset]')) {
     $('#unite-layers-enabled').checked = !!settingsData.uniteLayerGains;
+    $('#unite-layers-host-control').checked = !!settingsData.allowRoomUniteLayerGains;
     $('#unite-layers-saved').textContent = '';
     return;
   }
   const uniteSave = e.target.closest('button[data-unite-layers-save]');
   if (uniteSave) {
     const checkbox = $('#unite-layers-enabled');
+    const permission = $('#unite-layers-host-control');
     const saved = $('#unite-layers-saved');
     const reset = $('#unite-layers-form [data-unite-layers-reset]');
     const uniteLayerGains = checkbox.checked;
-    uniteSave.disabled = checkbox.disabled = reset.disabled = true;
+    const allowRoomUniteLayerGains = permission.checked;
+    uniteSave.disabled = checkbox.disabled = permission.disabled = reset.disabled = true;
     saved.textContent = '保存中…';
-    api('/api/settings', { uniteLayerGains }).catch(() => ({ error: '连接服务器失败' })).then((r) => {
+    api('/api/settings', { uniteLayerGains, allowRoomUniteLayerGains }).catch(() => ({ error: '连接服务器失败' })).then((r) => {
       if (r.ok) {
         settingsData.uniteLayerGains = r.uniteLayerGains;
         checkbox.checked = r.uniteLayerGains;
-        saved.textContent = '已保存，从下一次联防开始生效';
+        settingsData.allowRoomUniteLayerGains = r.allowRoomUniteLayerGains;
+        permission.checked = r.allowRoomUniteLayerGains;
+        saved.textContent = '已保存，房主修改权限立即生效；默认叠层规则用于新建房间';
       } else { saved.textContent = `保存失败：${r.error}`; say(saved.textContent, true); }
-    }).finally(() => { uniteSave.disabled = checkbox.disabled = reset.disabled = false; });
+    }).finally(() => { uniteSave.disabled = checkbox.disabled = permission.disabled = reset.disabled = false; });
     return;
   }
   if (e.target.closest('button[data-prep-reset]')) { showSettings(); return; }
@@ -1549,14 +1701,19 @@ let tabRequest = 0;
 async function setTab(name) {
   const request = ++tabRequest;
   for (const b of document.querySelectorAll('button[data-tab]')) b.setAttribute('aria-pressed', String(b.dataset.tab === name));
+  $('[data-tab="devtools"]').hidden = !devMode;
+  const devToggle = $('#devmode-toggle');
+  devToggle.setAttribute('aria-pressed', String(devMode));
+  devToggle.textContent = devMode ? '退出开发者模式' : '开发者模式';
 
   // Keep the current panel visible while the target panel fetches its data. Hiding all
   // panels before these awaits leaves a blank frame on every navigation.
   if (name === 'records') await showRecords();
   else if (name === 'settings') await showSettings();
   else if (name === 'rooms') { lastJson = ''; await refresh(true); }
+  else if (name === 'devtools') await drawDevTools();
   if (request !== tabRequest) return;
-  for (const id of ['rooms', 'records', 'settings', 'server']) $(`#${id}`).hidden = name !== id;
+  for (const id of ['rooms', 'records', 'settings', 'server', 'devtools']) $(`#${id}`).hidden = name !== id;
 }
 document.addEventListener('change', (e) => {
   const el = e.target;
@@ -1608,6 +1765,7 @@ document.addEventListener('keydown', (e) => {
 });
 // Keep number drafts stable when a wheel gesture passes over a focused input.
 document.addEventListener('wheel', e => { if (e.target.matches('input[type="number"]') && document.activeElement === e.target) e.preventDefault(); }, { passive: false });
+initAnnouncementEditor({ api });
 refreshStatus();
 setInterval(refreshStatus, 3000);
 refresh();
@@ -1615,6 +1773,7 @@ roomPoll = setInterval(refresh, 1500);
 loadService();
 openUpdateConsole();
 api('/api/release-notes').then((n) => showReleaseNotes(n, { storageKey: 'sp.admin.release-notes' })).catch(() => {});
+if (devMode) setTab('devtools');
 </script>
 </body>
 </html>

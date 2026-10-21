@@ -331,7 +331,7 @@ describe('official emotes in the browser', { skip: !ENABLED && 'set SP_E2E=1 (an
     assert.equal(s.imgs, 6);
     assert.match(s.panelText, /^\d+\/12$/);
     // Network-idle and the new entrance may outlast the fixture's initial 3 s bubble. Emit a fresh mock event.
-    await page.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent === 'teammate emote').click());
+    await page.evaluate(() => [...document.querySelectorAll('#mockbar button')].find(b => b.textContent === '队友表情').click());
     await page.waitForSelector('.team__bubble');
     await sleep(300);
     const geo = await page.$$eval('.team__row', (rows) => rows.filter((r) => r.querySelector('.team__bubble')).map((r) => {

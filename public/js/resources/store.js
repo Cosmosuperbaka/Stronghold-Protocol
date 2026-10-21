@@ -65,6 +65,12 @@ export class ResourceStore {
     this.statusPromise = null;
   }
 
+  async importTransportPack(entries, { signal, onProgress } = {}) {
+    const byFile = new Map(entries.map(({ file, bytes }) => [file, bytes]));
+    return this.importFiles([...byFile.keys()], { signal, read: (file) => byFile.get(file),
+      onProgress: (p) => onProgress?.({ done: p.processed, total: entries.length }) });
+  }
+
   /** Cache key (absolute URL) of a manifest entry. */
   keyOf(url) {
     return absoluteUrl(url, this.origin) || String(url);

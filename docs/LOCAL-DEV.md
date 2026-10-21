@@ -1,8 +1,20 @@
 # 扩展分支开发笔记
 
-这份文档记录本仓库在上游 [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol) 之上做的改动，以及读代码时摸清的结构和坑，方便之后继续开发。上游自己的架构文档见 [DESIGN.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.3.0/docs/DESIGN.md)（总体）、[META.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.3.0/docs/META.md)（对局与经济）、[SIM.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.3.0/docs/SIM.md)（战斗模拟）。
+这份文档记录本仓库在上游 [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol) 之上做的改动，以及读代码时摸清的结构和坑，方便之后继续开发。上游自己的架构文档见 [DESIGN.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.3.1/docs/DESIGN.md)（总体）、[META.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.3.1/docs/META.md)（对局与经济）、[SIM.md](https://github.com/sganggs/Stronghold-Protocol/blob/v0.3.1/docs/SIM.md)（战斗模拟）。
 
 ## 1. 仓库与分支
+
+个人数据迁移（2026-10-19，未发布）：`public/js/ui/personalData.js` 为纯数据校验/编码/回滚模块，
+`personalDataPanel.js` 负责公共弹窗与旧站授权窗口。大厅入口紧接统计数据，标题页也可打开。
+迁移不需要账号后端或 CORS；新旧域名都要提供本版前端，旧域名不能只做 301/302 跳转。
+用户在新站填旧网址，在旧站确认目标 origin 并允许，新站核对摘要后确认恢复并刷新。
+恢复码也可复制或存成 `.spdata` 文件，可在不连接旧站时导入。应在停用旧站前提醒用户导出；
+已经失效且没有备份的域名，其浏览器隔离存储无法由新站读取。完整字段、安全边界和导入语义见
+[当前界面契约](design/client.md#本机个人数据备份与域名迁移2026-10-19)。测试：
+`node --test test/ui/personal-data.test.js`；双域名与布局浏览器测试为 `test/ui/personal-data.e2e.test.js`。
+本机可在已被 Git 忽略的 `local/personal-data.json` 配置 `migrationSource`（仅完整 HTTP(S) 源站地址）。
+前端打开迁移弹窗时从 `/personal-data-config.json` 读取默认旧站地址，缺失/无效则留空；
+用户可手动修改，延迟返回的配置不会覆盖已输入内容。配置文件不进版本库或发布包，源码中不写具体实例地址。
 
 | 远程 | 地址 | 用途 |
 |---|---|---|
@@ -13,11 +25,19 @@
 - 合并上游新版本时从 `main` 开功能分支，完成适配与测试后再合并回 `main`。
 - 同步上游：`git fetch upstream` → `git merge upstream/master` → `npm install` → `npm run setup`（上游常会加素材）→ `node --test`。
 - 素材 `public/assets/`、`.cache/`、`.claude/` 都在 `.gitignore` 里，不进仓库。新机器 clone 后要先 `npm install && npm run setup`。
-- 当前版本为 `v0.3.0-extended.5`（合并官方 v0.3.0-extended.2 后），基于上游 `v0.3.0`（`c24e17ee`）。上一正式版为 `v0.2.6-extended.5`。新增局内每回合统计、主机聊天与屏蔽词、分组设置和组队海报，保留既有控制台、回档、回放、联动与皮肤扩展。完整包包含 11 个官方战场场景、0.3.0 官方 FX、多语言语音、174 套皮肤和海报素材；lite 需按文档补齐。素材来源与原始校验记录见 DEPLOY §6；发布预检要求 `--require-local-art`，同时核对场景和素材完整性。
+- 当前版本为 `v0.3.1-extended.6`（正式版），基于上游 `v0.3.1`（`b3deebda`）。上一正式版为 `v0.3.1-extended.5`。本版新增在线玩家名单、状态与隐身、房间邀请及控制台管理，房间联防叠层权限和公告草稿、模板与 Markdown 预览。完整包包含 11 个官方战场场景（提取版本 4）、官方 FX、多语言语音、174 套皮肤和海报素材；lite 需保留或另行安装素材，发布预检使用 `--require-local-art`。
 
-`package.json` / APP_VERSION 保持上游基础版本 0.3.0；`server/release-version.js` 单独记录扩展标签。发布附件与公开状态以 Releases 为准。
+当前源码已整合上游 `v0.3.1`（`b3deebda`）；`package.json` / APP_VERSION 为基础版本 0.3.1；`server/release-version.js` 单独记录扩展标签。发布附件与公开状态以 Releases 为准。
 
-上游合并的兼容处理：
+上游 v0.3.1 合并的兼容处理（2026-10-18，随 v0.3.1-extended.1 发布）：
+
+- 保留 Hub 布局、文字聊天、每回合统计、主机工具、7 名联动与 174 套安装皮肤。皮肤选择与上游外观插件共用一个 store、同步器和服务端校验，支持插件皮肤、他人皮肤显隐及原有随机 / 导入导出。
+- 部署缩放继续默认关闭，以既有 `deploymentZoom` 偏好为准；上游 `prepDeployFold` 仅在旧配置没有本库字段时迁移。弹药和秘术师能量按上游合成一个开关，旧布尔偏好自动迁移，作战统计仍默认开启。
+- 测试房间通过 Hub 开关创建，保留自定义密钥、加入确认与测试标识；测试房间不写入本库战绩、回放和重启恢复，跨局汇总过滤旧测试记录。普通插件局仍转发 hostId，主机迁移同时供本库工具与测试指令使用。
+- 回档保留当前皮肤选择，恢复交互窗口抽取次序，通信序号保持单调递增，取消旧窗口的定时器与延续；玩家状态中的凯瑟琳领取次数随快照恢复。
+- 官方数据生成与上游一致，另保留联动自选池；音效清单比上游多 23 个联动攻击 / 命中引用及对应音库。
+
+此前 v0.3.0 合并的兼容处理：
 
 - 保留社区 Hub UI、皮肤、7 名联动、聊天标点、公告、盟约预选、帧率、ZIP 资源管理和状态增量；快捷键随上游扩成七项，加入 W 悬停购买；作战统计按维护者要求默认开启，保留已保存的关闭偏好，仍用浏览器只读统计。
 - 两套素材功能统一注册 classic `/sw.js`：上游导入包使用独立缓存，本库预载保留按哈希校验、音频别名和 Range。关闭预载停止下载，清理只删除本库缓存，统一 worker 继续服务上游导入素材。旧 `/resource-sw.js` 只保留升级兼容，不再注册争用 scope。
@@ -29,6 +49,18 @@
 各版上游合并、主机扩展与发布验证见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md)。
 
 ## 2. 本地新增了什么
+
+### 2026-10-18 控制台开发者模式
+
+控制台顶栏「开发者模式」开启后显示「模拟页面」，列出全部 6 个开发工具和 30 个中文对局场景。
+开关保存在当前浏览器的 `sp.admin.developer-mode`，退出后隐藏入口；不更改主机或对局设置。
+工具从当前控制台端口的新标签页打开，复用本机会话鉴权，无需填写游戏端口。同一控制台页面内，普通点击按工具路径复用预览：
+重复打开同一场景只聚焦，不重置状态；不同对局场景在同一个 Game Mock 页切换，UI Kit 等其他工具各自独立。
+关闭预览后可以重新打开，切换控制台栏目保留复用关系；刷新或关闭控制台后重新建立关系，不接管此前的预览页。
+Ctrl / ⌘ 点击、中键及浏览器菜单仍可另开页面。预览无法复用或弹窗被阻止时保留原生链接回退，新页保持 opener 隔离。
+本版完整 / 轻量包包含开发页面与录制、性能样例；旧包缺少
+`public/dev/` 时显示「当前安装包未包含」。模拟一致性校验仍需从源码生成参考数据。`shared/devtools.js` 共用中文工具、场景目录，
+模拟页右侧切换器和事件按钮也使用中文。验证见 `test/ui/admin-devtools.e2e.test.js`。
 
 ### 2026-10-16 控制台与组队界面修订
 
@@ -96,6 +128,16 @@
 0.2.0 起上游把 `Match` 的方法拆到了 `server/match/match/*.js`，启动代码从 `server/index.js` 拆到了 `server/http/`。
 
 ### 房间交流（文字聊天与战场标点）
+
+2026-10-17 交流面板移植：棋盘阶段将文字聊天放入左下角「交流」，使用参考站当日公开 `emotes.js` / `emotes.css`
+的左侧图标栏、表情 / 历史共用区域与单行输入布局，保留数字页码。`matchCommunication.js` 将本库 `chatStore`
+接入组件，继续通过 `sendChat` / `room.chat` 发送，权限、屏蔽词、200 字限制和失败草稿均不变。
+新玩家消息使用 `EmoteBubble` 文字模式，在对应头像右侧显示约 3 秒；历史同步不补播，主机消息只在记录里显示。
+过长气泡最多显示三行，全文保留在记录。关闭消息提示后丢弃当前气泡批次，重开不补播。
+等待室、开局说明、盟约轮选和结算继续使用可拖动聊天窗口。设置页、HUD、商店和全局比例不参与本次改动。
+来源、外观参数及其他候选 UI 见 [REFERENCE-UI-REVIEW.md](REFERENCE-UI-REVIEW.md)。
+验证：`test/ui/match-communication.test.js` 与 `SP_E2E=1` 下的 `test/ui/match-communication.e2e.test.js`；
+原聊天与表情浏览器回归继续适用。
 
 2026-10-16 主机聊天恢复：`POST /api/action {room,action:'chatSend',value:text}` 仅走认证本机控制台，
 复用 `RoomChat.message` 和房间广播，固定主机身份、`role:system`，前端称「主机消息」。
@@ -321,11 +363,13 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 | `GET /api/settings` | 当前的休整期设置 `{ prep }`、设置文件路径，以及各同盟模式每回合的默认秒数 |
 | `POST /api/settings` | `{ prep }`：校验、写文件，然后生效 |
 | `GET /api/update` | 更新状态：当前 / 最新扩展标签、`versions`（`new/current/old`、附件及不可安装原因）、`hasMore`、网络配置、请求来源、下载字节数、错误和是否支持重启 |
-| `POST /api/update` | `open`：每个 updater 生命周期仅首次自动检查，只有首次调用返回新版 `notify`；`check`：刷新正式 Release 列表；`more`：获取下一页（每页 30）；`network`：保存 `{ network: { proxy, mirror } }`；`install`：按已查询的 `tag` 后台下载，旧版需 `allowDowngrade:true`，活动对局需 `force:true` |
+| `POST /api/update` | `open`：每个 updater 生命周期仅首次自动检查，只有首次调用返回新版 `notify`；`check`：刷新正式 Release 列表；`more`：获取下一页（每页 30）；`network`：保存 `{ network: { proxy, mirror } }`；`install`：按已查询的 `tag` 后台下载，旧版需 `allowDowngrade:true`，当前版修复需 `repairAssets:true`，活动对局需 `force:true` |
 
-首次打开行为由服务端消费，刷新和多页并发不会重复检查或提醒；检查请求并发合并。查询正式版本按数值排序，过滤草稿、预发布和无法识别的标签；当前版本没有远程附件时仍显示。当前版本不可重复安装，旧版回退和活动对局分别确认。网络配置保存在 `logs/release-network.json`；运行时使用 undici 的 HTTP/HTTPS `ProxyAgent`，兼容 Node 22.14，不依赖启动时环境变量。先代理 / 直连 GitHub，失败后绕过该代理直接访问镜像（默认复用素材工具的 `https://gh-proxy.com/` 前缀）。整个响应消费含 JSON、校验文本、流下载、SHA-256 与程序清单验证均可回退，更新忙碌或已有待安装包时拒绝修改网络配置。
+首次打开行为由服务端消费，刷新和多页并发不会重复检查或提醒；检查请求并发合并。查询正式版本按数值排序，过滤草稿、预发布和无法识别的标签；当前版本没有远程附件时仍显示。当前版本仅在显式 `repairAssets:true` 时允许重新安装，用于修复素材；旧版回退和活动对局分别确认。网络配置保存在 `logs/release-network.json`；运行时使用 undici 的 HTTP/HTTPS `ProxyAgent`，兼容 Node 22.14，不依赖启动时环境变量。先代理 / 直连 GitHub，失败后绕过该代理直接访问镜像（默认复用素材工具的 `https://gh-proxy.com/` 前缀）。整个响应消费含 JSON、校验文本、流下载、SHA-256 与程序清单验证均可回退，更新忙碌或已有待安装包时拒绝修改网络配置。
 
-更新只访问 `zhewang448/Stronghold-Protocol` 的正式 Release，优先 lite 附件，回退 assets 附件；不接受源码或增量包。先验证附件的 GitHub digest / `SHA256SUMS.txt`，再检查包内程序 `MANIFEST.json`，拒绝路径穿越、重名及清单外程序文件。原服务下载期间继续运行；安装器握手成功才安排优雅停服。替换前备份到 `logs/update-backups/`，复制失败恢复旧文件；恢复失败保留安装锁、阻止重启并提示备份路径。日志在 `logs/release-update-status.json`，直接重启的输出在 `logs/release-restart.log`。
+更新只访问 `zhewang448/Stronghold-Protocol` 的正式 Release，使用 assets 完整包；只有 lite 时显示不可安装，不接受源码或增量包。先验证附件的 GitHub digest / `SHA256SUMS.txt`，再检查包内程序 `MANIFEST.json`，拒绝路径穿越、重名及清单外程序文件。`release-art.js` 将经过整包验证的素材逐文件哈希记入内部暂存清单 `RELEASE-ART.json`，按本机哈希跳过相同文件；安装前后校验全部目标素材及三份素材清单的引用。变化的程序、素材和素材清单一起备份、替换与回滚；额外本机素材不删除。这是完整包下载、差异写入，不是差异下载。原服务下载期间继续运行；安装器握手成功才安排优雅停服。替换前备份到 `logs/update-backups/`，复制失败恢复旧文件；恢复失败保留安装锁、阻止重启并提示备份路径。日志在 `logs/release-update-status.json`，直接重启的输出在 `logs/release-restart.log`。
+
+解压、与本机素材逐文件比较及暂存校验由 `release-stage-worker.js` 工作线程执行，不占用服务主线程；线程退出后才允许安装或清理暂存目录。停服后的安装器仍会重新校验素材，发现期间被修改的文件时拒绝安装。
 
 **发布签名**（`server/release-signing.js`）：镜像（默认 `gh-proxy.com`）是第三方，可以同时换掉 Release 列表、`SHA256SUMS.txt` 和 ZIP，所以只靠 SHA-256 防不住镜像篡改。现在维护者用 Ed25519 私钥给 `SHA256SUMS.txt` 签名，附件 `SHA256SUMS.txt.sig` 是一行 base64。签名内容为 `stronghold-protocol-release\n<标签>\n` 加上校验文件原始字节，绑定标签，防止拿别的版本的签名冒充。公钥列在 `RELEASE_PUBLIC_KEYS`（SPKI DER base64）。
 
@@ -387,12 +431,13 @@ LOBBY → INFO_CHECK → BAND_DRAFT → BATTLE_CHECK
 
 ### 可选联防叠层（hostSettings.js）
 
-控制台「设置 → 联防叠层 → 允许联防叠层」，进程级布尔值 `uniteLayerGains`，默认 `false`。这是明确选择的自定义规则，与上游默认联防不叠层的玩法不同。
+控制台「设置 → 联防叠层 → 允许联防叠层」设置新房间的默认值，布尔值 `uniteLayerGains`，默认 `false`。房主可在等待室「同盟设置 → 允许联防叠层」单独控制本房间，修改会取消其他真人的就绪；开局后本局固定。房间保留该选择，房主迁移和下一局也不重置。这是明确选择的自定义规则，与上游默认联防不叠层的玩法不同。
 
-- `GET /api/settings` 返回 `prep` 和 `uniteLayerGains`；`POST /api/settings` 允许只提交其中一项，省略项保留。两者都校验通过并成功写入 `logs/admin-settings.json` 后才生效；旧文件没有开关时保持关闭。
-- 每次 `_uniteOpts()` 构建联防时通过 `getUniteLayerGains()` 读取当前设置，保存到 `Match.uniteLayerGainsEnabled` 并写入 `flags.layerGainsEnabled`。服务器与浏览器使用同一规则；战斗中改开关只影响下一次联防。
+- 控制台同一区域新增「允许房主自行设置联防叠层」：`allowRoomUniteLayerGains`，默认关闭，旧配置文件也不自动授权。开启后房主才能修改；关闭立即锁定所有已有房间入口，服务端拒绝 `UNITE_LAYERS_LOCKED`，但保留房间原先选择和正在进行的对局。
+- `GET /api/settings` 返回 `prep`、`uniteLayerGains` 和 `allowRoomUniteLayerGains`；`POST /api/settings` 允许单独提交，省略项保留。全部校验通过并成功写入 `logs/admin-settings.json` 后才生效；权限保存会向所有房间广播 `canSetUniteLayerGains`，无需刷新。
+- 创建房间时复制 `getUniteLayerGains()`，开局通过 `opts.uniteLayerGains` 传入（插件子进程同样传递）。每次 `_uniteOpts()` 保存本局值到 `Match.uniteLayerGainsEnabled` 并写入 `flags.layerGainsEnabled`。服务器与浏览器使用同一规则；之后修改控制台默认值只影响新建房间。直接创建 Match 且省略选项的旧调用方仍按每次联防读取主机设置。
 - 援助干员从本轮普通战斗已达到的层数开始联防，每场战斗的特性计数和额度重新获得。结算先合入普通战斗增量，再给援助者合入联防增量各一次，复用 999 上限和 `onLayers` 钩子；漏怪方不会收到援助者的层数，合成兜底结果也不发层数。
-- 最终攻势和隐秘核心仍禁止叠层。主机开关不进回档快照；回档后开始的新联防读取当时设置，战斗开关在每次构建联防时重新捕获。
+- 最终攻势和隐秘核心仍禁止叠层。房间选择写入磁盘恢复记录，重启后仍保持；局内回档不修改本局规则，联防战斗和结算使用同一捕获值。
 - 页面支持保存、撤销未保存修改、重载与保存失败重试；休整期时长和联防开关独立保存，不会互相覆盖。
 - 回归：`node --test test/admin.test.js test/match/unite-layers.test.js test/content/garrisons_battle.test.js test/match/rewind.test.js`；真实控制台操作与桌面 / 手机布局用 `SP_E2E=1 node --test test/ui/admin-settings.e2e.test.js`。
 
@@ -503,6 +548,23 @@ EN / JA / KO 客户端里没有焰狐龙梓兰和结城理，zh-TW 里还没有�
 
 ### 聊天、监控与资源
 
+#### 聊天消息预览与爱心标点
+
+2026-10-17：收起聊天时预览新收到的队友/主机消息，跟随可拖动入口并限制在屏内；最多两条、正文各三行，
+更多显示数量。最新消息到达后停留 6 秒并淡出，悬停和键盘聚焦暂停，点击展开并清除未读。
+淡出不清未读；自己发送、历史同步、展开时收到的消息不重复弹出，清空记录同步清理预览。
+用户端设置「显示消息提示气泡」(`chatBubbles`) 默认开启，沿用本机 `sp.pref.settings` 保存；关闭立即清理
+预览但保留未读数，重新开启仅提示之后的新消息，旧版本配置默认开启。
+气泡以 220 ms 淡入并上移 6 px，消失以 180 ms 淡出并上移 4 px；系统减少动态效果时关闭动画和过渡。
+新增标点种类涉及服务端校验，源码更新后须重启服务并刷新玩家页面，避免旧进程拒绝新的 `kind`。
+底部第六个标点为粉色爱心，沿用坐标、广播、500 ms 冷却与 2.5 秒显示期限，提示音遵循音效/静音设置。
+
+验证：`node --test test/ui/chat.test.js test/ping.test.js test/ui/audio.test.js`；配置 `SP_E2E=1` 和
+`CHROME_PATH` 后运行 `node --test test/ui/chat-preview.e2e.test.js test/ui/chat.e2e.test.js test/ui/pings.e2e.test.js`。
+截图在忽略目录 `test/e2e/out/chat-preview-*.png`；设置 `PING_QA_SCREENSHOTS=1` 可输出 `.cache/ping-qa/heart-*.png`。
+
+#### 聊天管理、监控与资源实现
+
 聊天管理复用 `server/chat.js` 与普通离开规则，只允许本机控制台调用；v0.2.6-extended.5 起旧聊天公告改为独立全站公告，正文、级别和绝对起止时间由主机编辑，不进入聊天历史。清空广播带 `clearedThrough` 的空历史；单调消息 ID 不重用，客户端丢弃迟到的废弃消息。禁言绑定房间 playerId，重连不解除；玩家发送返回 `CHAT_MUTED`。轮询复用聊天节点，输入草稿与展开状态不丢失。
 
 `admin-wall.js` 输出四席摘要和对局标识，`monitor.html` 桌面 2×2、手机单列。每席内嵌 `/live?wall=1` 的完整游戏界面，包含棋盘、商店、盟约、HUD 与非权威战斗副本；按 1280×720 桌面视口缩放，可全屏或单独观察。墙内禁止代操作，不创建玩家 WebSocket 或上报战斗结果。仅已鉴权墙模式允许同源 iframe，普通实时页保持禁止嵌入。摘要每秒轮询、5 秒超时，同一对局 / 玩家不重建画面，结束或关闭移除 iframe，退出停止轮询与尺寸监听。局内聊天入口默认避开右侧效果及准备按钮，可拖动并按本机站点和昵称保存；展开面板跟随入口并自动限制在屏内。
@@ -535,6 +597,8 @@ EN / JA / KO 客户端里没有焰狐龙梓兰和结城理，zh-TW 里还没有�
 `public/js/ui/roundChart.js` 为游戏与控制台共用 SVG/表格/排行绘制器；指标包括 LP、金币、花费、伤害、
 商店等级、回合收支和可叠层盟约。盟约使用官方数据 `noStack` 过滤，旧记录通过数据查询补判；
 新记录携带该标记以支持插件盟约。控制台的不可叠层盟约仍展示人数/档位，隐藏层数与加层/设层输入。
+曲线与排行都复用筛选控件；实时刷新只重绘内容，选择指标时保留原生下拉框及选项节点。
+新增盟约等选项变化延后到失焦时同步，避免刷新收起选择栏。局内与控制台共用此行为。
 
 `logs/admin-settings.json` 的 `roundCharts` 默认 `true`（旧配置缺省同样开启），
 `GET/POST /api/settings` 读取/保存，独立保存其他设置时保留当前值；保存后立即刷新各活动局公开状态。
@@ -570,3 +634,68 @@ Windows 文件锁、既有资源缓存/标题链接断言。观战隐私断言�
 - 服务端：`test/admin-chat.test.js`、`resources-wall.test.js`、`match/history-details.test.js`、`result-summary.test.js`、`recovery.test.js`、`idle-update.test.js`、`release-notes.test.js`（除已写目录者外均在 test 根目录）。
 - 浏览器：`SP_E2E=1 node --test test/ui/admin-chat.e2e.test.js test/ui/admin-stats.e2e.test.js test/ui/next-features.e2e.test.js`；设 `CHROME_PATH`。监控墙真实 30 分钟验收另设 `SP_WALL_SOAK=1`，日常回归无需等待半小时。
 - 最终汇总见 [LOCAL-CHANGELOG.md](LOCAL-CHANGELOG.md) 的 `v0.2.6-extended.5` 节；只在明确授权后提交。
+
+## 参考站工具界面适配（2026-10-17，随 v0.3.0-extended.3 发布）
+
+设置点「修改快捷键」打开独立子弹窗；编辑时 Esc 取消，再按关闭子弹窗，设置继续打开。
+资源管理显示分包下载（字节 / 速度）、校验（状态）、导入（文件数），不改变下载与缓存配置。
+控制台「服务器 → 全站公告」可选择纯文本（500 字）或 Markdown（20000 字）；长文仅在公告弹窗排版，
+横幅提示点击查看详情。支持标题、列表、引用、表格、代码、安全链接；HTML 原样显示、图片显示替代文字。
+`/api/action` 的 JSON 上限为 256 KiB，覆盖长文及其 JSON 转义，其他接口保留原上限。
+源码来源、私有归档范围与验证入口见 [REFERENCE-UI-REVIEW.md](REFERENCE-UI-REVIEW.md)。
+
+### 公告草稿、模板与正文预览
+
+控制台「服务器 → 全站公告」可命名保存、载入、覆盖保存、另存和删除公告草稿，最多 30 份。草稿保存
+在控制台设置文件同目录的 `announcement-drafts.json`（默认 `logs/announcement-drafts.json`），重启后保留，
+不进入游戏内容或对局记录清理。仅本机已鉴权控制台可调用 `GET /api/announcement-drafts` 和
+`POST /api/announcement-drafts {action:'save',draft}` / `{action:'delete',id}`。写入采用临时文件加重命名，
+校验或写入失败保留旧数据。草稿名 1–80 字，正文沿用纯文本 500 字 / Markdown 20000 字上限，可留空待补。
+
+内置「维护通知、版本更新、房间规则说明、临时故障通知」四种 Markdown 模板，包含明确待填内容，使用
+模板只填入编辑器。草稿保存正文、格式、级别、开始延迟和持续时长，载入后在点击发布时重新计算绝对时间。
+替换未保存内容前确认，离开页面时提示未保存修改；保存失败可保留编辑内容重试。
+
+正文实时预览复用玩家端 `announcementMarkdown.js`，支持标题、列表、表格、代码、引用和安全链接；
+原始 HTML 显示为文字，图片不加载，危险 URL 不生成链接。桌面左右编辑 / 预览，窄屏上下排列。
+保存、载入、删除、预览和套用模板均不发布，也不撤下当前公告；仍需点击「发布全站公告」。
+验证：`test/announcement-drafts.test.js`、`test/ui/announcement-markdown.test.js` 和
+`SP_E2E=1 node --test test/ui/announcement-drafts.e2e.test.js`。
+
+### 在线玩家、在线状态与直接邀请
+
+首页右上角「名博士在线」后增加展开符号，可查看当前服务器可见在线玩家、搜索姓名并分页（100 人/页）。
+同一区域可切换在线、暂离、忙碌、隐身，选择保存在本浏览器；握手时先应用，避免刷新短暂暴露。隐身不计入
+可见人数、不返回名单，也不能发送或接收邀请；关闭隐身选择不会强制公开已有隐身玩家。房间中的真实成员仍
+按原有玩法可见，隐身不隐藏对局席位。名单不返回地址、令牌或其他人的房间码。
+
+等待室「邀请玩家」打开名单，可向当前未在房间、非忙碌的可见玩家发送邀请；对方确认加入后复用原有入房校验。
+邀请 60 秒失效、发送者每 10 秒最多一次、接收者最多 5 份待处理邀请。房满、开局、离线、离房、隐身或关闭
+邀请功能会使邀请失效；不会强制移出对方当前房间。测试房间不提供这条邀请入口。
+
+控制台「设置 → 交流管理 → 在线玩家与邀请」包含六个布尔选项：`directory` 名单、`invitations` 邀请、
+`statusSelection` 状态选择、`invisible` 隐身选择、`counts` 可见人数、`hostOnly` 仅房主邀请。前五项默认
+开启，最后默认关闭；保存到 `logs/admin-settings.json` 的 `social`，省略项保留，校验和写盘成功后立即广播。
+关闭邀请会清空待处理邀请。关闭状态选择仍允许主动恢复在线，且不会改变已有隐身状态。
+
+回归入口：`test/social.test.js`、`test/admin.test.js`、`SP_E2E=1 node --test test/ui/social.e2e.test.js`。
+
+### 重启后保留有效公告（默认开启）
+
+控制台「服务器 → 全站公告」新增「重启后保留有效公告」与「保存保留设置」。无配置时默认开启；
+曾明确关闭的配置保持关闭。开启会立即保存当前尚未过期的公告，之后每次发布或撤下都同步保存。
+重启时沿用原 ID、正文格式、级别和绝对起止时间，不重新计算时长；已经过期的不恢复，尚未开始的
+仍按原时间开始，「直到撤下」继续保留。关闭仅清除下次恢复内容，当前公告继续按原时限显示。
+
+设置与已发布正文保存在 `logs/announcement-state.json`（自定义控制台设置文件时位于同目录），独立于
+草稿与 admin-settings.json；不进入发布包或对局结果清理。写入使用临时文件加重命名，失败则不修改
+内存公告、开关和已保存文件；撤下保存失败也保留原公告并返回错误，避免重启后意外恢复。
+已过期的磁盘内容可保留至下次保存，但恢复时始终按绝对 endAt 过滤。
+
+`GET /api/announcement-persistence` 返回 `{enabled}`；`POST /api/announcement-persistence {enabled:boolean}`
+保存设置，复用控制台 token 和 localhost 鉴权。读取损坏文件时拒绝覆盖并提示修复后重试。配置仅在
+启用控制台的正常服务启动时加载；单独构造 SiteAnnouncements 的测试调用不自动读写磁盘。
+
+验证：`test/announcement-persistence.test.js` 覆盖默认开启、关闭保留、当前/定时/长期/过期公告、撤下、
+写入失败、原 ID 与期限、真实服务器重启、鉴权与清理保护；
+`SP_E2E=1 node --test test/ui/announcement-persistence.e2e.test.js` 验证保存、刷新恢复、失败重试和手机布局。

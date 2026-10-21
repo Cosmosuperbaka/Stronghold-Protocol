@@ -45,10 +45,20 @@ const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
 /** The lobby options a worker can take (JSON-safe: no callbacks, no data, no class). */
 export function wireOptions(opts) {
   const out = {};
-  for (const k of ['roomCode', 'mode', 'difficulty', 'modeId', 'aiPicksLast', 'seats', 'spectators', 'seed', 'matchNo', 'hostId', 'prepOverride', 'cs', 'vs', 'requireCs']) {
+  for (const k of ['roomCode', 'mode', 'difficulty', 'modeId', 'aiPicksLast', 'seats', 'spectators', 'seed', 'matchNo', 'cs', 'vs', 'requireCs', 'kitted', 'hostId', 'prepOverride']) {
     if (opts[k] !== undefined) out[k] = opts[k];
   }
+  if (typeof opts.uniteLayerGains === 'boolean') out.uniteLayerGains = opts.uniteLayerGains;
+  // A test room must arrive as a test match. Forwarding these only when the flag is set keeps every other
+  // worker payload identical. Dropping the flag fails closed: the worker match refuses g.test.
+  if (opts.test === true) {
+    out.test = true;
+    if (typeof opts.hostId === 'string') out.hostId = opts.hostId;
+  }
+  // Rule switches ride with the content set. A room that declares none keeps today's worker payload.
+  if (opts.rules && typeof opts.rules === 'object' && !Array.isArray(opts.rules)) out.rules = opts.rules;
   out.extensionSettings = { prep: getPrep(), uniteLayerGains: getUniteLayerGains(), roundCharts: getRoundCharts(), liveRoundDamage: getLiveRoundDamage(), replay: getReplayConfig() };
+
   return out;
 }
 
@@ -119,7 +129,6 @@ export class MatchProxy {
   cancelSetupReroll(playerId, voteId) { return this._request('cancelSetupReroll', [playerId, voteId]); }
   setBondPlan(playerId, bondId) { return this._request('setBondPlan', [playerId, bondId]); }
   setSkins(playerId, skins) { return this._request('setSkins', [playerId, skins]); }
-  setHost(playerId) { this._notify('setHost', [playerId]); }
   syncExtensions() { this._notify('syncExtensions', [wireOptions({}).extensionSettings]); }
   admin(kind, value) {
     return this._request('extensionAdmin', [kind, value, wireOptions({}).extensionSettings]).then(answer => {
@@ -131,6 +140,13 @@ export class MatchProxy {
   onDisconnect(playerId) { this._notify('onDisconnect', [playerId]); }
   onReconnect(playerId) { this._notify('onReconnect', [playerId]); }
   onLeave(playerId) { this._notify('onLeave', [playerId]); }
+  /**
+   * Host migration keeps both test commands and the local console's host tools on the current host.
+   */
+  setHost(playerId) {
+    this.opts.hostId = typeof playerId === 'string' ? playerId : null;
+    this._notify('setHost', [playerId]);
+  }
   addSpectator(playerId) { this._notify('addSpectator', [playerId]); }
   removeSpectator(playerId) { this._notify('removeSpectator', [playerId]); }
   /** The match's diagnostics in the worker (tests). @returns {Promise<any>} */

@@ -7,9 +7,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  PLAYER_MARKDOWN, PLAYER_NPM_SCRIPTS, playerPackageJson, playerPackageProblems, releaseTag, rewritePlayerDoc,
+  GITHUB_REPO, PLAYER_MARKDOWN, PLAYER_NPM_SCRIPTS, playerPackageJson, playerPackageProblems, releaseTag, rewritePlayerDoc,
   selectTracked, trackedFiles,
 } from '../tools/package.mjs';
+import { RELEASE_TAG } from '../server/release-version.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
@@ -22,6 +23,11 @@ test('release tags drop a trailing -dev and keep an already released version', (
   assert.equal(releaseTag('9.9.9'), 'v9.9.9');
 });
 
+test('extension-only documentation points to this fork at its extension release tag', () => {
+  const text = rewritePlayerDoc('[参考](docs/REFERENCE-UI-REVIEW.md#后续跟进与私有归档)', 'README.md', [], pkg.version);
+  assert.equal(text, `[参考](https://github.com/zhewang448/Stronghold-Protocol/blob/${RELEASE_TAG}/docs/REFERENCE-UI-REVIEW.md#后续跟进与私有归档)`);
+});
+
 test('the packaged package.json keeps only scripts whose node files ship', () => {
   const shipped = selectTracked(trackedFiles(ROOT)).keep;
   const next = playerPackageJson(pkg, shipped);
@@ -29,7 +35,7 @@ test('the packaged package.json keeps only scripts whose node files ship', () =>
   for (const name of KEPT) assert.equal(next.scripts[name], pkg.scripts[name], name);
   assert.deepEqual(Object.keys(next), Object.keys(pkg));
   assert.deepEqual(playerPackageProblems(pkg, shipped), []);
-  assert.equal(pkg.scripts.test, 'node --test', 'the repository package.json still runs the suite');
+  assert.match(pkg.scripts.test, /^node --test "/, 'the repository package.json still runs the suite (tools/ci.mjs TEST_FILES)');
   assert.equal(pkg.scripts.lint, 'eslint .');
   const keys = Object.keys(next);
   assert.deepEqual(keys.filter((k) => k !== 'scripts'), Object.keys(pkg).filter((k) => k !== 'scripts'));
@@ -63,7 +69,7 @@ test('packaged copies of the shipped docs point unshipped relative links at the 
   const shipped = new Set(selectTracked(trackedFiles(ROOT)).keep);
   const version = pkg.version;
   const tag = releaseTag(version);
-  const host = 'https://github.com/sganggs/Stronghold-Protocol';
+  const host = GITHUB_REPO;
   const focus = new Set(['README.md', 'docs/PLAYING.md', 'docs/DEPLOY.md']);
   let fileRewrites = 0;
   let expectedFileRewrites = 0;

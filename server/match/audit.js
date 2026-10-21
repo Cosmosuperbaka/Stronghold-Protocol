@@ -443,8 +443,8 @@ export function attachAudit(m, { invariants = true, limit = 200 } = {}) {
       })() : null;
       for (const [ps, lp0] of before) {
         const counted = countedOf(ps);
-        // after 联防 a leaker pays for every surviving enemy of its source — enemies spawned by its leaked enemies
-        // (splitters, summoners) included — so only the cap bounds it; everybody else never exceeds own leaks
+        // after 联防 a leaker pays for every surviving enemy of its source — the enemies the field itself spawned while it
+        // ran (splitters, summoners: `uniteRuntime`) are not billable — so only the cap bounds it; everybody else never exceeds own leaks
         const max = maxOf(ps);
         if (ps.alive) {
           if (revive && ps.lp === gd.startLp(ps.bandId) && lp0 <= max) continue; // 复活队友: charged to 0, restored to the start LP

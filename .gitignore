@@ -142,3 +142,8 @@ npm-debug.log*
 yarn-debug.log*
 pnpm-debug.log*
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Machine-local CDN credentials and generated transport packs
+config/r2-sync.json
+public/resource-packs/
+data/resource-packs.json

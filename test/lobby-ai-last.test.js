@@ -9,6 +9,9 @@ import { StubMatch } from '../server/match/StubMatch.js';
 import { TestClient } from './helpers/wsClient.js';
 import { ERR } from '../shared/constants.js';
 import { validateC2S } from '../shared/protocol.js';
+import { Room } from '../server/lobby.js';
+import { setUniteLayerGains, setAllowRoomUniteLayerGains, resetHostSettings } from '../server/match/hostSettings.js';
+import { wireOptions } from '../server/match/host/proxy.js';
 
 function clientPool(getUrl) {
   const open = new Set();
@@ -142,4 +145,80 @@ describe('room.setAiPicksLast (lobby)', () => {
     await host.waitFor('room.state', (s) => s.inMatch);
     assert.equal(started[n].aiPicksLast, false);
   });
+
+  test('room-local unite layers: isolated, host-only, un-readies only on change, fixed while playing and kept after migration', async t => {
+    t.after(resetHostSettings);
+    setAllowRoomUniteLayerGains(true);
+    const host = await pool.player('Host');
+    await err(host, { t: 'room.setUniteLayerGains', on: true }, ERR.NOT_IN_ROOM);
+    const st = await createRoom(host);
+    assert.equal(st.uniteLayerGains, false);
+    const guest = await pool.player('Guest');
+    await joinRoom(guest, st.code);
+    await err(guest, { t: 'room.setUniteLayerGains', on: true }, ERR.NOT_HOST);
+    await err(host, { t: 'room.setUniteLayerGains', on: 'yes' }, ERR.BAD_MSG);
+    await ok(guest, { t: 'room.ready', ready: true });
+    await host.waitFor('room.state', s => seatOf(s, guest.id)?.ready);
+    await ok(host, { t: 'room.setUniteLayerGains', on: false });
+    assert.equal(srv.lobby.roomOf(srv.registry.byId(host.id)).seats.find(s => s?.playerId === guest.id).ready, true);
+    await ok(host, { t: 'room.setUniteLayerGains', on: true });
+    const changed = await guest.waitFor('room.state', s => s.uniteLayerGains === true);
+    assert.equal(seatOf(changed, guest.id).ready, false);
+    const other = await pool.player('Other');
+    const isolated = await createRoom(other);
+    assert.equal(isolated.uniteLayerGains, false);
+    await ok(guest, { t: 'room.ready', ready: true });
+    const n = started.length;
+    await ok(host, { t: 'room.start' });
+    await guest.waitFor('room.state', s => s.inMatch && s.uniteLayerGains);
+    assert.equal(started[n].uniteLayerGains, true);
+    await err(host, { t: 'room.setUniteLayerGains', on: false }, ERR.ROOM_STARTED);
+    guest.clearInbox();
+    await ok(host, { t: 'g.infoReady' });
+    await ok(guest, { t: 'g.infoReady' });
+    assert.equal((await guest.waitFor('room.state', s => !s.inMatch)).uniteLayerGains, true);
+    await ok(host, { t: 'room.leave' });
+    assert.equal((await guest.waitFor('room.state', s => s.hostId === guest.id)).uniteLayerGains, true);
+    await ok(guest, { t: 'room.setUniteLayerGains', on: false });
+    await guest.waitFor('room.state', s => s.uniteLayerGains === false);
+    await ok(guest, { t: 'room.start' });
+    assert.equal(started.at(-1).uniteLayerGains, false, 'the following match receives the updated room rule');
+  });
+
+  test('console permission defaults off and revoking it locks existing rooms without changing their rule', async t => {
+    resetHostSettings(); t.after(resetHostSettings);
+    const host = await pool.player('Host');
+    const state = await createRoom(host);
+    assert.equal(state.canSetUniteLayerGains, false);
+    await err(host, { t: 'room.setUniteLayerGains', on: true }, ERR.UNITE_LAYERS_LOCKED);
+    const room = srv.lobby.rooms.get(state.code);
+    assert.equal(room.uniteLayerGains, false);
+    setAllowRoomUniteLayerGains(true);
+    assert.equal(room.toState().canSetUniteLayerGains, true);
+    await ok(host, { t: 'room.setUniteLayerGains', on: true });
+    setAllowRoomUniteLayerGains(false);
+    assert.equal(room.toState().canSetUniteLayerGains, false);
+    await err(host, { t: 'room.setUniteLayerGains', on: false }, ERR.UNITE_LAYERS_LOCKED);
+    assert.equal(room.uniteLayerGains, true, 'revocation never changes the selected rule');
+  });
+});
+
+test('unite layers: boolean protocol, host defaults captured per room and explicit false survives worker transport', () => {
+  try {
+    for (const on of [true, false]) {
+      assert.equal(validateC2S({ t: 'room.setUniteLayerGains', on }), null);
+      assert.equal(wireOptions({ uniteLayerGains: on }).uniteLayerGains, on);
+    }
+    for (const on of [undefined, null, 0, 1, 'true', {}, []]) {
+      assert.notEqual(validateC2S({ t: 'room.setUniteLayerGains', on }), null);
+    }
+    resetHostSettings();
+    const off = new Room('AAAA', 'coop', 'NORMAL', 0);
+    setUniteLayerGains(true);
+    const on = new Room('BBBB', 'solo', 'NORMAL', 0);
+    assert.equal(off.toState().uniteLayerGains, false);
+    assert.equal(on.toState().uniteLayerGains, true);
+    setUniteLayerGains(false);
+    assert.equal(on.toState().uniteLayerGains, true, 'changing defaults never edits an existing room');
+  } finally { resetHostSettings(); }
 });

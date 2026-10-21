@@ -138,7 +138,7 @@ for (const force of [false, true]) {
       '--import', pathToFileURL(preload).href, SCRIPT,
       '--refresh', '--cache', cache, '--out', out, '--report', report,
       ...(force ? ['--force'] : []),
-    ], { encoding: 'utf8', timeout: 30_000 });
+    ], { encoding: 'utf8', timeout: 30_000, windowsHide: true });
     assert.equal(result.error, undefined);
     assert.equal(result.status, 1, result.stderr);
     // A schema error from these tiny fixtures would also exit 1: require the actual download error.

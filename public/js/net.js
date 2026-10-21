@@ -136,6 +136,7 @@ export class Net {
 
     /** @type {'idle'|'connecting'|'connected'|'handshaking'|'online'|'reconnecting'|'closed'} */
     this.status = 'idle';
+    this.presenceStatus = null;
     this.ws = null;
     this._states = new StateReceiver();
     this.name = null;          // desired player name (hello is sent when set)
@@ -381,6 +382,7 @@ export class Net {
       if (Number.isFinite(claim?.claimAt)) msg.claimAt = claim.claimAt;
     }
     this._helloToken = token;
+    if (this.presenceStatus) msg.presenceStatus = this.presenceStatus;
     this._helloRid = rid;
     this._helloSentName = this.name;
     if (this.status !== 'handshaking') this._setStatus('handshaking');

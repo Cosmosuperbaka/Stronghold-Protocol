@@ -32,6 +32,28 @@ test('sync clears room history, drafts and pending state on leave, kick, room ch
   stop(); assert.equal(listeners.size, 0);
 });
 
+test('previews only queue new incoming messages and follow history clearing', () => {
+  const store = createStore(state()), listeners = new Map();
+  const stop = installChatSync({ store, net: { on: (type, fn) => { listeners.set(type, fn); return () => listeners.delete(type); } } });
+  const receive = (id, playerId = 'p2', role = 'player') => listeners.get('chat.message')({ code: 'AAAA', id, playerId, role, text: `message ${id}` });
+  receive(1, 'p1');
+  assert.equal(store.get().chat.unread, 0, 'own echo is not unread');
+  assert.deepEqual(store.get().chat.previewIds, []);
+  receive(2); receive(2); receive(3, null, 'system');
+  assert.deepEqual(store.get().chat.previewIds, [2, 3], 'peers and host messages queue once');
+  assert.equal(store.get().chat.unread, 2);
+  listeners.get('chat.history')({ code: 'AAAA', messages: [{ id: 4, playerId: 'p2', text: 'history' }], lastId: 4 });
+  assert.deepEqual(store.get().chat.previewIds, [2, 3], 'history sync never generates a preview');
+  store.patch('chat', { open: true, unread: 0, previewIds: [] }); receive(5);
+  assert.deepEqual(store.get().chat.previewIds, [], 'expanded chat never queues previews');
+  store.patch('chat', { open: false }); receive(6);
+  listeners.get('chat.history')({ code: 'AAAA', messages: [], clearedThrough: 6, lastId: 6 });
+  assert.deepEqual(store.get().chat.previewIds, [], 'moderator clearing removes pending previews');
+  assert.equal(store.get().chat.unread, 0);
+  receive(6); assert.deepEqual(store.get().chat.previewIds, [], 'late cleared messages stay discarded');
+  stop();
+});
+
 test('sending keeps failed/edited drafts, forbids offline queuing and ignores completion after room switch', async () => {
   const store = createStore(state());
   const failed = { status: 'online', request: async () => { throw Error('failed'); } };

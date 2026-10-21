@@ -23,6 +23,7 @@ import { ROOT } from './config.js';
 import { buildTag } from './buildTag.js';
 import { setSecurityHeaders, sendError, sendJson, splitUrl } from './common.js';
 import { clientAddress, isLocalIp } from '../net.js';
+import { readPersonalDataConfig } from './personalDataConfig.js';
 
 const MAX_URL_LENGTH = 4096;
 
@@ -30,7 +31,9 @@ const MAX_URL_LENGTH = 4096;
 function pluginCount(lobby) {
   let n;
   try { n = Number(lobby?.plugins?.unofficial?.()) || 0; } catch { n = 0; }
-  return n > 0 ? { plugins: n } : {};
+  let notices = false;
+  try { notices = lobby?.plugins?.hasNotices?.() === true; } catch { /* optional catalogue hint */ }
+  return { ...(n > 0 ? { plugins: n } : {}), ...(notices ? { notices: true } : {}) };
 }
 
 /** The content sets with gameplay plugins rooms hold now (DESIGN §32.6; 0 without any). */
@@ -96,6 +99,7 @@ export function createRequestHandler({ serveStatic, health, log, trustProxy = 'a
       return;
     }
     if (parts.rawPath === '/release-notes.json') { sendJson(req, res, 200, notes); return; }
+    if (parts.rawPath === '/personal-data-config.json') { sendJson(req, res, 200, readPersonalDataConfig()); return; }
     if (parts.rawPath === '/healthz') {
       const withTraffic = wantsTraffic(parts.query) && isLocalIp(clientAddress(req, trustProxy).ip);
       sendJson(req, res, 200, healthReport(health, withTraffic));

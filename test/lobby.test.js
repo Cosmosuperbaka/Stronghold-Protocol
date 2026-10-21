@@ -654,15 +654,21 @@ describe('websocket lobby', () => {
     assert.ok(c.isOpen);
   });
 
-  test('flooding far beyond the limit closes the socket (1008)', { timeout: 10000 }, async (t) => {
+  test('flooding far beyond the limit closes the socket (1008)', { timeout: 60000 }, async (t) => {
     const now = Date.now();
     t.mock.method(srv.network, 'now', () => now);
     const c = await pool.player('Flood');
     // Keep one rate window and await replies instead of building a compressed send queue ahead of the close frame.
-    for (let i = 0; i < 39; i++) assert.equal((await c.request({ t: 'ping', c: i })).t, 'pong');
-    for (let i = 0; i < 400; i++) await expectError(c, { t: 'ping', c: i }, ERR.RATE);
-    assert.ok(c.isOpen, '400 drops do not close the socket');
-    c.send({ t: 'ping', c: 400, rid: null });
+    // A slow runner (Windows, Node 24) took more than the client's 2 s default for one of the ~430 round trips, so each
+    // waits up to 10 s; and the drops stop short of the 400 budget so a frame more or less cannot move the boundary.
+    for (let i = 0; i < 39; i++) assert.equal((await c.request({ t: 'ping', c: i }, 10_000)).t, 'pong');
+    for (let i = 0; i < 390; i++) {
+      const r = await c.request({ t: 'ping', c: i }, 10_000);
+      assert.equal(r.t, 'error'); assert.equal(r.code, ERR.RATE);
+    }
+    assert.ok(c.isOpen, '390 drops do not close the socket');
+    // past the budget (400 drops a second) the server closes the socket instead of answering
+    for (let i = 0; i < 40 && c.isOpen; i++) c.send({ t: 'ping', c: 400 + i, rid: null });
     const info = await c.closed;
     assert.equal(info.code, 1008);
     assert.equal(info.reason, 'rate limit');
@@ -1136,7 +1142,7 @@ describe('websocket lobby', () => {
     const clients = [];
     for (let i = 0; i < 5; i++) clients.push(await pool.player(`F${i}`));
     const codes = () => [...srv.lobby.rooms.keys()];
-    const gTypes = ['g.infoReady', 'g.band', 'g.bandSkip', 'g.buy', 'g.refresh', 'g.freeze', 'g.levelUp', 'g.sell', 'g.move', 'g.equip', 'g.art', 'g.destroy', 'g.reward', 'g.choice', 'g.ready', 'g.emote', 'g.watch', 'g.autoplay', 'g.leave'];
+    const gTypes = ['g.infoReady', 'g.band', 'g.bandSkip', 'g.buy', 'g.refresh', 'g.freeze', 'g.levelUp', 'g.sell', 'g.move', 'g.equip', 'g.unequip', 'g.art', 'g.destroy', 'g.reward', 'g.choice', 'g.ready', 'g.emote', 'g.watch', 'g.autoplay', 'g.leave'];
     const junk = [1, -1, 1.5, 'x', '', null, true, [], {}, { area: 'board', row: 1, col: 1 }, 'A'.repeat(70), 2 ** 40];
     const gen = () => {
       const r = rnd();
@@ -1733,7 +1739,7 @@ describe('match result replay', () => {
       const res = await back.waitFor('m.result');
       if (unicast) assert.equal(res.playerId, guest.id, 'the player gets their own result');
       else assert.equal(res.reason, hostResult.reason);
-      assert.deepEqual(order(back), ['site.announcement', 'room.state', 'chat.history', `m.public:${PHASE.RESULT}`, 'm.result']);
+      assert.deepEqual(order(back), ['social.state', 'site.announcement', 'room.state', 'chat.history', `m.public:${PHASE.RESULT}`, 'm.result']);
       assert.equal(back.log.find((m) => m.t === 'room.state').inMatch, false);
     });
   }
@@ -1787,13 +1793,13 @@ describe('match result replay', () => {
     await back.hello('Guest', guest.token);
     assert.equal((await back.waitFor('room.closed')).reason, 'timeout');
     assert.equal((await back.waitFor('m.result')).playerId, guest.id);
-    assert.deepEqual(order(back), ['site.announcement', 'room.closed', `m.public:${PHASE.RESULT}`, 'm.result']);
+    assert.deepEqual(order(back), ['social.state', 'site.announcement', 'room.closed', `m.public:${PHASE.RESULT}`, 'm.result']);
     // delivered once
     await back.terminate();
     const again = await pool.connect();
     await again.hello('Guest', guest.token);
     assert.equal((await again.waitFor('site.announcement')).announcement, null);
-    await again.expectNone(null, (m) => !['welcome', 'site.announcement'].includes(m.t), 300);
+    await again.expectNone(null, (m) => !['welcome', 'social.state', 'site.announcement'].includes(m.t), 300);
   });
 
   test('real Match: a human who is away when the match finishes gets its m.result on resume', async () => {

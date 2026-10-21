@@ -7,8 +7,8 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  CI_TEST_ENV, ROOT, SKIPPED_CI_STEPS, SMOKE_PATHS, STEPS, binPath, formatDuration, formatSummary, isSkippedCiStep,
-  parseArgs, parseWorkflow, selectSteps, stepEnv,
+  CI_TEST_ENV, ROOT, SKIPPED_CI_STEPS, SMOKE_PATHS, STEPS, TEST_FILES, binPath, formatDuration, formatSummary,
+  isSkippedCiStep, parseArgs, parseWorkflow, selectSteps, stepEnv,
 } from '../tools/ci.mjs';
 
 const workflow = parseWorkflow(fs.readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8'));
@@ -73,6 +73,25 @@ test('the commands match ci.yml: the run lines, the npm scripts ci.yml calls, th
     assert.ok(!s.shell || l.id === 'smoke', `${l.id}: shell: ${s.shell}`);
   }
   assert.equal(pkg.scripts.ci, 'node tools/ci.mjs');
+});
+
+test('npm test runs every test file and nothing else under test/: no helper, no child-process entry, no Forge fixture', () => {
+  // the test step's command line is package.json's (checked above) and runs node --test over TEST_FILES
+  assert.equal(STEPS.find((s) => s.id === 'test').describe, `node --test ${TEST_FILES.map((g) => `"${g}"`).join(' ')}`);
+  // what Node's test runner expands them to (the same glob, node_modules left out the way --test leaves it out)
+  const picked = fs.globSync(TEST_FILES, { cwd: ROOT, exclude: (p) => path.basename(String(p?.name ?? p)) === 'node_modules' })
+    .map((f) => f.split(path.sep).join('/')).sort();
+  const walk = (dir) => fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })
+    .flatMap((d) => (d.isDirectory() ? walk(`${dir}/${d.name}`) : [`${dir}/${d.name}`]));
+  const underTest = walk('test');
+  const tests = [...underTest, ...walk('plugins/_template')].filter((f) => f.endsWith('.test.js'));
+  assert.deepEqual(picked, [...tests, 'test/e2e/coop.e2e.mjs'].sort());
+  assert.ok(!picked.some((f) => /^test\/(fixtures|helpers)\/|\/fixtures\//.test(f)), 'a fixture or helper would run as a test');
+  // every other module under test/ is imported by the tests (or is untrusted bait): one that uses node:test is a test
+  // file the globs miss — name it *.test.js
+  for (const f of underTest.filter((x) => /\.[cm]?js$/.test(x) && !picked.includes(x))) {
+    assert.doesNotMatch(fs.readFileSync(path.join(ROOT, f), 'utf8'), /['"]node:test['"]/, `${f} uses node:test but npm test does not run it`);
+  }
 });
 
 test('the workflow reader: jobs, flat env, named and uses steps, run blocks; comments and nested blocks skipped, other step keys named', () => {
@@ -140,10 +159,10 @@ test('the eslint and tsc entry points come from their package.json bin; a missin
 });
 
 test('node tools/ci.mjs --list and a bad option run without npm (exit 0 / 2)', () => {
-  const list = spawnSync(process.execPath, ['tools/ci.mjs', '--list'], { cwd: ROOT, encoding: 'utf8' });
+  const list = spawnSync(process.execPath, ['tools/ci.mjs', '--list'], { cwd: ROOT, encoding: 'utf8', windowsHide: true });
   assert.equal(list.status, 0, list.stderr);
   for (const s of STEPS) assert.match(list.stdout, new RegExp(`^${s.id} `, 'm'));
-  const bad = spawnSync(process.execPath, ['tools/ci.mjs', '--only', 'nope'], { cwd: ROOT, encoding: 'utf8' });
+  const bad = spawnSync(process.execPath, ['tools/ci.mjs', '--only', 'nope'], { cwd: ROOT, encoding: 'utf8', windowsHide: true });
   assert.equal(bad.status, 2);
   assert.match(bad.stderr, /unknown step "nope"/);
 });

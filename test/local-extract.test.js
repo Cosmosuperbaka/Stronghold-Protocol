@@ -14,21 +14,21 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TOOL = path.join(ROOT, 'tools/local-extract');
-const PY = ['python3', 'python'].find((bin) => spawnSync(bin, ['--version']).status === 0);
+const PY = ['python3', 'python'].find((bin) => spawnSync(bin, ['--version'], { windowsHide: true }).status === 0);
 const ENV = { ...process.env, PYTHONDONTWRITEBYTECODE: '1' };
 const manifest = (() => { try { return JSON.parse(readFileSync(path.join(ROOT, 'data/local-assets.json'), 'utf8')); } catch { return null; } })();
 
 /** Run python code with `extract` imported as `e`; returns the parsed JSON it prints. */
 function py(code) {
   const src = `import sys, json\nfrom types import SimpleNamespace as NS\nsys.path.insert(0, ${JSON.stringify(TOOL)})\nimport extract as e\n${code}`;
-  const r = spawnSync(PY, ['-c', src], { encoding: 'utf8', env: ENV });
+  const r = spawnSync(PY, ['-c', src], { encoding: 'utf8', env: ENV, windowsHide: true });
   assert.equal(r.status, 0, r.stderr);
   return JSON.parse(r.stdout);
 }
 
 describe('extract.py helpers (no UnityPy needed)', { skip: !PY && 'no python3' }, () => {
   test('job table: map themes export Materials, the board meshes are exported with their prefab', () => {
-    const r = spawnSync(PY, [path.join(TOOL, 'extract.py'), '--print-jobs'], { encoding: 'utf8', env: ENV });
+    const r = spawnSync(PY, [path.join(TOOL, 'extract.py'), '--print-jobs'], { encoding: 'utf8', env: ENV, windowsHide: true });
     assert.equal(r.status, 0, r.stderr);
     const { jobs } = JSON.parse(r.stdout);
     for (const sub of ['map/autochess', 'map/autochesssand']) assert.deepEqual(jobs.find((j) => j.sub === sub).kinds, ['Material', 'Texture2D'], sub);
@@ -36,7 +36,7 @@ describe('extract.py helpers (no UnityPy needed)', { skip: !PY && 'no python3' }
     assert.deepEqual(mesh.map((j) => j.bundle), [
       'arts/maps/map_autochess/bkg_mesh.ab', 'arts/maps/common/meshes/s_background_common.ab',
       'arts/maps/common/meshes/s_common_box_01.ab', 'arts/maps/common/meshes/s_wind_device.ab',
-      // the official 射击台 model (round 40, DESIGN §32.14.10): only trap_1106_achplat of the 卫戍协议 device bundle
+      // the official 射击台 model (round 40, DESIGN §32.14.10): trap_1106_achplat and 阻隔工事 trap_1105_accrate (#663)
       'arts/maps/common/trap/trap_110.ab',
     ]);
     for (const j of mesh) assert.deepEqual(j.kinds, ['GameObject', 'Material', 'Mesh', 'Texture2D']);
@@ -44,7 +44,7 @@ describe('extract.py helpers (no UnityPy needed)', { skip: !PY && 'no python3' }
   });
 
   test('job table: the token Spine models (TOKEN_SPINES) come from the battle token packs into spine/token/<id>; no plain job writes under spine/', () => {
-    const r = spawnSync(PY, [path.join(TOOL, 'extract.py'), '--print-jobs'], { encoding: 'utf8', env: ENV });
+    const r = spawnSync(PY, [path.join(TOOL, 'extract.py'), '--print-jobs'], { encoding: 'utf8', env: ENV, windowsHide: true });
     assert.equal(r.status, 0, r.stderr);
     const { jobs, tokenSpines, enemySpines } = JSON.parse(r.stdout);
     assert.equal(tokenSpines.bundles, 'pkgrps/btl_pfb_tokens_*.ab');
@@ -124,7 +124,7 @@ print(json.dumps({'nodes': [[n, a, r['m_PathID']] for n, a, r in nodes], 'pick':
     assert.equal(out.pick, 41, 'the Front skeleton (the fetched tokens use Front / Spine too)');
   });
 
-  test('merge_alpha: the [alpha] texture as A, else the page\'s own alpha; RGB clamped to A (premultiplied input), multiplied for straight input', { skip: spawnSync(PY, ['-c', 'import PIL']).status !== 0 && 'no Pillow' }, () => {
+  test('merge_alpha: the [alpha] texture as A, else the page\'s own alpha; RGB clamped to A (premultiplied input), multiplied for straight input', { skip: spawnSync(PY, ['-c', 'import PIL'], { windowsHide: true }).status !== 0 && 'no Pillow' }, () => {
     const out = py(`
 from PIL import Image
 rgb = Image.new('RGB', (2, 1)); rgb.putdata([(200, 100, 50), (90, 90, 90)])
@@ -208,13 +208,13 @@ print(json.dumps(e.prefab_node(go)))`);
       name: 'S_Background_shadow', parent: 'Root', pos: [0, 3.525424, -8], rot: [0, 0, 0, 1], scale: [0.01, 0.01, 0.01],
       mesh: 'S_Background_shadow', materials: ['lambert1', null],
     });
-    const raw = spawnSync(PY, ['-c', `import sys; sys.path.insert(0, ${JSON.stringify(TOOL)}); import extract as e, json; print(json.dumps(e.vec(type('V', (), {'x': -0.0, 'y': float('inf'), 'z': 1e-9})())))`], { encoding: 'utf8', env: ENV });
+    const raw = spawnSync(PY, ['-c', `import sys; sys.path.insert(0, ${JSON.stringify(TOOL)}); import extract as e, json; print(json.dumps(e.vec(type('V', (), {'x': -0.0, 'y': float('inf'), 'z': 1e-9})())))`], { encoding: 'utf8', env: ENV, windowsHide: true });
     assert.equal(raw.stdout.trim(), '[0.0, 0, 0.0]');
   });
 
   test('guide pages (host bandwidth layer 0): --webp writes a WebP copy of every page PNG (lossy q90 by default, lossless on request), the manifest lists it, the PNG stays',
-    { skip: spawnSync(PY, ['-c', "import sys; from PIL import features; sys.exit(0 if features.check('webp') else 1)"], { env: ENV }).status !== 0 && 'no Pillow with WebP' }, () => {
-      const jobs = JSON.parse(spawnSync(PY, [path.join(TOOL, 'extract.py'), '--print-jobs'], { encoding: 'utf8', env: ENV }).stdout);
+    { skip: spawnSync(PY, ['-c', "import sys; from PIL import features; sys.exit(0 if features.check('webp') else 1)"], { env: ENV, windowsHide: true }).status !== 0 && 'no Pillow with WebP' }, () => {
+      const jobs = JSON.parse(spawnSync(PY, [path.join(TOOL, 'extract.py'), '--print-jobs'], { encoding: 'utf8', env: ENV, windowsHide: true }).stdout);
       assert.deepEqual(jobs.guideWebp.sub, 'guide');
       assert.equal(jobs.guideWebp.mode, 'lossy', 'quality 90, the maintainer\'s choice of 2026-10-12');
       assert.ok(!jobs.webp.some((w) => w.sub === 'guide'), 'the board texture table is unchanged');
@@ -282,7 +282,7 @@ describe('extracted board-scene files (when a local client was extracted)', { sk
 
   test('mesh/*: OBJ files with their vertex counts and a prefab.json each', { skip: !Object.keys(manifest?.groups || {}).some((k) => k.startsWith('mesh/')) && 'not extracted' }, () => {
     const groups = Object.entries(manifest.groups).filter(([k]) => k.startsWith('mesh/'));
-    // mesh/trap_110 (the 射击台 model, round 40) is there once the local art was extracted with 0.3.0's extract.py
+    // mesh/trap_110 (射击台 and, since #663, 阻隔工事) is there once the local art was extracted with 0.3.0's extract.py
     assert.deepEqual(groups.map(([k]) => k).filter((k) => k !== 'mesh/trap_110').sort(), ['mesh/map_autochess_bkg', 'mesh/s_background_common', 'mesh/s_common_box_01', 'mesh/s_wind_device']);
     for (const [name, g] of groups) {
       assert.equal(g.prefab?.kind, 'Prefab', name);
@@ -312,7 +312,7 @@ describe('enemy_scales.py (official enemy model sizes → build-data MODEL_SCALE
   test('group_table: prefabs off the 0.27 standard, grouped by value, "enemy_" dropped; build-data carries the same values', () => {
     const src = `import sys, json\nsys.path.insert(0, ${JSON.stringify(TOOL)})\nimport enemy_scales as s\n`
       + `print(json.dumps(s.group_table({'enemy_1005_yokai_3': 0.16, 'enemy_1005_yokai': 0.2, 'enemy_1040_bombd': 0.2, 'enemy_10083_hlbird': 0.27, 'enemy_x': None})))`;
-    const r = spawnSync(PY, ['-c', src], { encoding: 'utf8', env: ENV });
+    const r = spawnSync(PY, ['-c', src], { encoding: 'utf8', env: ENV, windowsHide: true });
     assert.equal(r.status, 0, r.stderr);
     const lines = JSON.parse(r.stdout);
     assert.deepEqual(lines, ["  [0.16, ['1005_yokai_3']],", "  [0.2, ['1005_yokai', '1040_bombd']],"]);

@@ -9,7 +9,7 @@ export function skinCatalogue(research, operatorIds) {
 }
 
 // Uses processModels, including atlas pages, normalization and this skeleton's own roles/bounds.
-export function buildSkinPlan(research, selected = []) {
+export function buildSkinPlan(research, selected = [], seatArt = null) {
   const template = { chars: {} }, models = new Map();
   for (const [charId, list] of Object.entries(research?.chars || {})) {
     for (const s of list) {
@@ -29,7 +29,11 @@ export function buildSkinPlan(research, selected = []) {
       const rel = `char/skin_avatar/${safeName(s.stem)}.png`;
       const avatar = { alts: [{ rel, urls: [s.avatar], kind: 'png' }] };
       const c = template.chars[charId] ||= { skins: {} };
-      c.skins[s.id] = { avatar, spine };
+      const portraitUrl = seatArt?.chars?.[charId]?.choices?.find((row) => row.id === s.id)?.portrait;
+      // Existing seat posters are optional local files, resolved through the same leaf format as avatars.
+      const portrait = typeof portraitUrl === 'string' && portraitUrl.startsWith('/assets/')
+        ? { alts: [{ rel: portraitUrl.slice('/assets/'.length), urls: [], kind: 'png' }] } : null;
+      c.skins[s.id] = { avatar, spine, ...(portrait ? { portrait } : {}) };
     }
   }
   return { template, models };

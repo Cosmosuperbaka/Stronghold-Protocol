@@ -28,7 +28,7 @@
 //   1001 server shutdown
 //
 // The handler object (implemented by server/lobby.js) receives:
-//   onHello(session, { resumed, repeat })  after `welcome` was sent
+//   onHello(session, { resumed, repeat, presenceStatus? })  after `welcome` was sent
 //   welcomeInfo() → object (optional)      extra fields of every `welcome` (never one of its own keys): the lobby's
 //                                          `diyKitted` (0.2.0 自选编队 — which operators a DIY slot may field) and
 //                                          `content` ({ vanilla: <cs> }, the server's content hash — DESIGN §32)
@@ -72,8 +72,10 @@ export const NET_DEFAULTS = Object.freeze({
  * (a ≤ 160-id list, the same way), room.diy (≤ 8 自选 picks checked against the data, the same way), room.spectate
  * (taking a spectator seat in a running match resends its state like a watcher's g.watch — server/lobby.js spectate) and
  * room.setPlugins (a new visual set: every member downloads its art manifest — server/plugins/visualSet.js).
+ * room.skins (docs/SKINS.md) is a small `{ [charId]: skinId }` map, sent on every edit of the appearance.
  */
 export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout', 'room.ownership', 'room.diy', 'room.spectate', 'room.skins', 'room.bondPlan', 'state.resync', 'room.setPlugins']);
+
 
 /** Close codes (see header). */
 export const CLOSE = Object.freeze({ REPLACED: 4001, HELLO_TIMEOUT: 4002, POLICY: 1008, SHUTDOWN: 1001 });
@@ -102,6 +104,7 @@ export class Session {
     this.ws = null;
     /** @type {boolean} */
     this.connected = false;
+    this.presenceStatus = 'online';
     /** @type {number | null} local first-welcome stamp of the attached client (optional, not authentication) */
     this.claimAt = null;
     /** @type {number} ms epoch of the last inbound frame / pong */
@@ -134,6 +137,9 @@ export class Session {
     this.notOwned = null;
     /** @type {Readonly<Record<string, { charId: string, skillIndex: number, uniEquipId: string|null }>> | null} checked 自选 picks (lobby-owned, 0.2.0 自选编队) */
     this.diy = null;
+    /** @type {Readonly<Record<string, string>> | null} chosen operator skins (lobby-owned, docs/SKINS.md): keyed by
+     * charId; PUBLIC, unlike the loadout (a teammate sees your skin through Match.publicView().players[].skins) */
+    this.skins = null;
     /** @type {string} client address of the latest connection (logging) */
     this.addr = '?';
     /** @type {string | null} per-network limit key of the latest connection (null = not limited), see clientAddress */
@@ -672,7 +678,10 @@ export class Network {
       // surface as an error toast in the browser)
       if (msg.t === 'b.progress' && !validRid(rid)) return;
       this.reply(conn, errorMsg(isErrCode(res.error) ? res.error : ERR.INTERNAL, rid, res.detail));
-    } else if (validRid(rid)) this.reply(conn, { t: 'ok', rid });
+    } else if (validRid(rid)) {
+      if (msg.t === 'social.list' && res?.ok) this.reply(conn, { t: 'ok', rid, players: res.players, total: res.total, nextOffset: res.nextOffset, canInvite: res.canInvite });
+      else this.reply(conn, { t: 'ok', rid });
+    }
   }
 
   /** @param {Connection} conn @param {any} msg @param {number} now */
@@ -720,7 +729,7 @@ export class Network {
     if (validRid(rid)) welcome.rid = rid;
     this.reply(conn, welcome);
     try {
-      this.handler.onHello?.(session, { resumed, repeat });
+      this.handler.onHello?.(session, { resumed, repeat, presenceStatus: msg.presenceStatus });
     } catch (e) {
       this.log.error('[net] onHello crashed', e);
     }

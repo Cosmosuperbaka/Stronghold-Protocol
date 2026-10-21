@@ -1,7 +1,7 @@
 // Rebindable shortcuts (Settings > Shortcuts) in the mock match, headless Chrome, the DOM field (no art / WebGL needed):
 // Retreat rebound from Q to W with the keyboard only: Enter on the key waits, Esc ends the wait (the dialog stays), a refused
 // key keeps it; a swap and reset with their messages, Q then does nothing and W retreats, the underframe shows W, the
-// choice survives a reload; at phone width (640×360, touch) the section fits and says the keys need a keyboard.
+// choice survives a reload; at phone width (640×360, touch) the independent dialog fits and says the keys need a keyboard.
 // Unit side: test/ui/feedback5-hotkeys.test.js.
 // SP_E2E=1 CHROME_PATH=/path/to/chrome node --test test/ui/hotkeys.e2e.test.js
 import { test, describe, before, after } from 'node:test';
@@ -28,7 +28,7 @@ describe('rebindable shortcuts (设置 → 快捷键)', { skip: !ENABLED && 'set
   const mockState = (page) => page.evaluate(() => JSON.parse(JSON.stringify(globalThis.__MOCK__.S().priv)));
   const keyOf = (page, action) => page.$eval(`.set-key[data-action="${action}"]`, (el) => el.textContent.trim());
   const keyIs = (page, action, label) => page.waitForFunction((a, l) => document.querySelector(`.set-key[data-action="${a}"]`)?.textContent.trim() === l, {}, action, label);
-  const note = (page) => page.$eval('.set-keys__note', (el) => el.textContent.trim());
+  const note = (page) => page.$eval('.settings-shortcuts-modal .set-keys__note', (el) => el.textContent.trim());
 
   async function open(page, { width = 1280, height = 720, touch = false } = {}) {
     const problems = [];
@@ -45,7 +45,9 @@ describe('rebindable shortcuts (设置 → 快捷键)', { skip: !ENABLED && 'set
     try {
       const problems = await open(page);
       await page.click('[data-testid="settings-btn"]');
-      await page.waitForSelector('.modal .set-keys');
+      await page.waitForSelector('.set-shortcuts-open');
+      await page.click('.set-shortcuts-open');
+      await page.waitForSelector('.settings-shortcuts-modal .set-keys');
       await page.waitForFunction(() => !document.querySelector('.modal__box')?.getAnimations().some((a) => a.playState === 'running'));
       await page.$eval('.set-keys', (el) => el.scrollIntoView({ block: 'start' }));
       await page.screenshot({ path: `${OUT}/hotkeys-desktop.png` });
@@ -86,7 +88,11 @@ describe('rebindable shortcuts (设置 → 快捷键)', { skip: !ENABLED && 'set
       assert.equal(await keyOf(page, 'buy'), 'Q', 'rebinding onto W swaps the buy key');
       assert.match(await note(page), /「撤退干员（选中优先）」已改为 W/);
       assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('sp.pref.settings')).keys.retreat), 'KeyW', 'saved with the settings');
-      await page.keyboard.press('Escape'); // no wait: Esc closes the dialog as before
+      await page.keyboard.press('Escape'); // close only the shortcuts dialog
+      await page.waitForSelector('.settings-shortcuts-modal', { hidden: true });
+      assert.ok(await page.$('.settings-modal'), 'parent settings stays open');
+      assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('set-shortcuts-open')), true);
+      await page.keyboard.press('Escape');
       await page.waitForSelector('.modal', { hidden: true });
 
       // the match: the underframe shows W, Q no longer retreats, W does
@@ -107,7 +113,9 @@ describe('rebindable shortcuts (设置 → 快捷键)', { skip: !ENABLED && 'set
       await page.reload({ waitUntil: 'domcontentloaded' });
       await page.waitForSelector('.ff-piece');
       await page.click('[data-testid="settings-btn"]');
-      await page.waitForSelector('.modal .set-keys');
+      await page.waitForSelector('.set-shortcuts-open');
+      await page.click('.set-shortcuts-open');
+      await page.waitForSelector('.settings-shortcuts-modal .set-keys');
       assert.equal(await keyOf(page, 'retreat'), 'W');
       await page.click('.set-keys__reset');
       await keyIs(page, 'retreat', 'Q');
@@ -115,29 +123,27 @@ describe('rebindable shortcuts (设置 → 快捷键)', { skip: !ENABLED && 'set
     } finally { await page.close(); }
   });
 
-  test('phone width (640×360, touch): the keys need a keyboard, the folded list opens and fits, no horizontal scroll', async () => {
+  test('phone width (640×360, touch): the independent shortcuts dialog fits without horizontal scroll', async () => {
     const page = await browser.newPage();
     try {
       const problems = await open(page, { width: 640, height: 360, touch: true });
       await page.tap('[data-testid="settings-btn"]');
-      await page.waitForSelector('.modal .set-keys');
-      assert.match(await page.$eval('.set-keys .set-hint', (el) => el.textContent), /快捷键需要实体键盘/);
-      assert.equal(await page.$eval('.set-keys__more', (el) => el.open), false, 'the list is folded on a touch-only device');
-      // (tap once the dialog's entrance animation is over: a tap during it lands where the summary is about to be)
-      await page.waitForFunction(() => !document.querySelector('.modal__box')?.getAnimations().some((a) => a.playState === 'running'));
-      await page.tap('.set-keys__more > summary');
-      await page.waitForFunction(() => document.querySelector('.set-keys__more')?.open === true);
-      const box = await page.$eval('.modal__body', (body) => {
+      await page.waitForSelector('.set-shortcuts-open');
+      await page.click('.set-shortcuts-open');
+      await page.waitForSelector('.settings-shortcuts-modal .set-keys');
+      assert.match(await page.$eval('.settings-shortcuts-modal .set-hint', (el) => el.textContent), /快捷键需要实体键盘/);
+      await page.waitForFunction(() => !document.querySelector('.settings-shortcuts-modal')?.getAnimations().some(a => a.playState === 'running'));
+      const box = await page.$eval('.settings-shortcuts-modal .modal__body', (body) => {
         const b = body.getBoundingClientRect();
         const rows = [...body.querySelectorAll('.set-keys__row')].map((r) => r.getBoundingClientRect());
         return { scroll: body.scrollWidth, client: body.clientWidth, left: b.left, right: b.right, rows: rows.map((r) => [r.left, r.right, r.width]) };
       });
       assert.ok(box.scroll <= box.client, `no horizontal scroll in the dialog (${box.scroll} > ${box.client})`);
       assert.equal(box.rows.length, 8, 'seven shortcuts and the fixed Esc');
+      assert.ok(await page.$eval('.settings-shortcuts-modal .set-keys__reset', el => el.getBoundingClientRect().height >= 32), 'reset button fits its readable text');
+      assert.ok(await page.$eval('.settings-shortcuts-modal .set-keys__name', el => parseFloat(getComputedStyle(el).fontSize) >= 14), 'shortcut names stay readable on phones');
       for (const [l, r, w] of box.rows) assert.ok(l >= box.left - 0.5 && r <= box.right + 0.5 && w > 0, `a row inside the dialog: ${l}–${r}`);
       assert.equal(new Set(box.rows.map(([l]) => Math.round(l))).size, 1, 'one column at phone width');
-      await page.$eval('.set-keys__more', (el) => el.scrollIntoView({ block: 'start' }));
-      assert.equal(await page.$eval('.set-keys__more', (el) => el.open), true);
       await page.screenshot({ path: `${OUT}/hotkeys-phone.png` });
       assert.deepEqual(problems, []);
     } finally { await page.close(); }
@@ -236,9 +242,13 @@ describe('rebindable shortcuts (设置 → 快捷键)', { skip: !ENABLED && 'set
     await page.keyboard.press('Escape');
 
     await page.click('[data-testid="settings-btn"]');
-    await page.waitForSelector('.modal .set-keys');
+    await page.waitForSelector('.set-shortcuts-open');
+      await page.click('.set-shortcuts-open');
+      await page.waitForSelector('.settings-shortcuts-modal .set-keys');
     await page.hover(card(3));
     await inert('the settings dialog blocks buying');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.settings-shortcuts-modal', { hidden: true });
     await page.keyboard.press('Escape');
     await page.waitForSelector('.modal', { hidden: true });
     await page.hover(card(3));
@@ -277,13 +287,17 @@ describe('rebindable shortcuts (设置 → 快捷键)', { skip: !ENABLED && 'set
     });
     const problems = await open(page);
     await page.click('[data-testid="settings-btn"]');
-    await page.waitForSelector('.modal .set-keys');
+    await page.waitForSelector('.set-shortcuts-open');
+      await page.click('.set-shortcuts-open');
+      await page.waitForSelector('.settings-shortcuts-modal .set-keys');
     assert.equal(await keyOf(page, 'retreat'), 'W');
     assert.equal(await keyOf(page, 'buy'), 'Q', 'migration uses the free default, keeping W for retreat');
     await page.click('.set-key[data-action="buy"]');
     await page.waitForSelector('.set-key.is-waiting[data-action="buy"]');
     await page.keyboard.press('KeyB');
     await keyIs(page, 'buy', 'B');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.settings-shortcuts-modal', { hidden: true });
     await page.keyboard.press('Escape');
     await page.waitForSelector('.modal', { hidden: true });
     const card = '.shopbar .scard[data-shop-slot="0"]';
@@ -298,7 +312,9 @@ describe('rebindable shortcuts (设置 → 快捷键)', { skip: !ENABLED && 'set
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.ff-piece');
     await page.click('[data-testid="settings-btn"]');
-    await page.waitForSelector('.modal .set-keys');
+    await page.waitForSelector('.set-shortcuts-open');
+      await page.click('.set-shortcuts-open');
+      await page.waitForSelector('.settings-shortcuts-modal .set-keys');
     assert.equal(await keyOf(page, 'buy'), 'B');
     assert.equal(await keyOf(page, 'retreat'), 'W');
     assert.deepEqual(problems, []);

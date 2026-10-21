@@ -12,11 +12,25 @@
 //   { mode: 'perRound', rounds: { r: s } }  the listed rounds, the data for the others
 //   { mode: 'untimed' }                     no timer: the prep ends when every player is ready (or the console ends it)
 
+import { DEFAULT_SOCIAL_SETTINGS } from '../../shared/social.js';
 const MODES = new Set(['default', 'scale', 'fixed', 'perRound', 'untimed']);
+let social = DEFAULT_SOCIAL_SETTINGS;
+export function getSocialSettings() { return social; }
+export function normalizeSocialSettings(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return { error: '在线玩家功能设置无效' };
+  if (Object.keys(value).some(k => !Object.hasOwn(DEFAULT_SOCIAL_SETTINGS, k) || typeof value[k] !== 'boolean')) return { error: '在线玩家功能设置必须为开或关' };
+  return { settings: Object.freeze({ ...social, ...value }) };
+}
+export function setSocialSettings(value) {
+  const result = normalizeSocialSettings(value);
+  if (result.error) return result;
+  social = result.settings; return { ok: true };
+}
 const DEFAULT_PREP = Object.freeze({ mode: 'default' });
 let prep = DEFAULT_PREP;
-// Custom host rule: read once when a 联防 starts; each battle has fresh trait counters.
+// New-room rule default and live permission to edit it; a Match without an explicit rule retains the legacy fallback.
 let uniteLayerGains = false;
+let allowRoomUniteLayerGains = false;
 let roundCharts = true;
 let liveRoundDamage = true;
 export function getLiveRoundDamage() { return liveRoundDamage; }
@@ -34,6 +48,12 @@ export function setRoundCharts(v) {
 }
 
 export function getUniteLayerGains() { return uniteLayerGains; }
+export function getAllowRoomUniteLayerGains() { return allowRoomUniteLayerGains; }
+export function setAllowRoomUniteLayerGains(v) {
+  if (typeof v !== 'boolean') return { error: '房主联防叠层控制权限必须为开或关' };
+  allowRoomUniteLayerGains = v;
+  return { ok: true };
+}
 
 export function setUniteLayerGains(v) {
   if (typeof v !== 'boolean') return { error: '联防叠层设置必须为开或关' };
@@ -84,7 +104,7 @@ export function setPrep(v) {
 }
 
 /** Back to the data's timers and the official 联防 rule (tests). */
-export function resetHostSettings() { prep = DEFAULT_PREP; uniteLayerGains = false; roundCharts = true; liveRoundDamage = true; }
+export function resetHostSettings() { prep = DEFAULT_PREP; uniteLayerGains = false; allowRoomUniteLayerGains = false; roundCharts = true; liveRoundDamage = true; social = DEFAULT_SOCIAL_SETTINGS; }
 
 /** The 休整期 seconds of round r for a match whose data gives `base` (null = untimed stays untimed). */
 export function prepSecondsFor(round, base, p = prep) {

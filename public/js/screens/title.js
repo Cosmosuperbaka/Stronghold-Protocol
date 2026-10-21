@@ -28,6 +28,7 @@ import { NAME_MAX_LEN, APP_VERSION, DEV_BUILD } from '../../../shared/constants.
 import { html, Button, Icon, MicroLabel, TextField, PingPill } from '../ui/components.js';
 import { GuideButton } from '../ui/guide.js';
 import { openStats } from './stats.js';
+import { openPersonalData } from '../ui/personalDataPanel.js';
 import { toast } from '../ui/toasts.js';
 import { net, identity } from '../net.js';
 import { store, useStore, shallowEqual } from '../store.js';
@@ -42,6 +43,7 @@ import { AnnouncementButton } from '../ui/announcement.js';
 import { ResourceLauncher } from '../ui/resourcePanel.js';
 import { useSettings } from '../ui/settings.js';
 import { installedCount } from '../content.js';
+import { NoticesButton } from '../ui/notices.js';
 import { sanitizeName, isValidName } from '../ui/playerName.js';
 
 export { stripLoneSurrogates, sanitizeName, isValidName } from '../ui/playerName.js';
@@ -239,6 +241,7 @@ export function TitleScreen() {
           <${Button} variant="ghost" size="sm" icon="chart" class="title-stats" onClick=${openStats} title=${t('统计数据')}>${t('统计')}<//>
           <${LangToggle} class="title-lang" />
         </div>
+        <div><${Button} variant="ghost" size="sm" icon="download" class="title-personal-data" onClick=${openPersonalData}>${t('导出 / 导入个人数据')}<//></div>
         <${MicroLabel} tone="hi">TARGET POINT<//><br /><${MicroLabel}>STRONGHOLD PROTOCOL<//>
       </div>
     </div>
@@ -282,6 +285,7 @@ export function TitleScreen() {
     <footer class="title-foot">
       <${ResumeMatchButton} />
       <${PwaInstallButton} />
+      <${NoticesButton} />
       ${installed ? html`<button type="button" class="title-plugins" data-testid="title-plugins" onClick=${openPlugins}>
         <${Icon} name="info" />${t('本服务器安装了 {n} 个插件', { n: installed })}</button>` : null}
       <span>${t('非官方同人复刻 · 游戏素材版权归 上海鹰角网络 / Yostar 所有')}</span>
