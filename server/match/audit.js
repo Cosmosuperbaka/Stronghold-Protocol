@@ -45,7 +45,7 @@ import { PHASE } from '../../shared/constants.js';
 import { collectViolations } from './invariants.js';
 import { mergeTile, pieceDir, canPlace, placeClass } from './board.js';
 import { bossPoolHp, hiddenEligible } from './finalAssault.js';
-import { helperOrder } from './unite.js';
+import { helperOrder, uniteSurvivors } from './unite.js';
 import { BAND_TURN_SECONDS } from './Match.js';
 import { prepSeconds } from './hostSettings.js';
 
@@ -423,36 +423,38 @@ export function attachAudit(m, { invariants = true, limit = 200 } = {}) {
       const cap = gd.lpCapPerRound;
       const uniteRan = !!(plan && uniteResult && !uniteResult.synthetic);
       // 玩法扩展 sharedLp (共享血条) / revive (复活队友) — settle.js's two room rules:
-      //   sharedLp (normal rounds only): the alive players split the team's total min(cap, leaks) evenly (the
-      //                  remainder to the alive order), so the per-player exactness below gives way to the split;
-      //   revive: a doctor whose LP hit 0 is restored to its strategy's start LP (the LP rises — not a leak) and
-      //                  the alive-with-0 clause never fires.
-      const sharedLp = !!m.ext?.sharedLp && !uniteRan;
+      //   sharedLp: one team pool — the round's total bill comes off Σ LP and the pool is dealt back evenly over the
+      //             alive players (remainder to the alive order), so a bar's drop is its share, not its own bill;
+      //   revive:   a doctor whose LP hit 0 is restored to its strategy's start LP (the LP rises — not a leak) and
+      //             the alive-with-0 clause never fires.
       const revive = !!m.ext?.revive;
       const countedOf = (ps) => {
         const r = m.lastResults.get(ps.playerId) || { leaked: [] };
         return (r.leaked || []).filter((l) => l && l.counted !== false).length;
       };
-      const maxOf = (ps) => uniteRan && plan.leakers.includes(ps) ? cap : Math.min(cap, countedOf(ps));
+      const survivors = uniteRan ? uniteSurvivors(plan, uniteResult) : null;
+      const billOf = (ps) => (uniteRan && plan.leakers.includes(ps) ? Math.min(cap, survivors.get(ps.playerId) || 0) : Math.min(cap, countedOf(ps)));
+      const sharedLp = !!m.ext?.sharedLp && m.alivePlayers().length > 1;
       const shares = sharedLp ? (() => {
         const mates = m.alivePlayers();
-        const total = mates.reduce((s, ps) => s + maxOf(ps), 0);
-        const base = Math.floor(total / mates.length);
-        let rem = total - base * mates.length;
-        return { total, map: new Map(mates.map((ps) => [ps, base + (rem-- > 0 ? 1 : 0)])) };
+        const total = mates.reduce((s, ps) => s + billOf(ps), 0);
+        const pool = Math.max(0, mates.reduce((s, ps) => s + Math.max(0, before.get(ps) ?? ps.lp), 0) - total);
+        const base = Math.floor(pool / mates.length);
+        let rem = pool - base * mates.length;
+        return { total, pool, map: new Map(mates.map((ps) => [ps, base + (rem-- > 0 ? 1 : 0)])) };
       })() : null;
       for (const [ps, lp0] of before) {
         const counted = countedOf(ps);
         // after 联防 a leaker pays for every surviving enemy of its source — the enemies the field itself spawned while it
         // ran (splitters, summoners: `uniteRuntime`) are not billable — so only the cap bounds it; everybody else never exceeds own leaks
-        const max = maxOf(ps);
+        const max = billOf(ps);
         if (ps.alive) {
           if (revive && ps.lp === gd.startLp(ps.bandId) && lp0 <= max) continue; // 复活队友: charged to 0, restored to the start LP
           const loss = lp0 - ps.lp;
           if (loss < 0) fail(`${ps.playerId}: LP rose in settle ${lp0} → ${ps.lp}`);
           if (shares) {
             const want = shares.map.get(ps) ?? 0;
-            if (loss !== want) fail(`${ps.playerId}: lost ${loss} LP, sharedLp share ${want} of ${shares.total} over ${shares.map.size} alive`);
+            if (ps.lp !== want) fail(`${ps.playerId}: LP ${ps.lp}, sharedLp pool ${shares.pool} of ${shares.total} bill over ${shares.map.size} alive wants ${want}`);
           } else {
             if (loss > max) fail(`${ps.playerId}: lost ${loss} LP with ${counted} counted leaks (cap ${cap})`);
             if (!uniteRan && loss !== max) fail(`${ps.playerId}: lost ${loss} LP, expected min(${cap}, ${counted})`);

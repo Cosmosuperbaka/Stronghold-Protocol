@@ -248,40 +248,35 @@ export class MatchViews {
     const counted = (r) => (r && Array.isArray(r.leaked) ? r.leaked.filter((l) => l && l.counted !== false).length : 0);
     // 联防: a leaker's enemies still standing on the 联防 field (uncapped), the loss capped like settle()
     const left = this._uniteLeft(ps);
-    if (left != null) {
-      const loss = Math.min(this.gd.lpCapPerRound, left);
-      return loss > 0 ? { uniteLeft: left, pendingLp: loss } : { uniteLeft: left };
-    }
-    let n = 0;
-    if (this.lastResults.has(ps.playerId)) n = counted(this.lastResults.get(ps.playerId));
-    else if (this.phase === PHASE.COMBAT) {
-      const f = this.fields.find((x) => x && x.kind === 'normal' && Array.isArray(x.players) && x.players.includes(ps.playerId));
-      if (f && f.cc) n = f.done && f.result ? counted(f.result.perPlayer && f.result.perPlayer[ps.playerId]) : Number(f.progress && f.progress.leaks) || 0;
-      else if (f && f.battle) { try { n = battleProgress(f.battle).leaks; } catch { n = 0; } }
-    }
-    // 玩法扩展 sharedLp (共享血条): the live counter shows the player's projected even share of the team's total
-    // (settle.js does the authoritative spread at settlement, remainder to the first players of the alive order —
-    // mirrored here so the LP bars of the team panel fall together). 联防 keeps the leaker's own counter above.
-    if (this.ext?.sharedLp && this.phase === PHASE.COMBAT) {
-      const mates = this.alivePlayers();
-      let total = 0;
-      for (const q of mates) {
-        let k = 0;
-        if (this.lastResults.has(q.playerId)) k = counted(this.lastResults.get(q.playerId));
-        else {
-          const f = this.fields.find((x) => x && x.kind === 'normal' && Array.isArray(x.players) && x.players.includes(q.playerId));
-          if (f && f.cc) k = f.done && f.result ? counted(f.result.perPlayer && f.result.perPlayer[q.playerId]) : Number(f.progress && f.progress.leaks) || 0;
-          else if (f && f.battle) { try { k = battleProgress(f.battle).leaks; } catch { k = 0; } }
-        }
-        total += Math.min(this.gd.lpCapPerRound, Math.max(0, Math.trunc(Number(k) || 0)));
+    // this doctor's own bill so far: the 联防 leftovers for a leaker, otherwise its leaks (settled or still running)
+    const ownBill = (q) => {
+      const lq = this._uniteLeft(q);
+      if (lq != null) return Math.min(this.gd.lpCapPerRound, Math.max(0, Math.trunc(lq)));
+      let k = 0;
+      if (this.lastResults.has(q.playerId)) k = counted(this.lastResults.get(q.playerId));
+      else if (this.phase === PHASE.COMBAT) {
+        const f = this.fields.find((x) => x && x.kind === 'normal' && Array.isArray(x.players) && x.players.includes(q.playerId));
+        if (f && f.cc) k = f.done && f.result ? counted(f.result.perPlayer && f.result.perPlayer[q.playerId]) : Number(f.progress && f.progress.leaks) || 0;
+        else if (f && f.battle) { try { k = battleProgress(f.battle).leaks; } catch { k = 0; } }
       }
-      const base = Math.floor(total / mates.length);
-      const rem = total - base * mates.length;
-      const idx = mates.findIndex((q) => q.playerId === ps.playerId);
-      const loss = base + (idx >= 0 && idx < rem ? 1 : 0);
-      return loss > 0 ? { pendingLp: loss } : {};
+      return Math.min(this.gd.lpCapPerRound, Math.max(0, Math.trunc(Number(k) || 0)));
+    };
+    // 玩法扩展 sharedLp (共享血条): one team pool — every bar previews the same even share of the team's total bill
+    // (settle.js does the authoritative deal, remainder to the first players of the alive order; mirrored here so the
+    // bars fall together). 联防 changes the total, never who pays, so the preview holds through the 联防 phase too.
+    if (this.ext?.sharedLp) {
+      const mates = this.alivePlayers();
+      if (mates.length > 1) {
+        const total = mates.reduce((s, q) => s + ownBill(q), 0);
+        const base = Math.floor(total / mates.length);
+        const rem = total - base * mates.length;
+        const idx = mates.findIndex((q) => q.playerId === ps.playerId);
+        const loss = idx >= 0 ? base + (idx < rem ? 1 : 0) : 0;
+        return { ...(left != null ? { uniteLeft: left } : {}), ...(loss > 0 ? { pendingLp: loss } : {}) };
+      }
     }
-    const loss = Math.min(this.gd.lpCapPerRound, Math.max(0, Math.trunc(Number(n) || 0)));
+    if (left != null) return left > 0 ? { uniteLeft: left, pendingLp: Math.min(this.gd.lpCapPerRound, left) } : { uniteLeft: left };
+    const loss = ownBill(ps);
     return loss > 0 ? { pendingLp: loss } : {};
   }
 

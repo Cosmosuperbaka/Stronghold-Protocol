@@ -127,8 +127,8 @@ test('revive off (default): an LP-0 doctor is eliminated as usual', () => {
   m.dispose();
 });
 
-test('sharedLp: a normal round spreads the team total over the alive players (remainder to the alive order)', () => {
-  // both doctors leak (no perfect seat → no 联防 rescue): 3 + 1 = 4 total → an even 2 + 2 split
+test('sharedLp: one team pool — the round bill comes off Σ LP, the rest is dealt back evenly', () => {
+  // both doctors leak (no perfect seat → no 联防 rescue): 3 + 1 = 4 comes off the pool, then the pool is split again
   const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', seed: 5, fake: true, humans: 2, bots: 0,
     extensions: { sharedLp: true }, script: () => ({ leaks: { p_0: 3, p_1: 1 } }) }).start();
   h.toPrep(1);
@@ -136,9 +136,25 @@ test('sharedLp: a normal round spreads the team total over the alive players (re
   const [a, b] = [h.ps('p_0'), h.ps('p_1')];
   const total0 = a.lp + b.lp;
   h.drive(() => m.phase === 'PREP' && m.round === 2);
-  assert.equal(a.lp, m.gd.startLp(a.bandId) - 2, 'sharedLp: p_0 pays the even share 2 of the team total 4');
-  assert.equal(b.lp, m.gd.startLp(b.bandId) - 2, 'sharedLp: p_1 pays the same share 2 (no remainder at 4/2)');
-  assert.equal(total0 - (a.lp + b.lp), 4, 'the team total is conserved: 4 leaks → 4 LP');
+  assert.equal(total0 - (a.lp + b.lp), 4, 'the team pool loses exactly the round bill: 4 leaks → 4 LP');
+  assert.ok(Math.abs(a.lp - b.lp) <= 1, `sharedLp: the pool is dealt back evenly (${a.lp} vs ${b.lp})`);
+  assert.equal(a.stats.lpLost + b.stats.lpLost, 4, 'the shared bars drop by the team bill in total');
+  h.invariants();
+  m.dispose();
+});
+
+test('sharedLp + 联防: the pool absorbs the 联防 bill too — no round pays one doctor alone', () => {
+  // p_0 leaks 4, p_1 is perfect → 联防 runs and its survivors still bill 4: the pool takes it, both bars end even
+  const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', seed: 5, fake: true, humans: 2, bots: 0,
+    extensions: { sharedLp: true },
+    script: (b) => (b.kind === 'unite' ? { survivors: { p_0: 4 } } : { leaks: { p_0: 4, p_1: 0 } }) }).start();
+  h.toPrep(1);
+  const m = h.m;
+  const [a, b] = [h.ps('p_0'), h.ps('p_1')];
+  const total0 = a.lp + b.lp;
+  h.drive(() => m.phase === 'PREP' && m.round === 2);
+  assert.equal(total0 - (a.lp + b.lp), 4, 'the 联防 bill comes off the team pool, not off the leaker alone');
+  assert.ok(Math.abs(a.lp - b.lp) <= 1, `sharedLp: both bars end even after a 联防 round (${a.lp} vs ${b.lp})`);
   h.invariants();
   m.dispose();
 });

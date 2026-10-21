@@ -38,9 +38,10 @@ export const NAME_MAX_LEN = 12;
  *   `revive` = 复活队友: a doctor whose LP hits 0 is restored to their strategy's start LP (settle.js) instead of
  *              being eliminated — the run keeps going. A mid-match departure still eliminates as before (the board
  *              is gone, there is nothing to revive).
- *   `sharedLp` = 共享血条: a normal round's total LP loss is spread evenly over the still-alive players (settle.js) —
- *              leaks stop being the leaker's private bill. 联防 rounds keep the leakers' own charges, matching what
- *              the 联防 result dialog explains per player.
+ *   `sharedLp` = 共享血条: the team owns ONE pool — Σ LP. A round's whole bill is taken off that pool and the
+ *              remainder is dealt back to the alive players as evenly as possible (settle.js), so the bars always
+ *              move together and a leak bills the team, never just the doctor who leaked. 联防 only decides HOW MUCH
+ *              a round costs (its surviving enemies), not who pays it.
  *   `dupBand` = 重复策略: the opening strategy draft no longer marks a teammate's pick as 队友已选 — two or more players
  *              may take the same strategy (the automatic assignments may repeat too).
  *   `bossPanel` = DPS面板: the top-right DPS panel (ui/dpsPanel.js) shows for the room's players (default on).

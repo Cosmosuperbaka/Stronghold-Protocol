@@ -26,10 +26,11 @@ export class MatchSettle {
     const survivors = uniteRan ? uniteSurvivors(plan, uniteResult) : null;
     // The 联防's outcome as data for the SETTLE view (m.public.uniteResult, views.js; GitHub #235, PR #112 by @Convey123):
     // each client pops the official result box from it (ui/gameLogic/phases.js uniteResultBox) — `through` = the leakers'
-    // enemies that still got through (uncapped; only decides whether 「全员无伤！」 is true), `losses` = every alive
-    // player's own LP charge of this round, the same `loss` deducted below, so the box and the LP bar never disagree. A
-    // leaker's own battle leaks are not its charge in a 联防 round, which is why the client cannot work the number out
-    // itself. No ticker line: the official reports the outcome in the one dialog. null when no 联防 resolved.
+    // enemies that still got through (uncapped; only decides whether 「全员无伤！」 is true), `losses` = what every
+    // alive player's bar actually loses this round (with 共享血条 that is the pool's even share, not the own bill),
+    // the same `charge` deducted below, so the box and the LP bar never disagree. A leaker's own battle leaks are not
+    // its charge in a 联防 round, which is why the client cannot work the number out itself. No ticker line: the
+    // official reports the outcome in the one dialog. null when no 联防 resolved.
     this.uniteResultView = uniteRan && plan.leakers.length ? {
       through: plan.leakers.reduce((n, lk) => n + Math.max(0, survivors.get(lk.playerId) || 0), 0),
       helpers: plan.helpers.map((p) => p.playerId),
@@ -37,32 +38,34 @@ export class MatchSettle {
       losses: {},
     } : null;
     const alive = this.alivePlayers();
-    // 玩法扩展 sharedLp (共享血条): a normal round's total LP loss is spread evenly over the still-alive players —
-    // leaks stop being the leaker's private bill and the team's LP bars move together. 联防 rounds keep the leakers'
-    // own charges (the 联防 dialog explains them per player; flattening them would contradict what it shows).
-    let chargeOf = null;
-    if (this.ext?.sharedLp && !uniteRan && alive.length > 1) {
-      let total = 0;
-      for (const ps of alive) {
-        const r = this.lastResults.get(ps.playerId) || { leaked: [], perfect: true, coins: 0, layerGains: {}, killed: 0, damageDealt: 0 };
-        const counted = (r.leaked || []).filter((l) => l && l.counted !== false).length;
-        total += Math.min(cap, counted);
-      }
-      if (total > 0) {
-        const base = Math.floor(total / alive.length);
-        let rem = total - base * alive.length;
-        chargeOf = new Map();
-        for (const ps of alive) chargeOf.set(ps.playerId, base + (rem-- > 0 ? 1 : 0));
-      }
+    // 玩法扩展 sharedLp (共享血条): the team owns ONE pool. Every point this round costs comes off Σ LP first, then
+    // the pool is dealt back to the alive players as evenly as possible (remainder to the alive order) — the bars of
+    // a co-op team always move together and a leak bills the team, never just the doctor who leaked. 联防 only decides
+    // HOW MUCH the round costs (its survivors), not WHO pays: the pool absorbs it like any other round.
+    const shared = !!this.ext?.sharedLp && alive.length > 1;
+    const ownLoss = new Map();
+    for (const ps of alive) {
+      const r = this.lastResults.get(ps.playerId) || { leaked: [], perfect: true, coins: 0, layerGains: {}, killed: 0, damageDealt: 0 };
+      const counted = (r.leaked || []).filter((l) => l && l.counted !== false).length;
+      ownLoss.set(ps.playerId, uniteRan && plan.leakers.includes(ps) ? Math.min(cap, survivors.get(ps.playerId) || 0) : Math.min(cap, counted));
+    }
+    let shareOf = null;
+    if (shared) {
+      const total = [...ownLoss.values()].reduce((s, n) => s + n, 0);
+      const pool = Math.max(0, alive.reduce((s, ps) => s + Math.max(0, ps.lp), 0) - total);
+      const base = Math.floor(pool / alive.length);
+      let rem = pool - base * alive.length;
+      shareOf = new Map(alive.map((ps) => [ps.playerId, base + (rem-- > 0 ? 1 : 0)]));
     }
     for (const ps of alive) {
       const r = this.lastResults.get(ps.playerId) || { leaked: [], perfect: true, coins: 0, layerGains: {}, killed: 0, damageDealt: 0 };
       const counted = (r.leaked || []).filter((l) => l && l.counted !== false).length;
-      const loss = uniteRan && plan.leakers.includes(ps) ? Math.min(cap, survivors.get(ps.playerId) || 0) : Math.min(cap, counted);
-      const charge = chargeOf ? chargeOf.get(ps.playerId) : loss;
-      if (this.uniteResultView) this.uniteResultView.losses[ps.playerId] = loss;
+      const loss = ownLoss.get(ps.playerId);
+      // what this doctor's bar actually loses: the pool's even share when shared, its own bill otherwise
+      const charge = shared ? Math.max(0, ps.lp - shareOf.get(ps.playerId)) : loss;
+      if (this.uniteResultView) this.uniteResultView.losses[ps.playerId] = charge;
       ps.leakHistory = normalLeakHistory(this, ps, r, { plan, uniteResult, uniteRan, loss });
-      ps.lp -= charge;
+      ps.lp = shared ? shareOf.get(ps.playerId) : ps.lp - charge;
       ps.stats.lpLost += charge;
       ps.stats.leaks += counted;
       ps.stats.kills += Number(r.killed) || 0;
