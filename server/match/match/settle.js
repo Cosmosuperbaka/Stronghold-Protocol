@@ -14,6 +14,23 @@ import { onSettle, resetRoundCounters } from '../botEmotes.js';
 import { creditedKillsOf } from '../../sim/spec.js';
 
 export class MatchSettle {
+  /**
+   * 玩法扩展 sharedLp (共享血条): form the team pool once the strategies are set (phases.js enterBattleCheck) —
+   * Σ 目标生命值 dealt back evenly over every seat — so the team really does own one bar from round 1 and no later
+   * settlement can ever hand a doctor more LP than it had (the pool only shrinks, its even share only falls).
+   */
+  mergeSharedLp() {
+    const ps = this.order.filter((p) => p && p.alive !== false);
+    if (ps.length < 2) return;
+    const pool = ps.reduce((s, p) => s + Math.max(0, p.lp), 0);
+    const base = Math.floor(pool / ps.length);
+    let rem = pool - base * ps.length;
+    for (const p of ps) {
+      p.lp = base + (rem-- > 0 ? 1 : 0);
+      p.dirty();
+    }
+  }
+
   settle(plan, uniteResult) {
     this.phase = PHASE.SETTLE;
     this.runner = null;

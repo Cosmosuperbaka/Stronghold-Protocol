@@ -5,9 +5,10 @@
 ## 2026-10-21 — 热修：共享血条改为「全队一条总血条」
 
 - `sharedLp`（共享血条）此前按「受伤均摊」实现：普通回合把全队漏怪平均分给每个人，联防回合又退回漏怪者自负，于是同一件事会出现「有时扣有时不扣」。现改为真正的血池语义：
-  - 任意回合（含联防）先把每个人的应扣额相加得到本回合总账，从 `Σ 全队目标生命值` 里扣掉，再把余量按存活顺序平均分回每个人（余数给靠前的座位）。
+  - 开局选定策略后（`enterBattleCheck`）立刻把全队目标生命值合并成一条总血条，再平均回分给每个座位，之后全队数字始终一致。
+  - 任意回合（含联防）先把每个人的应扣额相加得到本回合总账，从总血条里扣掉，再把余量按存活顺序平均分回每个人（余数给靠前的座位）。
   - 结果：全队血量条永远同步下降，任何人漏怪都由团队承担；联防只决定这一回合总共扣多少（守住了就是 0），不再决定由谁承担。
-  - 改动点：`server/match/match/settle.js`（结算）、`server/match/match/views.js`（`pendingLp` 预览，联防阶段同样按血池显示）、`server/match/audit.js`（`sharedLp` 校验改为核对血池余量）、`shared/constants.js` 与房间面板说明文案。
+  - 改动点：`server/match/match/settle.js`（`mergeSharedLp` + 结算）、`server/match/match/views.js`（`pendingLp` 预览，联防阶段同样按血池显示）、`server/match/match/phases.js`（开局合并）、`server/match/audit.js`（战备检查与结算校验改为核对血池）、`shared/constants.js` 与房间面板说明文案。
 - 新增测试：普通回合血池守恒 + 均匀回分、联防回合同样走血池（`test/match/mods-extensions.test.js`）。`test/match/**` 1035 项通过（1 项并行偶发超时，单独运行通过）。
 
 ## 2026-10-21 — v0.3.1-extended.7：合并官方 v0.3.1-extended.6

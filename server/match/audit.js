@@ -313,9 +313,18 @@ export function attachAudit(m, { invariants = true, limit = 200 } = {}) {
     const r = orig();
     runInvariants();
     check('bands', () => {
+      // 玩法扩展 sharedLp (共享血条): enterBattleCheck merges the team into one pool and deals it back evenly
+      const seats = m.ext?.sharedLp ? m.order.filter((p) => p && p.alive !== false) : [];
+      const shared = seats.length > 1;
+      const pool = seats.reduce((s, p) => s + gd.startLp(p.bandId), 0);
+      const base = shared ? Math.floor(pool / seats.length) : 0;
+      let rem = shared ? pool - base * seats.length : 0;
+      const want = new Map(shared ? seats.map((p) => [p, base + (rem-- > 0 ? 1 : 0)]) : []);
       for (const ps of m.order) {
         if (!ps.bandId || !gd.bandAllowed(ps.bandId)) fail(`${ps.playerId}: band ${ps.bandId} not allowed`);
-        if (ps.lp !== gd.startLp(ps.bandId)) fail(`${ps.playerId}: LP ${ps.lp} != totalHp ${gd.startLp(ps.bandId)} of ${ps.bandId}`);
+        if (shared) {
+          if (ps.lp !== want.get(ps)) fail(`${ps.playerId}: LP ${ps.lp} != sharedLp share ${want.get(ps)} (pool ${pool} over ${seats.length})`);
+        } else if (ps.lp !== gd.startLp(ps.bandId)) fail(`${ps.playerId}: LP ${ps.lp} != totalHp ${gd.startLp(ps.bandId)} of ${ps.bandId}`);
       }
       expectDeadline(gd.timer('battleCheck'), 'BATTLE_CHECK', { silentSolo: true });
     });

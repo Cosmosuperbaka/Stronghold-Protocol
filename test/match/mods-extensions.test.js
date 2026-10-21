@@ -134,6 +134,7 @@ test('sharedLp: one team pool — the round bill comes off Σ LP, the rest is de
   h.toPrep(1);
   const m = h.m;
   const [a, b] = [h.ps('p_0'), h.ps('p_1')];
+  assert.ok(Math.abs(a.lp - b.lp) <= 1, `sharedLp: the team pool is merged at battle check (${a.lp} vs ${b.lp})`);
   const total0 = a.lp + b.lp;
   h.drive(() => m.phase === 'PREP' && m.round === 2);
   assert.equal(total0 - (a.lp + b.lp), 4, 'the team pool loses exactly the round bill: 4 leaks → 4 LP');

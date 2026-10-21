@@ -257,6 +257,8 @@ export class MatchPhases {
 
   enterBattleCheck() {
     this.phase = PHASE.BATTLE_CHECK;
+    // 玩法扩展 sharedLp (共享血条): the strategies just set every doctor's LP — merge them into the team pool now
+    if (this.ext?.sharedLp) this.mergeSharedLp();
     this.setDeadline(this.gd.timer('battleCheck'), () => this.afterBattleCheck(), { silent: this.soloUntimed });
     this.markPublic();
   }
